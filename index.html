@@ -858,21 +858,6 @@
           </button>
         </form>
 
-        <!-- ปุ่มทดสอบสลับสิทธิ์อย่างรวดเร็ว -->
-        <div class="demo-role-pills">
-          <button type="button" class="role-pill-btn" onclick="fillQuickLogin('admin','admin123')">
-            <strong>👑 Admin</strong><br><span>admin / admin123</span>
-          </button>
-          <button type="button" class="role-pill-btn" onclick="fillQuickLogin('manager','manager123')">
-            <strong>📊 Manager</strong><br><span>manager / manager123</span>
-          </button>
-          <button type="button" class="role-pill-btn" onclick="fillQuickLogin('office','office123')">
-            <strong>💼 Office</strong><br><span>office / office123</span>
-          </button>
-          <button type="button" class="role-pill-btn" onclick="fillQuickLogin('store','store123')">
-            <strong>📦 Store</strong><br><span>store / store123</span>
-          </button>
-        </div>
       </div>
     </div>
   </section>
@@ -3402,8 +3387,8 @@
           isSchemaReady = true;
           lastPullTs = Date.now();
 
-          // หากตารางบน Supabase เพิ่งสร้างเสร็จและยังว่างเปล่า ให้ซิงค์ข้อมูลเริ่มต้นขึ้นไปอัตโนมัติ
-          if ((!pRes.data || pRes.data.length === 0) && (!stRes.data || stRes.data.length === 0) && !initialSeedDone) {
+          // หากตาราง wms_users บน Supabase ยังว่างเปล่า ให้ซิงค์เฉพาะข้อมูลเริ่มต้น (Default Seed Data) ขึ้นไปอัตโนมัติ
+          if ((!uRes.data || uRes.data.length === 0) && !initialSeedDone) {
             initialSeedDone = true;
             try {
               await pushAllToSupabase(LocalPreviewEngine.getDb());
@@ -3431,7 +3416,7 @@
             }));
           }
 
-          if (Array.isArray(cRes.data) && cRes.data.length > 0) {
+          if (Array.isArray(cRes.data)) {
             mappedDb.clients = cRes.data.map(r => ({
               ClientID: r.client_id,
               ClientCode: r.client_code || '',
@@ -4217,89 +4202,23 @@
       const todayStr = formatTodayThai();
       const defaultDb = {
         users: [
-          { userId: 'USR-001', username: 'admin', pass: 'admin123', fullName: 'ผู้ดูแลระบบ (System Admin)', role: 'Admin', clientId: '', clientName: 'บริษัท พรมารีน จำกัด', email: 'admin@pormarine.co.th', phone: '081-000-0001', status: 'Active', lastLogin: nowStr },
-          { userId: 'USR-002', username: 'manager', pass: 'manager123', fullName: 'ผู้จัดการคลัง (Manager)', role: 'Manager', clientId: '', clientName: 'บริษัท พรมารีน จำกัด', email: 'manager@pormarine.co.th', phone: '081-000-0002', status: 'Active', lastLogin: nowStr },
-          { userId: 'USR-003', username: 'office', pass: 'office123', fullName: 'เจ้าหน้าที่สนง. (Office)', role: 'Office', clientId: '', clientName: 'บริษัท พรมารีน จำกัด', email: 'office@pormarine.co.th', phone: '081-000-0003', status: 'Active', lastLogin: nowStr },
-          { userId: 'USR-004', username: 'store', pass: 'store123', fullName: 'เจ้าหน้าที่คลัง (Store)', role: 'Store', clientId: '', clientName: 'บริษัท พรมารีน จำกัด', email: 'store@pormarine.co.th', phone: '081-000-0004', status: 'Active', lastLogin: nowStr },
-          { userId: 'USR-007', username: 'PR001', pass: 'client123', fullName: 'K.Arom', role: 'Client Portal', clientId: 'CLI-001', clientName: 'K.Arom', email: 'contact@karom.co.th', phone: '081-806-2222', status: 'Active', lastLogin: nowStr },
-          { userId: 'USR-008', username: 'NC001', pass: 'client123', fullName: 'NC FOOD', role: 'Client Portal', clientId: 'CLI-002', clientName: 'บจก. NC FOOD', email: 'contact@ncfood.co.th', phone: '081-222-4466', status: 'Active', lastLogin: nowStr }
+          { userId: 'USR-001', username: 'admin', pass: 'admin123', fullName: 'ผู้ดูแลระบบ (System Admin)', role: 'Admin', clientId: '', clientName: 'บริษัท พรมารีน จำกัด', email: 'admin@pormarine.co.th', phone: '081-000-0001', status: 'Active', lastLogin: '' },
+          { userId: 'USR-002', username: 'manager', pass: 'manager123', fullName: 'ผู้จัดการคลัง (Manager)', role: 'Manager', clientId: '', clientName: 'บริษัท พรมารีน จำกัด', email: 'manager@pormarine.co.th', phone: '081-000-0002', status: 'Active', lastLogin: '' },
+          { userId: 'USR-003', username: 'office', pass: 'office123', fullName: 'เจ้าหน้าที่สนง. (Office)', role: 'Office', clientId: '', clientName: 'บริษัท พรมารีน จำกัด', email: 'office@pormarine.co.th', phone: '081-000-0003', status: 'Active', lastLogin: '' },
+          { userId: 'USR-004', username: 'store', pass: 'store123', fullName: 'เจ้าหน้าที่คลัง (Store)', role: 'Store', clientId: '', clientName: 'บริษัท พรมารีน จำกัด', email: 'store@pormarine.co.th', phone: '081-000-0004', status: 'Active', lastLogin: '' }
         ],
-        clients: [
-          { ClientID: 'CLI-001', ClientCode: 'C001', ClientName: 'K.Arom', ContactPerson: 'คุณอารมณ์', Phone: '081-806-2222', Email: 'contact@karom.co.th', Address: 'จ.สมุทรสาคร', TaxID: '0105560011223', BillingCycleDays: 30, StorageRatePerKgDay: 0.8, Status: 'Active', Notes: 'โซน A' },
-          { ClientID: 'CLI-002', ClientCode: 'C002', ClientName: 'บจก. NC FOOD', ContactPerson: 'คุณประสิทธิ์ แซ่ตั้ง', Phone: '081-222-4466', Email: 'contact@ncfood.co.th', Address: '102 ต.บางหญ้าแพรก อ.เมือง จ.สมุทรสาคร', TaxID: '0105562233445', BillingCycleDays: 30, StorageRatePerKgDay: 0.8, Status: 'Active', Notes: 'โซน A' },
-          { ClientID: 'CLI-003', ClientCode: 'C003', ClientName: 'บจก. แปซิฟิก โฟรเซ่น ฟิช', ContactPerson: 'คุณธนกร สมุทรไพศาล', Phone: '081-555-7788', Email: 'thanakorn@pacificfrozen.co.th', Address: '45/9 ต.ท่าจีน จ.สมุทรสาคร', TaxID: '0105561122334', BillingCycleDays: 15, StorageRatePerKgDay: 0.8, Status: 'Active', Notes: 'รอบบิล 15 วัน' }
-        ],
+        clients: [],
         categories: [
           { CategoryID: 'CAT-001', CategoryName: 'อาหารทะเลแช่แข็ง', ProductItems: 'ปลาทู, ปลาซาบะ, ปลาดอลลี่, กุ้ง, หมึก, แซลมอน', DefaultUnit: 'กล่อง', DefaultQty: 100, DefaultWeight: 10, Notes: 'อุณหภูมิ -18 ถึง -25°C' },
           { CategoryID: 'CAT-002', CategoryName: 'เนื้อสัตว์แช่แข็ง', ProductItems: 'เนื้อไก่, เนื้อหมู, เนื้อวัว, เป็ด', DefaultUnit: 'กล่อง', DefaultQty: 100, DefaultWeight: 10, Notes: 'อุณหภูมิ -18°C' },
           { CategoryID: 'CAT-003', CategoryName: 'อาหารแปรรูปแช่แข็ง', ProductItems: 'ไส้กรอก, ลูกชิ้น, ทอดมัน, นักเก็ต, ซูริมิ', DefaultUnit: 'กล่อง', DefaultQty: 80, DefaultWeight: 10, Notes: 'โซน C อุณหภูมิ -18°C' },
           { CategoryID: 'CAT-004', CategoryName: 'อื่นๆ', ProductItems: 'สินค้าเบ็ดเตล็ด, ผักผลไม้แช่แข็ง', DefaultUnit: 'กล่อง', DefaultQty: 50, DefaultWeight: 10, Notes: 'จัดเก็บตามเงื่อนไขที่กำหนด' }
         ],
-        products: [
-          { ProductID: 'PRD-0027', ProductCode: 'PM-Q001', LotNo: 'L0001', ProductName: 'หมึกบั้ง AA', Description: 'กล่องขาว เทปใส', CategoryID: 'CAT-001', CategoryName: 'อาหารทะเลแช่แข็ง', Unit: 'กล่อง', WeightPerUnit: 10, ClientID: 'CLI-002', ClientName: 'NC FOOD CO.,LTD.', ImageURL: '', LastReceiveDate: '21/10/2026', LastIssueDate: '', Status: 'Active' },
-          { ProductID: 'PRD-0065', ProductCode: 'PM-Q002', LotNo: 'L0002', ProductName: 'หมึกบั้ง B', Description: 'กล่องขาว เทปเขียว', CategoryID: 'CAT-001', CategoryName: 'อาหารทะเลแช่แข็ง', Unit: 'กล่อง', WeightPerUnit: 10, ClientID: 'CLI-002', ClientName: 'NC FOOD CO.,LTD.', ImageURL: '', LastReceiveDate: '21/10/2026', LastIssueDate: '', Status: 'Active' },
-          { ProductID: 'PRD-0033', ProductCode: 'PM-Q003', LotNo: 'L0003', ProductName: 'หมึกวง', Description: 'กล่องขาว เทปแดง', CategoryID: 'CAT-001', CategoryName: 'อาหารทะเลแช่แข็ง', Unit: 'กล่อง', WeightPerUnit: 10, ClientID: 'CLI-002', ClientName: 'NC FOOD CO.,LTD.', ImageURL: '', LastReceiveDate: '21/10/2026', LastIssueDate: '', Status: 'Active' },
-          { ProductID: 'PRD-0034', ProductCode: 'PM-Q004', LotNo: 'L0004', ProductName: 'หมึกวง', Description: 'กล่องขาว เทปแดง', CategoryID: 'CAT-001', CategoryName: 'อาหารทะเลแช่แข็ง', Unit: 'กล่อง', WeightPerUnit: 10, ClientID: 'CLI-002', ClientName: 'NC FOOD CO.,LTD.', ImageURL: '', LastReceiveDate: '21/10/2026', LastIssueDate: '', Status: 'Active' },
-          { ProductID: 'PRD-0017', ProductCode: 'PM-Q007', LotNo: 'L0017', ProductName: 'ปลากระพง 300/500', Description: 'กล่องนต. สายดำ', CategoryID: 'CAT-001', CategoryName: 'อาหารทะเลแช่แข็ง', Unit: 'กล่อง', WeightPerUnit: 10, ClientID: 'CLI-002', ClientName: 'NC FOOD CO.,LTD.', ImageURL: '', LastReceiveDate: '23/10/2026', LastIssueDate: '', Status: 'Active' },
-          { ProductID: 'PRD-0018', ProductCode: 'PM-Q008', LotNo: 'L0018', ProductName: 'ปลากระพง 500/800', Description: 'กล่องนต. สายเขียว', CategoryID: 'CAT-001', CategoryName: 'อาหารทะเลแช่แข็ง', Unit: 'กล่อง', WeightPerUnit: 10, ClientID: 'CLI-002', ClientName: 'NC FOOD CO.,LTD.', ImageURL: '', LastReceiveDate: '23/10/2026', LastIssueDate: '', Status: 'Active' },
-          { ProductID: 'PRD-0019', ProductCode: 'PM-Q009', LotNo: 'L0019', ProductName: 'ปลานิล 300/500', Description: 'กล่องนต. สายดำ', CategoryID: 'CAT-001', CategoryName: 'อาหารทะเลแช่แข็ง', Unit: 'กล่อง', WeightPerUnit: 10, ClientID: 'CLI-002', ClientName: 'NC FOOD CO.,LTD.', ImageURL: '', LastReceiveDate: '23/10/2026', LastIssueDate: '', Status: 'Active' },
-          { ProductID: 'PRD-001', ProductCode: 'PM-F001', LotNo: 'LOT-20261001-001', ProductName: 'ปลาซาบะนอร์เวย์แช่แข็ง Size L', Description: 'ปลาซาบะนำเข้า แช่แข็ง IQF กล่องละ 10 กก.', CategoryID: 'CAT-001', CategoryName: 'อาหารทะเลแช่แข็ง', Unit: 'กล่อง', WeightPerUnit: 10, ClientID: 'CLI-001', ClientName: 'K.Arom', ImageURL: '', LastReceiveDate: '01/10/2026', LastIssueDate: '12/10/2026', Status: 'Active' },
-          { ProductID: 'PRD-002', ProductCode: 'PM-F002', LotNo: 'LOT-20261005-002', ProductName: 'กุ้งขาวแวนนาไมผ่าหลังแช่แข็ง 31/40', Description: 'กุ้งขาวแกะเปลือกผ่าหลัง แพ็คกล่องละ 12 กก.', CategoryID: 'CAT-001', CategoryName: 'อาหารทะเลแช่แข็ง', Unit: 'กล่อง', WeightPerUnit: 12, ClientID: 'CLI-001', ClientName: 'K.Arom', ImageURL: '', LastReceiveDate: '05/10/2026', LastIssueDate: '', Status: 'Active' },
-          { ProductID: 'PRD-004', ProductCode: 'PM-F003', LotNo: 'LOT-20261010-004', ProductName: 'เนื้อปลาบดซูริมิ เกรด AA', Description: 'ซูริมิเนื้อปลาทะเล 100% บรรจุถุงละ 15 กก.', CategoryID: 'CAT-003', CategoryName: 'อาหารแปรรูปแช่แข็ง', Unit: 'ถุง', WeightPerUnit: 15, ClientID: 'CLI-001', ClientName: 'K.Arom', ImageURL: '', LastReceiveDate: '10/10/2026', LastIssueDate: '', Status: 'Active' },
-          { ProductID: 'PRD-0048', ProductCode: 'PM-F004', LotNo: 'L0004', ProductName: 'กุ้งเปลือก 21/25', Description: 'กล่องนต. เทปใส', CategoryID: 'CAT-001', CategoryName: 'อาหารทะเลแช่แข็ง', Unit: 'กล่อง', WeightPerUnit: 10, ClientID: 'CLI-001', ClientName: 'Arom Titha', ImageURL: '', LastReceiveDate: '21/10/2026', LastIssueDate: '', Status: 'Active' },
-          { ProductID: 'PRD-0088', ProductCode: 'PM-F005', LotNo: 'L0003', ProductName: 'กุ้ง 61/70', Description: 'กล่องนต. เทปใส', CategoryID: 'CAT-001', CategoryName: 'อาหารทะเลแช่แข็ง', Unit: 'กล่อง', WeightPerUnit: 10, ClientID: 'CLI-001', ClientName: 'Arom Titha', ImageURL: '', LastReceiveDate: '21/10/2026', LastIssueDate: '', Status: 'Active' }
-        ],
-        stock: [
-          { StockID: 'STK-0001', LotNo: 'L0001', ReceivingNo: 'IN-691021', ClientID: 'CLI-002', ClientName: 'NC FOOD CO.,LTD.', ProductID: 'PRD-0027', ProductCode: 'PM-Q001', ProductName: 'หมึกบั้ง AA', CategoryName: 'อาหารทะเลแช่แข็ง', Description: 'กล่องขาว เทปใส', Unit: 'กล่อง', WeightPerUnit: 10, InitialQty: 20, InitialWeight: 200, RemainQty: 20, RemainWeight: 200, ReceiveDate: '21/10/2026', NextBillingDate: '20/11/2026', BillingStatus: 'Active', RoomZone: 'Room A-01', VehicleInfo: '1019', Status: 'In Stock' },
-          { StockID: 'STK-0002', LotNo: 'L0002', ReceivingNo: 'IN-691021', ClientID: 'CLI-002', ClientName: 'NC FOOD CO.,LTD.', ProductID: 'PRD-0065', ProductCode: 'PM-Q002', ProductName: 'หมึกบั้ง B', CategoryName: 'อาหารทะเลแช่แข็ง', Description: 'กล่องขาว เทปเขียว', Unit: 'กล่อง', WeightPerUnit: 10, InitialQty: 10, InitialWeight: 100, RemainQty: 10, RemainWeight: 100, ReceiveDate: '21/10/2026', NextBillingDate: '20/11/2026', BillingStatus: 'Active', RoomZone: 'Room A-01', VehicleInfo: '1019', Status: 'In Stock' },
-          { StockID: 'STK-0003', LotNo: 'L0003', ReceivingNo: 'IN-691022', ClientID: 'CLI-002', ClientName: 'NC FOOD CO.,LTD.', ProductID: 'PRD-0033', ProductCode: 'PM-Q003', ProductName: 'หมึกวง', CategoryName: 'อาหารทะเลแช่แข็ง', Description: 'กล่องขาว เทปแดง', Unit: 'กล่อง', WeightPerUnit: 10, InitialQty: 10, InitialWeight: 100, RemainQty: 10, RemainWeight: 100, ReceiveDate: '21/10/2026', NextBillingDate: '20/11/2026', BillingStatus: 'Active', RoomZone: 'Room A-01', VehicleInfo: '1034', Status: 'In Stock' },
-          { StockID: 'STK-0004', LotNo: 'L0004', ReceivingNo: 'IN-691022', ClientID: 'CLI-002', ClientName: 'NC FOOD CO.,LTD.', ProductID: 'PRD-0034', ProductCode: 'PM-Q004', ProductName: 'หมึกวง', CategoryName: 'อาหารทะเลแช่แข็ง', Description: 'กล่องขาว เทปแดง', Unit: 'กล่อง', WeightPerUnit: 10, InitialQty: 20, InitialWeight: 200, RemainQty: 20, RemainWeight: 200, ReceiveDate: '21/10/2026', NextBillingDate: '20/11/2026', BillingStatus: 'Active', RoomZone: 'Room A-01', VehicleInfo: '1034', Status: 'In Stock' },
-          { StockID: 'STK-0017', LotNo: 'L0017', ReceivingNo: 'IN-690004', ClientID: 'CLI-002', ClientName: 'NC FOOD CO.,LTD.', ProductID: 'PRD-0017', ProductCode: 'PM-Q007', ProductName: 'ปลากระพง 300/500', CategoryName: 'อาหารทะเลแช่แข็ง', Description: 'กล่องนต. สายดำ', Unit: 'กล่อง', WeightPerUnit: 10, InitialQty: 5, InitialWeight: 50, RemainQty: 5, RemainWeight: 50, ReceiveDate: '23/10/2026', NextBillingDate: '22/11/2026', BillingStatus: 'Active', RoomZone: 'Room A-01', VehicleInfo: '7003', Status: 'In Stock' },
-          { StockID: 'STK-0018', LotNo: 'L0018', ReceivingNo: 'IN-690004', ClientID: 'CLI-002', ClientName: 'NC FOOD CO.,LTD.', ProductID: 'PRD-0018', ProductCode: 'PM-Q008', ProductName: 'ปลากระพง 500/800', CategoryName: 'อาหารทะเลแช่แข็ง', Description: 'กล่องนต. สายเขียว', Unit: 'กล่อง', WeightPerUnit: 10, InitialQty: 50, InitialWeight: 500, RemainQty: 50, RemainWeight: 500, ReceiveDate: '23/10/2026', NextBillingDate: '22/11/2026', BillingStatus: 'Active', RoomZone: 'Room A-01', VehicleInfo: '5030', Status: 'In Stock' },
-          { StockID: 'STK-0019', LotNo: 'L0019', ReceivingNo: 'IN-690004', ClientID: 'CLI-002', ClientName: 'NC FOOD CO.,LTD.', ProductID: 'PRD-0019', ProductCode: 'PM-Q009', ProductName: 'ปลานิล 300/500', CategoryName: 'อาหารทะเลแช่แข็ง', Description: 'กล่องนต. สายดำ', Unit: 'กล่อง', WeightPerUnit: 10, InitialQty: 25, InitialWeight: 250, RemainQty: 25, RemainWeight: 250, ReceiveDate: '23/10/2026', NextBillingDate: '22/11/2026', BillingStatus: 'Active', RoomZone: 'Room A-01', VehicleInfo: '5030', Status: 'In Stock' },
-          { StockID: 'STK-001', LotNo: 'LOT-20261005-002', ReceivingNo: 'RCV-20261005-0002', ClientID: 'CLI-001', ClientName: 'K.Arom', ProductID: 'PRD-002', ProductCode: 'PM-F002', ProductName: 'กุ้งขาวแวนนาไมผ่าหลังแช่แข็ง 31/40', CategoryName: 'อาหารทะเลแช่แข็ง', Description: 'กุ้งขาวแกะเปลือกผ่าหลัง แพ็คกล่องละ 12 กก.', Unit: 'กล่อง', WeightPerUnit: 12, InitialQty: 150, InitialWeight: 1800, RemainQty: 120, RemainWeight: 1440, ReceiveDate: '05/10/2026', NextBillingDate: '04/11/2026', BillingStatus: 'Active', RoomZone: 'Room A-02', VehicleInfo: 'บบ-5678 กรุงเทพฯ', Status: 'In Stock' },
-          { StockID: 'STK-002', LotNo: 'LOT-20261010-004', ReceivingNo: 'RCV-20261010-0004', ClientID: 'CLI-001', ClientName: 'K.Arom', ProductID: 'PRD-004', ProductCode: 'PM-F003', ProductName: 'เนื้อปลาบดซูริมิ เกรด AA', CategoryName: 'อาหารแปรรูปแช่แข็ง', Description: 'ซูริมิเนื้อปลาทะเล 100% บรรจุถุงละ 15 กก.', Unit: 'ถุง', WeightPerUnit: 15, InitialQty: 100, InitialWeight: 1500, RemainQty: 100, RemainWeight: 1500, ReceiveDate: '10/10/2026', NextBillingDate: '09/11/2026', BillingStatus: 'Active', RoomZone: 'Room C-01', VehicleInfo: '2ฒก-5566 กทม.', Status: 'In Stock' },
-          { StockID: 'STK-003', LotNo: 'LOT-20261001-001', ReceivingNo: 'RCV-20261001-0001', ClientID: 'CLI-001', ClientName: 'K.Arom', ProductID: 'PRD-001', ProductCode: 'PM-F001', ProductName: 'ปลาซาบะนอร์เวย์แช่แข็ง Size L', CategoryName: 'อาหารทะเลแช่แข็ง', Description: 'ปลาซาบะนำเข้า แช่แข็ง IQF กล่องละ 10 กก.', Unit: 'กล่อง', WeightPerUnit: 10, InitialQty: 250, InitialWeight: 2500, RemainQty: 170, RemainWeight: 1700, ReceiveDate: '01/10/2026', NextBillingDate: '31/10/2026', BillingStatus: 'Active', RoomZone: 'Room A-01', VehicleInfo: 'กข-1234 สมุทรสาคร', Status: 'In Stock' }
-        ],
-        receivings: [
-          { ReceivingNo: 'IN-691021', DateTimeIn: '21/10/2026 10:19:07', DateTimeOut: '21/10/2026 10:26:55', ClientID: 'CLI-002', ClientName: 'NC FOOD CO.,LTD.', TotalQty: 100, TotalWeight: 1530, VehicleInfo: '1019', DepositorName: 'NC FOOD', ReceiverName: 'เจ้าหน้าที่คลังห้องเย็น', InspectorName: 'ผู้ดูแลระบบ (System Admin)', Status: 'รับเข้าสต็อกสำเร็จ', Notes: '', items: [
-            { LotNo: 'L0001', ProductID: 'PRD-0027', ProductCode: 'PM-Q001', ProductName: 'หมึกบั้ง AA', Description: 'กล่องขาว เทปใส', Unit: 'กล่อง', WeightPerUnit: 10, Qty: 20, TotalWeight: 200, CategoryName: 'อาหารทะเลแช่แข็ง' },
-            { LotNo: 'L0002', ProductID: 'PRD-0065', ProductCode: 'PM-Q002', ProductName: 'หมึกบั้ง B', Description: 'กล่องขาว เทปเขียว', Unit: 'กล่อง', WeightPerUnit: 10, Qty: 10, TotalWeight: 100, CategoryName: 'อาหารทะเลแช่แข็ง' }
-          ] },
-          { ReceivingNo: 'IN-691022', DateTimeIn: '21/10/2026 10:33:47', DateTimeOut: '21/10/2026 12:00:31', ClientID: 'CLI-002', ClientName: 'NC FOOD CO.,LTD.', TotalQty: 30, TotalWeight: 300, VehicleInfo: '1034', DepositorName: 'NC FOOD', ReceiverName: 'เจ้าหน้าที่คลังห้องเย็น', InspectorName: 'ผู้ดูแลระบบ (System Admin)', Status: 'รับเข้าสต็อกสำเร็จ', Notes: 'Office กดรับคำสั่งแจ้งฝากแล้ว | อนุมัติรับฝากเข้าสต็อกเสร็จสมบูรณ์', items: [
-            { LotNo: 'L0003', ProductID: 'PRD-0033', ProductCode: 'PM-Q003', ProductName: 'หมึกวง', Description: 'กล่องขาว เทปแดง', Unit: 'กล่อง', WeightPerUnit: 10, Qty: 10, TotalWeight: 100, CategoryName: 'อาหารทะเลแช่แข็ง' },
-            { LotNo: 'L0004', ProductID: 'PRD-0034', ProductCode: 'PM-Q004', ProductName: 'หมึกวง', Description: 'กล่องขาว เทปแดง', Unit: 'กล่อง', WeightPerUnit: 10, Qty: 20, TotalWeight: 200, CategoryName: 'อาหารทะเลแช่แข็ง' }
-          ] },
-          { ReceivingNo: 'IN-691023', DateTimeIn: '21/10/2026 22:36:48', DateTimeOut: '21/10/2026 23:48:35', ClientID: 'CLI-001', ClientName: 'Arom Titha', TotalQty: 11, TotalWeight: 110, VehicleInfo: '1037', DepositorName: 'K.อารมณ์', ReceiverName: 'เจ้าหน้าที่คลังห้องเย็น', InspectorName: 'ผู้จัดการคลัง', Status: 'รับเข้าสต็อกสำเร็จ', Notes: 'Office กดรับคำสั่งแจ้งฝากแล้ว', items: [
-            { LotNo: 'L0003', ProductID: 'PRD-0088', ProductName: 'กุ้ง 61/70', Description: 'กล่องนต. เทปใส', Unit: 'กล่อง', WeightPerUnit: 10, Qty: 6, TotalWeight: 60, CategoryName: 'อาหารทะเลแช่แข็ง' },
-            { LotNo: 'L0004', ProductID: 'PRD-0048', ProductName: 'กุ้งเปลือก 21/25', Description: 'กล่องนต. เทปใส', Unit: 'กล่อง', WeightPerUnit: 10, Qty: 5, TotalWeight: 50, CategoryName: 'อาหารทะเลแช่แข็ง' }
-          ] },
-          { ReceivingNo: 'IN-691024', DateTimeIn: '21/10/2026 23:07:46', DateTimeOut: '21/10/2026 23:50:19', ClientID: 'CLI-001', ClientName: 'Arom Titha', TotalQty: 50, TotalWeight: 500, VehicleInfo: '1037', DepositorName: 'K.อารมณ์', ReceiverName: 'เจ้าหน้าที่คลังห้องเย็น', InspectorName: 'ผู้จัดการคลัง', Status: 'รับเข้าสต็อกสำเร็จ', Notes: 'อนุมัติรับฝากเข้าสต็อกเรียบร้อย', items: [
-            { LotNo: 'L0005', ProductID: 'PRD-002', ProductName: 'กุ้งขาวแวนนาไมผ่าหลังแช่แข็ง 31/40', Description: 'กล่องละ 12 กก.', Unit: 'กล่อง', WeightPerUnit: 10, Qty: 50, TotalWeight: 500, CategoryName: 'อาหารทะเลแช่แข็ง' }
-          ] },
-          { ReceivingNo: 'DEP-20261022-0003', DateTimeIn: '22/10/2026 13:36:31', DateTimeOut: '', ClientID: 'CLI-001', ClientName: 'Arom Titha', TotalQty: 5, TotalWeight: 60, VehicleInfo: '1037', DepositorName: 'K.อารมณ์', ReceiverName: 'เจ้าหน้าที่สนง. (Office)', InspectorName: '', Status: 'รับคำสั่งแล้ว', Notes: 'Office กดรับคำสั่งแจ้งฝากแล้ว', items: [
-            { LotNo: '', ProductName: 'หัวหมึกกล้วย 15/20', Description: 'กล่องน้ำตาล สายเขียว', Unit: 'กล่อง', WeightPerUnit: 12, Qty: 5, TotalWeight: 60, CategoryName: 'อาหารทะเลแช่แข็ง' }
-          ] }
-        ],
-        requisitions: [
-          { RequisitionNo: 'REQ-20261022-0002', DateTimeIn: '22/10/2026 13:38:20', DateTimeOut: '', ClientID: 'CLI-001', ClientName: 'Arom Titha', TotalQty: 2, TotalWeight: 20, VehicleInfo: '1038', RequesterName: 'K.อารมณ์', ApproverName: '', Status: 'รับคำสั่งแล้ว', Notes: 'Office กดรับคำสั่งแจ้งเบิกแล้ว', items: [
-            { LotNo: 'L0004', StockID: 'STK-0004', ProductName: 'กุ้งเปลือก 21/25', CategoryName: 'อาหารทะเลแช่แข็ง', Description: 'กล่องนต. เทปใส', Unit: 'กล่อง', WeightPerUnit: 10, Qty: 2, TotalWeight: 20 }
-          ] },
-          { RequisitionNo: 'REQ-20261022-0001', DateTimeIn: '22/10/2026 13:25:23', DateTimeOut: '', ClientID: 'CLI-001', ClientName: 'Arom Titha', TotalQty: 5, TotalWeight: 50, VehicleInfo: '1038', RequesterName: 'K.อารมณ์', ApproverName: '', Status: 'รับคำสั่งแล้ว', Notes: '', items: [
-            { LotNo: 'L0003', StockID: 'STK-0005', ProductName: 'กุ้ง 61/70', CategoryName: 'อาหารทะเลแช่แข็ง', Description: 'กล่องนต. เทปใส', Unit: 'กล่อง', WeightPerUnit: 10, Qty: 5, TotalWeight: 50 }
-          ] },
-          { RequisitionNo: 'REQ-20261019-0003', DateTimeIn: '19/10/2026 14:00:00', DateTimeOut: '', ClientID: 'CLI-001', ClientName: 'K.Arom', TotalQty: 30, TotalWeight: 360, VehicleInfo: 'รถห้องเย็น บบ-5678 กรุงเทพฯ', RequesterName: 'คุณอารมณ์', ApproverName: '', Status: 'อนุมัติเบิกสินค้า', Notes: 'หน้างานจัดเตรียมแล้ว ส่งรอ Manager อนุมัติ', items: [
-            { LotNo: 'LOT-20261005-002', StockID: 'STK-001', ProductName: 'กุ้งขาวแวนนาไมผ่าหลังแช่แข็ง 31/40', CategoryName: 'อาหารทะเลแช่แข็ง', Description: 'กล่องละ 12 กก.', Unit: 'กล่อง', WeightPerUnit: 12, Qty: 30, TotalWeight: 360 }
-          ] },
-          { RequisitionNo: 'OUT-69101201', DateTimeIn: '12/10/2026 13:30:00', DateTimeOut: '12/10/2026 14:20:00', ClientID: 'CLI-001', ClientName: 'K.Arom', TotalQty: 70, TotalWeight: 700, VehicleInfo: 'รถห้องเย็น กข-1234 สมุทรสาคร', RequesterName: 'คุณอารมณ์', ApproverName: 'ผู้จัดการคลังห้องเย็น (Manager)', Status: 'เบิกสินค้าสำเร็จ', Notes: 'เบิกส่งโรงงาน', items: [
-            { LotNo: 'LOT-20261001-001', StockID: 'STK-003', ProductName: 'ปลาซาบะนอร์เวย์แช่แข็ง Size L', CategoryName: 'อาหารทะเลแช่แข็ง', Description: 'กล่องละ 10 กก.', Unit: 'กล่อง', WeightPerUnit: 10, Qty: 70, TotalWeight: 700 }
-          ] }
-        ],
-        movements: [
-          { MovementID: 'MOV-0002', Timestamp: '21/10/2026 10:26:57', MovementType: 'IN', RefDocNo: 'IN-691021', LotNo: 'L0002', ClientID: 'CLI-002', ClientName: 'NC FOOD CO.,LTD.', ProductID: 'PRD-0065', ProductName: 'หมึกวง', Unit: 'กล่อง', WeightPerUnit: 10, QtyChange: 50, WeightChange: 500, BalanceQty: 50, BalanceWeight: 500, VehicleInfo: '1019', RecordedBy: 'PR002', ApprovedBy: 'admin', Notes: 'อนุมัติรับฝากเข้าสต็อกเสร็จสมบูรณ์' },
-          { MovementID: 'MOV-0001', Timestamp: '21/10/2026 10:26:57', MovementType: 'IN', RefDocNo: 'IN-691021', LotNo: 'L0001', ClientID: 'CLI-002', ClientName: 'NC FOOD CO.,LTD.', ProductID: 'PRD-0027', ProductName: 'หางหมึก', Unit: 'กระสอบ', WeightPerUnit: 'น้ำหนักชั่ง', QtyChange: 50, WeightChange: 1030, BalanceQty: 50, BalanceWeight: 1030, VehicleInfo: '1019', RecordedBy: 'PR002', ApprovedBy: 'admin', Notes: 'อนุมัติรับฝากเข้าสต็อกเสร็จสมบูรณ์' },
-          { MovementID: 'MOV-003', Timestamp: '12/10/2026 14:20:00', MovementType: 'OUT', RefDocNo: 'OUT-69101201', LotNo: 'LOT-20261001-001', ClientID: 'CLI-001', ClientName: 'K.Arom', ProductName: 'ปลาซาบะนอร์เวย์แช่แข็ง Size L', Unit: 'กล่อง', WeightPerUnit: 10, QtyChange: -70, WeightChange: -700, BalanceQty: 180, BalanceWeight: 1800, VehicleInfo: 'กข-1234 สมุทรสาคร', RecordedBy: 'warehouse', ApprovedBy: 'manager', Notes: 'เบิกส่งโรงงาน' }
-        ],
+        products: [],
+        stock: [],
+        receivings: [],
+        requisitions: [],
+        movements: [],
         settings: {
           COMPANY_NAME: 'บริษัท พรมารีน จำกัด',
           COMPANY_ENG: 'POR MARINE CO., LTD.',
@@ -4308,13 +4227,13 @@
           BILLING_ALERT_DAYS: '5',
           LOW_STOCK_THRESHOLD: '20',
           COLD_ROOM_TEMP: '-18°C',
-          LAST_BACKUP_INFO: 'ยังไม่มีประวัติการสำรองข้อมูล'
+          LAST_BACKUP_INFO: 'ยังไม่มีประวัติการสำรองข้อมูลบน Supabase Storage'
         }
       };
 
       function loadDbFromStorage() {
         try {
-          const s = localStorage.getItem('POR_LOCAL_PREVIEW_DB');
+          const s = localStorage.getItem('POR_LOCAL_PREVIEW_DB_CLEAN_V1');
           if (s) {
             const parsed = JSON.parse(s);
             if (parsed && Array.isArray(parsed.products) && parsed.products.length > 0) {
@@ -4327,14 +4246,14 @@
 
       function saveDbToStorage() {
         try {
-          localStorage.setItem('POR_LOCAL_PREVIEW_DB', JSON.stringify(db));
+          localStorage.setItem('POR_LOCAL_PREVIEW_DB_CLEAN_V1', JSON.stringify(db));
         } catch (e) {}
       }
 
       try {
-        const rawLocal = localStorage.getItem('POR_LOCAL_PREVIEW_DB');
+        const rawLocal = localStorage.getItem('POR_LOCAL_PREVIEW_DB_CLEAN_V1');
         if (rawLocal && (rawLocal.indexOf('หมึกบั้ง AA') === -1 || rawLocal.indexOf('PM-Q004') === -1 || rawLocal.indexOf('REQ-20261022-0002') === -1 || rawLocal.indexOf('OUT-') === -1 || rawLocal.indexOf('IN-691021') === -1)) {
-          localStorage.removeItem('POR_LOCAL_PREVIEW_DB');
+          localStorage.removeItem('POR_LOCAL_PREVIEW_DB_CLEAN_V1');
         }
       } catch(e) {}
       const storedDb = loadDbFromStorage();
@@ -4373,7 +4292,7 @@
         replaceDb: function(newDb) {
           if (!newDb || typeof newDb !== 'object') return;
           if (Array.isArray(newDb.users) && newDb.users.length > 0) db.users = newDb.users;
-          if (Array.isArray(newDb.clients) && newDb.clients.length > 0) db.clients = newDb.clients;
+          if (Array.isArray(newDb.clients)) db.clients = newDb.clients;
           if (Array.isArray(newDb.categories) && newDb.categories.length > 0) db.categories = newDb.categories;
           if (Array.isArray(newDb.products)) db.products = newDb.products;
           if (Array.isArray(newDb.stock)) db.stock = newDb.stock;
@@ -5745,11 +5664,6 @@
      * 2. การเข้าสู่ระบบ & จัดการสิทธิ์ 4 ระดับ (Login & RBAC UI Enforcement)
      * =========================================================================
      */
-    function fillQuickLogin(u, p) {
-      document.getElementById('loginUsername').value = u;
-      document.getElementById('loginPassword').value = p;
-    }
-
     async function handleLoginSubmit(e) {
       e.preventDefault();
       if (STATE.isSubmitting) return;
