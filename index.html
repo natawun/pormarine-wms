@@ -1215,10 +1215,11 @@
             <div class="filter-group" style="flex:1 1 0; min-width:140px;">
               <label style="white-space:nowrap; font-size:11.5px;">เรียงลำดับ (Sort)</label>
               <select id="prodSortBy" class="form-select" style="font-size:12.5px; height:34px; padding:4px 8px;" onchange="renderProductsTable()">
+                <option value="lot_asc" selected>Lot No. (น้อยไปมาก)</option>
+                <option value="lot_desc">Lot No. (มากไปน้อย)</option>
                 <option value="date_desc">วันที่ (ปัจจุบันไปอดีต)</option>
                 <option value="date_asc">วันที่ (อดีตไปปัจจุบัน)</option>
                 <option value="name_asc">ชื่อสินค้า (ก-ฮ, A-Z)</option>
-                <option value="lot_asc">Lot No. (A-Z, 0-9)</option>
               </select>
             </div>
           </div>
@@ -1303,9 +1304,10 @@
             <div class="filter-group" style="flex:1 1 0; min-width:140px;">
               <label style="white-space:nowrap; font-size:11.5px;">เรียงลำดับ (Sort)</label>
               <select id="lotSortBy" class="form-select" style="font-size:12.5px; height:34px; padding:4px 8px;" onchange="renderProductDetailsTable()">
+                <option value="lot_asc" selected>Lot No. (น้อยไปมาก)</option>
+                <option value="lot_desc">Lot No. (มากไปน้อย)</option>
                 <option value="date_desc">วันที่ (ปัจจุบันไปอดีต)</option>
                 <option value="date_asc">วันที่ (อดีตไปปัจจุบัน)</option>
-                <option value="lot_asc">Lot No. (A-Z, 0-9)</option>
                 <option value="name_asc">ชื่อสินค้า (ก-ฮ, A-Z)</option>
               </select>
             </div>
@@ -3874,31 +3876,61 @@
     function parseThaiDateToObj(dateStr) {
       if (!dateStr) return null;
       if (dateStr instanceof Date) return isNaN(dateStr.getTime()) ? null : dateStr;
-      const s = String(dateStr).trim();
+      let s = String(dateStr).trim().replace(/^(เข้า|ออก|วันที่|เวลา)[:\s]*/i, '').trim();
       if (!s || s === '-') return null;
-      const datePart = s.split(' ')[0];
+
+      if (s.indexOf('T') !== -1) {
+        const d = new Date(s);
+        if (!isNaN(d.getTime())) return d;
+      }
+
+      const parts = s.split(/[\sT]+/);
+      const datePart = parts[0] || '';
+      const timePart = parts[1] || '';
+
+      let day = 1, month = 0, year = 1970;
       if (datePart.indexOf('/') !== -1) {
-        const parts = datePart.split('/');
-        if (parts.length === 3) {
-          const d = parseInt(parts[0], 10);
-          const m = parseInt(parts[1], 10) - 1;
-          let y = parseInt(parts[2], 10);
-          if (y > 2400) y -= 543;
-          const dt = new Date(y, m, d);
-          return isNaN(dt.getTime()) ? null : dt;
+        const dp = datePart.split('/');
+        if (dp.length === 3) {
+          day = parseInt(dp[0], 10);
+          month = parseInt(dp[1], 10) - 1;
+          year = parseInt(dp[2], 10);
         }
       } else if (datePart.indexOf('-') !== -1) {
-        const parts = datePart.split('-');
-        if (parts.length === 3) {
-          let y = parseInt(parts[0], 10);
-          const m = parseInt(parts[1], 10) - 1;
-          const d = parseInt(parts[2], 10);
-          if (y > 2400) y -= 543;
-          const dt = new Date(y, m, d);
-          return isNaN(dt.getTime()) ? null : dt;
+        const dp = datePart.split('-');
+        if (dp.length === 3) {
+          if (dp[0].length === 4) { // YYYY-MM-DD
+            year = parseInt(dp[0], 10);
+            month = parseInt(dp[1], 10) - 1;
+            day = parseInt(dp[2], 10);
+          } else { // DD-MM-YYYY
+            day = parseInt(dp[0], 10);
+            month = parseInt(dp[1], 10) - 1;
+            year = parseInt(dp[2], 10);
+          }
+        }
+      } else {
+        return null;
+      }
+
+      if (year > 2400) year -= 543;
+
+      let hour = 0, minute = 0, second = 0;
+      if (timePart) {
+        const tp = timePart.split(':');
+        if (tp.length >= 2) {
+          hour = parseInt(tp[0], 10) || 0;
+          minute = parseInt(tp[1], 10) || 0;
+          second = parseInt(tp[2], 10) || 0;
         }
       }
-      return null;
+
+      const dt = new Date(year, month, day, hour, minute, second);
+      return isNaN(dt.getTime()) ? null : dt;
+    }
+
+    function parseThaiDateTimeToObj(dateStr) {
+      return parseThaiDateToObj(dateStr);
     }
 
     function isDateOverSixMonthsAgo(dateInput, refNow) {
@@ -6055,10 +6087,18 @@
           }
         });
 
-        // 2. ซิงค์ rawMoves (ปัจจุบัน rawMoves เรียงจากใหม่สุด -> เก่าสุด):
-        //    - ลบแถวซ้ำซ้อนของ (RefDocNo + LotNo) โดยเก็บเฉพาะแถวล่าสุดไว้ (เช่น OUT-69100006 ที่มีทั้งแถว -10 และแถวเก่า -5)
-        //    - คำนวณยอดคงเหลือหลังทำรายการ (BalanceQty, BalanceWeight) ใหม่จากเก่าสุด -> ใหม่สุด ของแต่ละ Lot
+        // 2. ซิงค์ rawMoves:
+        //    - จัดเรียงตามวันที่-เวลา (ปัจจุบันไปอดีต)
+        //    - ลบแถวซ้ำซ้อนของ (RefDocNo + LotNo) โดยเก็บเฉพาะแถวล่าสุดไว้
+        //    - คำนวณยอดคงเหลือหลังทำรายการ (BalanceQty, BalanceWeight) ตามลำดับเวลาจริง (เก่าสุด -> ใหม่สุด)
         if (Array.isArray(rawMoves) && rawMoves.length > 0) {
+          rawMoves.sort((a, b) => {
+            const tA = parseThaiDateTimeToObj(a.Timestamp)?.getTime() || 0;
+            const tB = parseThaiDateTimeToObj(b.Timestamp)?.getTime() || 0;
+            if (tB !== tA) return tB - tA;
+            return String(b.MovementID || '').localeCompare(String(a.MovementID || ''), 'en', { numeric: true });
+          });
+
           const seenDocLot = new Set();
           const dedupedNewestFirst = [];
 
@@ -6069,7 +6109,6 @@
             if (refDoc && lotStr && lotStr.indexOf(',') === -1) {
               const key = refDoc + '|' + lotStr;
               if (seenDocLot.has(key)) {
-                // ข้ามแถวเก่าที่ถูกแทนที่ด้วยการปรับปรุงรายการแล้ว
                 continue;
               }
               seenDocLot.add(key);
@@ -6077,8 +6116,13 @@
             dedupedNewestFirst.push(m);
           }
 
-          // คำนวณยอดตามลำดับเวลา (เก่าสุด -> ใหม่สุด)
-          const chronological = dedupedNewestFirst.slice().reverse();
+          // คำนวณยอดตามลำดับเวลาจริง (เก่าสุด -> ใหม่สุด)
+          const chronological = dedupedNewestFirst.slice().sort((a, b) => {
+            const tA = parseThaiDateTimeToObj(a.Timestamp)?.getTime() || 0;
+            const tB = parseThaiDateTimeToObj(b.Timestamp)?.getTime() || 0;
+            if (tA !== tB) return tA - tB;
+            return String(a.MovementID || '').localeCompare(String(b.MovementID || ''), 'en', { numeric: true });
+          });
           const runningByLot = {};
 
           chronological.forEach(m => {
@@ -6142,6 +6186,12 @@
           });
 
           rawMoves.length = 0;
+          dedupedNewestFirst.sort((a, b) => {
+            const tA = parseThaiDateTimeToObj(a.Timestamp)?.getTime() || 0;
+            const tB = parseThaiDateTimeToObj(b.Timestamp)?.getTime() || 0;
+            if (tB !== tA) return tB - tA;
+            return String(b.MovementID || '').localeCompare(String(a.MovementID || ''), 'en', { numeric: true });
+          });
           dedupedNewestFirst.forEach(m => rawMoves.push(m));
         }
       } catch (e) {
@@ -6182,11 +6232,40 @@
       // ตรวจสอบสินค้า Lot No. ที่หมดสต็อกเกิน 6 เดือน เพื่อลบรหัสสินค้า (Product Code) ออกและนำกลับมาใช้ใหม่ได้
       cleanupExpiredOutOfStockProductCodes(rawProds, rawStock, rawMoves, rawReqs, new Date());
 
-      STATE.stock = filterByOwner(rawStock);
-      STATE.receivings = filterByOwner(bundle.receivings || []);
-      STATE.requisitions = filterByOwner(rawReqs);
-      STATE.movements = filterByOwner(rawMoves);
-      STATE.users = bundle.users || [];
+      STATE.stock = filterByOwner(rawStock).sort((a, b) => {
+        const lotA = String(a.LotNo || '').trim();
+        const lotB = String(b.LotNo || '').trim();
+        if (!lotA || lotA === '-') return 1;
+        if (!lotB || lotB === '-') return -1;
+        return lotA.localeCompare(lotB, 'en', { numeric: true });
+      });
+
+      STATE.receivings = filterByOwner(bundle.receivings || []).sort((a, b) => {
+        const tA = (parseThaiDateTimeToObj(a.DateTimeIn) || parseThaiDateTimeToObj(a.DateTimeOut))?.getTime() || 0;
+        const tB = (parseThaiDateTimeToObj(b.DateTimeIn) || parseThaiDateTimeToObj(b.DateTimeOut))?.getTime() || 0;
+        if (tB !== tA) return tB - tA;
+        return String(b.ReceivingNo || '').localeCompare(String(a.ReceivingNo || ''), 'en', { numeric: true });
+      });
+
+      STATE.requisitions = filterByOwner(rawReqs).sort((a, b) => {
+        const tA = (parseThaiDateTimeToObj(a.DateTimeIn) || parseThaiDateTimeToObj(a.DateTimeOut))?.getTime() || 0;
+        const tB = (parseThaiDateTimeToObj(b.DateTimeIn) || parseThaiDateTimeToObj(b.DateTimeOut))?.getTime() || 0;
+        if (tB !== tA) return tB - tA;
+        return String(b.RequisitionNo || '').localeCompare(String(a.RequisitionNo || ''), 'en', { numeric: true });
+      });
+
+      STATE.movements = filterByOwner(rawMoves).sort((a, b) => {
+        const tA = parseThaiDateTimeToObj(a.Timestamp)?.getTime() || 0;
+        const tB = parseThaiDateTimeToObj(b.Timestamp)?.getTime() || 0;
+        if (tB !== tA) return tB - tA;
+        return String(b.MovementID || '').localeCompare(String(a.MovementID || ''), 'en', { numeric: true });
+      });
+
+      STATE.users = (bundle.users || []).slice().sort((a, b) => {
+        const idA = String(a.userId || a.user_id || '').trim().toUpperCase();
+        const idB = String(b.userId || b.user_id || '').trim().toUpperCase();
+        return idA.localeCompare(idB, 'en', { numeric: true });
+      });
       if (bundle.settings) STATE.settings = bundle.settings;
 
       // รวมรายการสินค้าทั้งหมดโดยแยกรหัสสินค้า (ProductCode / ProductID / LotNo) ออกจากกันแม้ชื่อสินค้าจะเหมือนกัน
@@ -6996,6 +7075,13 @@
         document.getElementById('dashTable1Title').textContent = 'รายการสต๊อกสินค้าคงเหลือแยกตาม Lot No.';
         document.getElementById('dashTable1Head').innerHTML = '<th style="padding:10px 14px;">Lot No.</th><th style="padding:10px 14px;">ชื่อสินค้า</th><th class="text-right" style="padding:10px 14px;">คงเหลือ (หน่วย)</th><th class="text-right" style="padding:10px 14px;">น้ำหนักคงเหลือ (กก.)</th>';
         const activeRows = filteredStock.filter(s => (parseFloat(s.RemainQty) || 0) > 0);
+        activeRows.sort((a, b) => {
+          const lotA = String(a.LotNo || '').trim();
+          const lotB = String(b.LotNo || '').trim();
+          if (!lotA || lotA === '-') return 1;
+          if (!lotB || lotB === '-') return -1;
+          return lotA.localeCompare(lotB, 'en', { numeric: true });
+        });
         t1Body.innerHTML = activeRows.length === 0
           ? '<tr><td colspan="4" class="empty-state">ไม่พบสต๊อกคงเหลือ</td></tr>'
           : activeRows.map(s =>
@@ -7129,6 +7215,13 @@
         return;
       }
 
+      filtered.sort((a, b) => {
+        const tA = parseThaiDateTimeToObj(a.Timestamp)?.getTime() || 0;
+        const tB = parseThaiDateTimeToObj(b.Timestamp)?.getTime() || 0;
+        if (tB !== tA) return tB - tA;
+        return String(b.MovementID || '').localeCompare(String(a.MovementID || ''), 'en', { numeric: true });
+      });
+
       mvBody.innerHTML = filtered.slice(0, 15).map(m => {
         const isIn = String(m.MovementType).indexOf('IN') !== -1;
         const typeBadge = isIn
@@ -7156,6 +7249,13 @@
     function renderClientsAndBillingView() {
       const billBody = document.getElementById('billingTableBody');
       const activeStocks = STATE.stock.filter(s => (parseFloat(s.RemainQty) || 0) > 0);
+      activeStocks.sort((a, b) => {
+        const lotA = String(a.LotNo || '').trim();
+        const lotB = String(b.LotNo || '').trim();
+        if (!lotA || lotA === '-') return 1;
+        if (!lotB || lotB === '-') return -1;
+        return lotA.localeCompare(lotB, 'en', { numeric: true });
+      });
       billBody.innerHTML = activeStocks.length === 0
         ? '<tr><td colspan="9" class="empty-state">ไม่มีรายการสินค้าคงค้างในห้องเย็น</td></tr>'
         : activeStocks.map(s => {
@@ -7178,9 +7278,14 @@
           }).join('');
 
       const cliBody = document.getElementById('clientsTableBody');
-      cliBody.innerHTML = STATE.clients.length === 0
+      const sortedClients = (STATE.clients || []).slice().sort((a, b) => {
+        const codeA = String(a.ClientCode || a.ClientID || '').trim();
+        const codeB = String(b.ClientCode || b.ClientID || '').trim();
+        return codeA.localeCompare(codeB, 'en', { numeric: true });
+      });
+      cliBody.innerHTML = sortedClients.length === 0
         ? '<tr><td colspan="7" class="empty-state">ไม่พบข้อมูลลูกค้า</td></tr>'
-        : STATE.clients.map(c =>
+        : sortedClients.map(c =>
             '<tr>' +
               '<td><strong>' + escapeHtml(c.ClientCode) + '</strong></td>' +
               '<td><strong>' + escapeHtml(c.ClientName) + '</strong><br><small style="color:var(--text-muted);">' + escapeHtml(c.Address || '') + '</small></td>' +
@@ -7498,7 +7603,7 @@
       const q = (document.getElementById('prodSearchTxt').value || '').toLowerCase().trim();
       const cli = document.getElementById('prodFilterClient') ? document.getElementById('prodFilterClient').value : '';
       const stFilter = document.getElementById('prodFilterStatus') ? document.getElementById('prodFilterStatus').value : '';
-      const sortBy = document.getElementById('prodSortBy') ? document.getElementById('prodSortBy').value : 'date_desc';
+      const sortBy = document.getElementById('prodSortBy') ? document.getElementById('prodSortBy').value : 'lot_asc';
 
       const fStart = document.getElementById('prodFilterDateStart') ? document.getElementById('prodFilterDateStart').value : '';
       const fEnd = document.getElementById('prodFilterDateEnd') ? document.getElementById('prodFilterDateEnd').value : '';
@@ -7558,6 +7663,20 @@
       });
 
       list.sort((a, b) => {
+        if (sortBy === 'lot_asc') {
+          const lotA = String(a.LotNo || '').trim();
+          const lotB = String(b.LotNo || '').trim();
+          if (!lotA || lotA === '-') return 1;
+          if (!lotB || lotB === '-') return -1;
+          return lotA.localeCompare(lotB, 'en', { numeric: true });
+        }
+        if (sortBy === 'lot_desc') {
+          const lotA = String(a.LotNo || '').trim();
+          const lotB = String(b.LotNo || '').trim();
+          if (!lotA || lotA === '-') return 1;
+          if (!lotB || lotB === '-') return -1;
+          return lotB.localeCompare(lotA, 'en', { numeric: true });
+        }
         if (sortBy === 'date_desc') {
           const dtA = parseThaiDateToObj(a.ReceiveDate);
           const dtB = parseThaiDateToObj(b.ReceiveDate);
@@ -7573,11 +7692,6 @@
           const tB = dtB ? dtB.getTime() : 0;
           if (tA !== tB) return tA - tB;
           return String(a.LotNo || '').localeCompare(String(b.LotNo || ''), 'en', { numeric: true });
-        }
-        if (sortBy === 'lot_asc') {
-          const lotA = (a.LotNo || '').toLowerCase();
-          const lotB = (b.LotNo || '').toLowerCase();
-          return lotA.localeCompare(lotB, 'en', { numeric: true });
         }
         if (sortBy === 'name_asc') return String(a.ProductName || '').localeCompare(String(b.ProductName || ''), 'th');
         return 0;
@@ -9458,6 +9572,13 @@ function editProduct(p) {
               itemStr.indexOf(q) === -1) return false;
         }
         return true;
+      });
+
+      list.sort((a, b) => {
+        const tA = (parseThaiDateTimeToObj(a.DateTimeIn) || parseThaiDateTimeToObj(a.DateTimeOut))?.getTime() || 0;
+        const tB = (parseThaiDateTimeToObj(b.DateTimeIn) || parseThaiDateTimeToObj(b.DateTimeOut))?.getTime() || 0;
+        if (tB !== tA) return tB - tA;
+        return String(b.ReceivingNo || '').localeCompare(String(a.ReceivingNo || ''), 'en', { numeric: true });
       });
 
       const tbody = document.getElementById('receivingTableBody');
@@ -11667,6 +11788,13 @@ function editProduct(p) {
         return true;
       });
 
+      list.sort((a, b) => {
+        const tA = (parseThaiDateTimeToObj(a.DateTimeIn) || parseThaiDateTimeToObj(a.DateTimeOut))?.getTime() || 0;
+        const tB = (parseThaiDateTimeToObj(b.DateTimeIn) || parseThaiDateTimeToObj(b.DateTimeOut))?.getTime() || 0;
+        if (tB !== tA) return tB - tA;
+        return String(b.RequisitionNo || '').localeCompare(String(a.RequisitionNo || ''), 'en', { numeric: true });
+      });
+
       const tbody = document.getElementById('requisitionTableBody');
       if (list.length === 0) {
         tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><i class="fa-solid fa-dolly"></i>ไม่พบรายการใบเบิกสินค้าตามเงื่อนไขที่ค้นหา</td></tr>';
@@ -13217,6 +13345,13 @@ function editProduct(p) {
           if (!checkDateInRange(s.ReceiveDate)) return false;
           return true;
         });
+        rows.sort((a, b) => {
+          const lotA = String(a.LotNo || '').trim();
+          const lotB = String(b.LotNo || '').trim();
+          if (!lotA || lotA === '-') return 1;
+          if (!lotB || lotB === '-') return -1;
+          return lotA.localeCompare(lotB, 'en', { numeric: true });
+        });
         return {
           title: rpt === 'STOCK_OUT' ? 'รายงานสินค้าหมด' : 'รายงานสินค้าคงเหลือ',
           headers: ['Lot No.', 'ชื่อสินค้า', 'หน่วยนับ', 'น้ำหนัก/หน่วย', 'รับเข้าเริ่มต้น', 'คงเหลือ (หน่วย)', 'น้ำหนักคงเหลือ (กก.)', 'วันรับฝาก', 'วันครบรอบบิล', 'หมายเหตุ'],
@@ -13235,6 +13370,12 @@ function editProduct(p) {
           if (fLot && String(m.LotNo).toLowerCase().indexOf(fLot) === -1) return false;
           if (!checkDateInRange(m.Timestamp)) return false;
           return true;
+        });
+        moves.sort((a, b) => {
+          const tA = parseThaiDateTimeToObj(a.Timestamp)?.getTime() || 0;
+          const tB = parseThaiDateTimeToObj(b.Timestamp)?.getTime() || 0;
+          if (tB !== tA) return tB - tA;
+          return String(b.MovementID || '').localeCompare(String(a.MovementID || ''), 'en', { numeric: true });
         });
 
         if (groupMode !== 'DETAIL' && (rpt === 'INBOUND' || rpt === 'OUTBOUND')) {
@@ -13547,7 +13688,11 @@ function editProduct(p) {
     function renderUsersTable() {
       const tbody = document.getElementById('usersTableBody');
       if (!tbody) return;
-      const validUsers = STATE.users || [];
+      const validUsers = (STATE.users || []).slice().sort((a, b) => {
+        const idA = String(a.userId || a.user_id || '').trim().toUpperCase();
+        const idB = String(b.userId || b.user_id || '').trim().toUpperCase();
+        return idA.localeCompare(idB, 'en', { numeric: true });
+      });
       tbody.innerHTML = validUsers.length === 0
         ? '<tr><td colspan=9 class=empty-state>ไม่พบข้อมูลผู้ใช้งาน</td></tr>'
         : validUsers.map(u =>
@@ -13830,7 +13975,7 @@ function editProduct(p) {
       const q = (document.getElementById('lotSearchTxt') ? document.getElementById('lotSearchTxt').value : '').toLowerCase().trim();
       const cli = document.getElementById('lotFilterClient') ? document.getElementById('lotFilterClient').value : '';
       const stFilter = document.getElementById('lotFilterStatus') ? document.getElementById('lotFilterStatus').value : '';
-      const sortBy = document.getElementById('lotSortBy') ? document.getElementById('lotSortBy').value : 'date_desc';
+      const sortBy = document.getElementById('lotSortBy') ? document.getElementById('lotSortBy').value : 'lot_asc';
 
       const fStart = document.getElementById('lotFilterDateStart') ? document.getElementById('lotFilterDateStart').value : '';
       const fEnd = document.getElementById('lotFilterDateEnd') ? document.getElementById('lotFilterDateEnd').value : '';
@@ -13877,6 +14022,20 @@ function editProduct(p) {
       });
 
       list.sort((a, b) => {
+        if (sortBy === 'lot_asc') {
+          const lotA = String(a.LotNo || '').trim();
+          const lotB = String(b.LotNo || '').trim();
+          if (!lotA || lotA === '-') return 1;
+          if (!lotB || lotB === '-') return -1;
+          return lotA.localeCompare(lotB, 'en', { numeric: true });
+        }
+        if (sortBy === 'lot_desc') {
+          const lotA = String(a.LotNo || '').trim();
+          const lotB = String(b.LotNo || '').trim();
+          if (!lotA || lotA === '-') return 1;
+          if (!lotB || lotB === '-') return -1;
+          return lotB.localeCompare(lotA, 'en', { numeric: true });
+        }
         if (sortBy === 'date_desc') {
           const dtA = parseThaiDateToObj(a.ReceiveDate);
           const dtB = parseThaiDateToObj(b.ReceiveDate);
@@ -13891,9 +14050,6 @@ function editProduct(p) {
           const tA = dtA ? dtA.getTime() : 0;
           const tB = dtB ? dtB.getTime() : 0;
           if (tA !== tB) return tA - tB;
-          return String(a.LotNo || '').localeCompare(String(b.LotNo || ''), 'en', { numeric: true });
-        }
-        if (sortBy === 'lot_asc') {
           return String(a.LotNo || '').localeCompare(String(b.LotNo || ''), 'en', { numeric: true });
         }
         if (sortBy === 'name_asc') {
