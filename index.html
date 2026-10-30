@@ -1083,7 +1083,7 @@
                     <th>ชื่อลูกค้า</th>
                     <th class="text-center" style="white-space:nowrap; min-width:98px;">ประเภท</th>
                     <th>เลขที่เอกสาร</th>
-                    <th>Lot No.</th>
+                    <th class="text-center">Lot No.</th>
                     <th>ชื่อสินค้า</th>
                     <th class="text-right">จำนวนเปลี่ยนแปลง</th>
                     <th class="text-right">น้ำหนัก (กก.)</th>
@@ -1122,7 +1122,7 @@
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th>Lot No.</th>
+                    <th class="text-center">Lot No.</th>
                     <th>ชื่อลูกค้า</th>
                     <th>สินค้า</th>
                     <th class="text-right">คงเหลือ (หน่วย)</th>
@@ -1230,12 +1230,13 @@
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th>Lot No.</th>
+                    <th class="text-center" style="width:110px;">Lot No.</th>
                     <th>ชื่อสินค้า</th>
                     <th style="width:65px;" class="text-center">รูปภาพ</th>
-                    <th>หมวดหมู่</th>
                     <th class="text-center">หน่วยนับ</th>
                     <th class="text-right">น้ำหนัก/หน่วย</th>
+                    <th class="text-right">รับเข้า</th>
+                    <th class="text-right">เบิกออก</th>
                     <th class="text-right">คงเหลือ (หน่วย)</th>
                     <th class="text-right">น้ำหนักรวม (กก.)</th>
                     <th class="text-center">สถานะ</th>
@@ -1326,7 +1327,7 @@
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th>Lot No.</th>
+                    <th class="text-center" style="width:110px;">Lot No.</th>
                     <th>เลขที่เอกสาร</th>
                     <th>ชื่อสินค้า</th>
                     <th>ลูกค้าเจ้าของสินค้า</th>
@@ -3393,7 +3394,28 @@
           if ((!uRes.data || uRes.data.length === 0) && !initialSeedDone) {
             initialSeedDone = true;
             try {
-              await pushAllToSupabase(LocalPreviewEngine.getDb());
+              // กรณีแก้ไขข้อมูลลูกค้า ให้ส่งคำสั่ง Cascade Update ไปยังตารางที่เกี่ยวข้องบน Supabase ทันที
+            if (fnName === 'saveClient' && args[1]) {
+              const cl = args[1];
+              const newName = String(cl.clientName || '').trim();
+              const targetId = String(cl.clientId || '').trim();
+              if (newName && targetId) {
+                try {
+                  await Promise.allSettled([
+                    sb.from('wms_clients').update({ client_name: newName, client_code: cl.clientCode || undefined }).eq('client_id', targetId),
+                    sb.from('wms_stock').update({ client_name: newName }).eq('client_id', targetId),
+                    sb.from('wms_products').update({ client_name: newName }).eq('client_id', targetId),
+                    sb.from('wms_receivings').update({ client_name: newName }).eq('client_id', targetId),
+                    sb.from('wms_receiving_items').update({ client_name: newName }).eq('client_id', targetId),
+                    sb.from('wms_requisitions').update({ client_name: newName }).eq('client_id', targetId),
+                    sb.from('wms_requisition_items').update({ client_name: newName }).eq('client_id', targetId),
+                    sb.from('wms_movements').update({ client_name: newName }).eq('client_id', targetId),
+                    sb.from('wms_users').update({ client_name: newName }).eq('client_id', targetId)
+                  ]);
+                } catch (e) {}
+              }
+            }
+            await pushAllToSupabase(LocalPreviewEngine.getDb());
               return true;
             } catch (seedErr) {
               console.warn('Auto-seed warning:', seedErr);
@@ -3635,6 +3657,18 @@
             mappedDb.settings = smap;
           }
 
+          // ซิงค์เชื่อมโยงชื่อลูกค้าและรหัสลูกค้าใหม่กับทุกตารางที่ดึงมาจาก Supabase
+          if (Array.isArray(mappedDb.clients) && mappedDb.clients.length > 0) {
+            syncClientDataAcrossCollections(
+              mappedDb.products,
+              mappedDb.stock,
+              mappedDb.receivings,
+              mappedDb.requisitions,
+              mappedDb.movements,
+              mappedDb.clients,
+              mappedDb.users
+            );
+          }
           LocalPreviewEngine.replaceDb(mappedDb);
           updateStatusUI('เชื่อมต่อฐานข้อมูล Supabase Cloud สำเร็จ (อัปเดตล่าสุด: ' + formatNowThai() + ')', true);
           return true;
@@ -6199,17 +6233,184 @@
       }
     }
 
+    
+    /**
+     * ฟังก์ชันตรวจสอบความตรงกันของข้อมูลลูกค้า (Smart Client Matching)
+     * เชื่อมโยงชื่อลูกค้าใหม่, ชื่อเดิม, รหัสลูกค้า (ClientID / ClientCode) หรือชื่อผู้ติดต่อเข้าด้วยกัน 100%
+     */
+    function isClientMatch(itemClientName, itemClientId, filterVal) {
+      if (!filterVal || filterVal === '-- ทุกรายชื่อลูกค้า --' || filterVal === 'ทุกรายชื่อลูกค้า' || filterVal === '') return true;
+      const fVal = String(filterVal).trim();
+      const iName = String(itemClientName || '').trim();
+      const iId = String(itemClientId || '').trim();
+
+      // 1. ตรงกันตรงๆ
+      if (iName === fVal || iId === fVal) return true;
+
+      // 2. ค้นหาข้อมูลลูกค้าจากตัวกรองใน STATE.clients
+      const cFilter = (STATE.clients || []).find(c => 
+        String(c.ClientName || '').trim() === fVal || 
+        String(c.ClientID || '').trim() === fVal || 
+        String(c.ClientCode || '').trim() === fVal
+      );
+
+      // 3. ค้นหาข้อมูลลูกค้าของรายการสินค้าใน STATE.clients
+      const cItem = (STATE.clients || []).find(c => 
+        (iId && (String(c.ClientID || '').trim() === iId || String(c.ClientCode || '').trim() === iId)) ||
+        (iName && (String(c.ClientName || '').trim() === iName || (c.ContactPerson && String(c.ContactPerson || '').trim() === iName) || String(c.ClientName || '').indexOf(iName) !== -1 || iName.indexOf(String(c.ClientName || '')) !== -1))
+      );
+
+      if (cFilter && cItem && (cFilter.ClientID === cItem.ClientID || cFilter.ClientName === cItem.ClientName)) return true;
+      if (cFilter) {
+        if (iId && (cFilter.ClientID === iId || cFilter.ClientCode === iId)) return true;
+        if (iName && (cFilter.ClientName === iName || (cFilter.ContactPerson && cFilter.ContactPerson === iName) || cFilter.ClientName.indexOf(iName) !== -1 || iName.indexOf(cFilter.ClientName) !== -1)) return true;
+      }
+      if (cItem) {
+        if (cItem.ClientName === fVal || cItem.ClientID === fVal || cItem.ClientCode === fVal) return true;
+      }
+
+      // 4. กรณีลูกค้ารายเดียวในระบบ
+      if (STATE.clients && STATE.clients.length === 1 && (fVal === STATE.clients[0].ClientName || fVal === STATE.clients[0].ClientID || fVal === STATE.clients[0].ClientCode)) {
+        return true;
+      }
+
+      return false;
+    }
+
+    /**
+     * ฟังก์ชันซิงค์และเชื่อมโยงข้อมูลลูกค้าข้ามทุกตารางในระบบ (Cascading Client Sync)
+     * อัปเดตข้อมูลในสต็อก, ทะเบียนสินค้า, ใบรับฝาก, ใบเบิก, ประวัติเคลื่อนไหว และผู้ใช้งาน Client Portal
+     * ให้เปลี่ยนตามชื่อบริษัทลูกค้าใหม่และรหัสลูกค้าใหม่อัตโนมัติทุกจุด
+     */
+    function syncClientDataAcrossCollections(rawProds, rawStock, rawRcvs, rawReqs, rawMoves, rawClients, rawUsers) {
+      if (!Array.isArray(rawClients) || rawClients.length === 0) return;
+
+      function resolveClientForRec(rec) {
+        if (!rec) return null;
+        const cid = String(rec.ClientID || rec.clientId || rec.client_id || '').trim();
+        const ccode = String(rec.ClientCode || rec.clientCode || rec.client_code || '').trim();
+        const cname = String(rec.ClientName || rec.clientName || rec.client_name || '').trim();
+
+        // 1. ตรงกันด้วย ClientID หรือ ClientCode
+        for (let i = 0; i < rawClients.length; i++) {
+          const c = rawClients[i];
+          const masterId = String(c.ClientID || '').trim();
+          const masterCode = String(c.ClientCode || '').trim();
+          if (cid && (cid === masterId || cid === masterCode)) return c;
+          if (ccode && (ccode === masterCode || ccode === masterId)) return c;
+        }
+
+        // 2. ตรงกันด้วยชื่อบริษัทลูกค้า หรือชื่อผู้ติดต่อ
+        if (cname) {
+          for (let i = 0; i < rawClients.length; i++) {
+            const c = rawClients[i];
+            const masterName = String(c.ClientName || '').trim();
+            const contact = String(c.ContactPerson || '').trim();
+            if (masterName && cname === masterName) return c;
+            if (contact && (cname === contact || cname.indexOf(contact) !== -1 || contact.indexOf(cname) !== -1)) return c;
+            if (masterName && (cname.indexOf(masterName) !== -1 || masterName.indexOf(cname) !== -1)) return c;
+          }
+        }
+
+        // 3. กรณีมีลูกค้ารายเดียวในระบบ
+        if (rawClients.length === 1) {
+          return rawClients[0];
+        }
+
+        return null;
+      }
+
+      // ซิงค์สต็อกสินค้า
+      (rawStock || []).forEach(s => {
+        const c = resolveClientForRec(s);
+        if (c) {
+          s.ClientID = c.ClientID;
+          s.ClientName = c.ClientName;
+          s.ClientCode = c.ClientCode || c.ClientID;
+        }
+      });
+
+      // ซิงค์ทะเบียนสินค้า
+      (rawProds || []).forEach(p => {
+        const c = resolveClientForRec(p);
+        if (c) {
+          p.ClientID = c.ClientID;
+          p.ClientName = c.ClientName;
+          p.ClientCode = c.ClientCode || c.ClientID;
+        }
+      });
+
+      // ซิงค์ใบรับฝาก
+      (rawRcvs || []).forEach(r => {
+        const c = resolveClientForRec(r);
+        if (c) {
+          r.ClientID = c.ClientID;
+          r.ClientName = c.ClientName;
+          r.ClientCode = c.ClientCode || c.ClientID;
+          if (Array.isArray(r.items)) {
+            r.items.forEach(it => {
+              it.ClientID = c.ClientID;
+              it.ClientName = c.ClientName;
+            });
+          }
+        }
+      });
+
+      // ซิงค์ใบเบิกสินค้า
+      (rawReqs || []).forEach(rq => {
+        const c = resolveClientForRec(rq);
+        if (c) {
+          rq.ClientID = c.ClientID;
+          rq.ClientName = c.ClientName;
+          rq.ClientCode = c.ClientCode || c.ClientID;
+          if (Array.isArray(rq.items)) {
+            rq.items.forEach(it => {
+              it.ClientID = c.ClientID;
+              it.ClientName = c.ClientName;
+            });
+          }
+        }
+      });
+
+      // ซิงค์ประวัติการเคลื่อนไหวสต็อก
+      (rawMoves || []).forEach(m => {
+        const c = resolveClientForRec(m);
+        if (c) {
+          m.ClientID = c.ClientID;
+          m.ClientName = c.ClientName;
+          m.ClientCode = c.ClientCode || c.ClientID;
+        }
+      });
+
+      // ซิงค์ข้อมูลผู้ใช้งานระบบ
+      // สำคัญมาก: User admin, manager, office, store (USR-001 ถึง USR-004) เป็นของบริษัท พรมารีน จำกัด ห้ามเปลี่ยนเด็ดขาด
+      (rawUsers || []).forEach(u => {
+        const role = String(u.role || '').trim();
+        const uname = String(u.username || '').toLowerCase().trim();
+        const uid = String(u.userId || '').toUpperCase().trim();
+        const isInternalCompanyUser = (
+          role === 'Admin' || role === 'Manager' || role === 'Office' || role === 'Store' || role === 'Warehouse' ||
+          ['admin', 'manager', 'office', 'store'].indexOf(uname) !== -1 ||
+          ['USR-001', 'USR-002', 'USR-003', 'USR-004'].indexOf(uid) !== -1
+        );
+        if (isInternalCompanyUser) {
+          u.clientName = 'บริษัท พรมารีน จำกัด';
+          u.clientId = '';
+          return;
+        }
+
+        // เฉพาะผู้ใช้งานสิทธิ์ Client Portal เท่านั้นที่ซิงค์ตามชื่อบริษัทลูกค้า
+        if (role === 'Client Portal') {
+          const c = resolveClientForRec(u);
+          if (c) {
+            u.clientId = c.ClientID;
+            u.clientName = c.ClientName;
+          }
+        }
+      });
+    }
+
     function hydrateBundle(bundle) {
-      const isClient = STATE.user && STATE.user.role === 'Client Portal';
-      const myClientId = STATE.user ? STATE.user.clientId : '';
-      const myClientName = STATE.user ? STATE.user.clientName : '';
-
-      const filterByOwner = (arr) => {
-        if (!Array.isArray(arr)) return [];
-        if (!isClient) return arr;
-        return arr.filter(x => x.ClientID === myClientId || x.ClientName === myClientName);
-      };
-
       STATE.clients = (bundle.clients || []).map(c => {
         const copy = Object.assign({}, c);
         const r = parseFloat(copy.StorageRatePerKgDay);
@@ -6219,12 +6420,39 @@
         return copy;
       });
       STATE.categories = bundle.categories || [];
+      if (Array.isArray(bundle.users)) STATE.users = bundle.users;
 
       const rawProds = Array.isArray(bundle.products) ? bundle.products : [];
       const rawStock = Array.isArray(bundle.stock) ? bundle.stock : [];
       const rawRcvs = Array.isArray(bundle.receivings) ? bundle.receivings : [];
       const rawMoves = Array.isArray(bundle.movements) ? bundle.movements : [];
       const rawReqs = Array.isArray(bundle.requisitions) ? bundle.requisitions : [];
+
+      // เชื่อมโยงและซิงค์ข้อมูลลูกค้าข้ามทุกตารางทันทีที่โหลดข้อมูล
+      syncClientDataAcrossCollections(rawProds, rawStock, rawRcvs, rawReqs, rawMoves, STATE.clients, STATE.users);
+
+      const isClient = STATE.user && STATE.user.role === 'Client Portal';
+      if (isClient && STATE.user) {
+        // ซิงค์ชื่อและรหัสลูกค้าของ User ที่ล็อกอินให้ตรงกับชื่อลูกค้าใหม่ล่าสุด
+        const userMatchedCli = (STATE.clients || []).find(c => 
+          (STATE.user.clientId && (c.ClientID === STATE.user.clientId || c.ClientCode === STATE.user.clientId)) ||
+          (STATE.user.clientName && (c.ClientName === STATE.user.clientName || c.ClientName.indexOf(STATE.user.clientName) !== -1 || STATE.user.clientName.indexOf(c.ClientName) !== -1)) ||
+          (STATE.user.fullName && (c.ClientName === STATE.user.fullName || (c.ContactPerson && c.ContactPerson === STATE.user.fullName)))
+        );
+        if (userMatchedCli) {
+          STATE.user.clientId = userMatchedCli.ClientID;
+          STATE.user.clientName = userMatchedCli.ClientName;
+        }
+      }
+
+      const myClientId = STATE.user ? STATE.user.clientId : '';
+      const myClientName = STATE.user ? STATE.user.clientName : '';
+
+      const filterByOwner = (arr) => {
+        if (!Array.isArray(arr)) return [];
+        if (!isClient) return arr;
+        return arr.filter(x => isClientMatch(x.ClientName, x.ClientID, myClientName || myClientId));
+      };
 
       // ซิงค์ยอดสต็อกและประวัติการเคลื่อนไหวทั้งหมดให้ตรงกับใบฝาก/ใบเบิกล่าสุด (รองรับรายการปรับปรุงทั้งเบิกและฝาก)
       reconcileWarehouseState(rawProds, rawStock, rawRcvs, rawReqs, rawMoves, STATE.clients);
@@ -6941,8 +7169,8 @@
       const isClient = STATE.user && STATE.user.role === 'Client Portal';
       const selectedClient = isClient ? STATE.user.clientName : document.getElementById('dashClientFilter').value;
 
-      const filteredStock = STATE.stock.filter(s => !selectedClient || s.ClientName === selectedClient || s.ClientID === selectedClient);
-      const filteredMoves = STATE.movements.filter(m => !selectedClient || m.ClientName === selectedClient || m.ClientID === selectedClient);
+      const filteredStock = STATE.stock.filter(s => isClientMatch(s.ClientName, s.ClientID, selectedClient));
+      const filteredMoves = STATE.movements.filter(m => isClientMatch(m.ClientName, m.ClientID, selectedClient));
 
       let totalQty = 0, totalWeight = 0, activeLots = 0;
       filteredStock.forEach(s => {
@@ -7130,7 +7358,7 @@
           '</tr>'
         );
       });
-      STATE.requisitions.filter(r => (!selectedClient || r.ClientName === selectedClient) && (r.Status === 'Pending' || r.Status === 'Receive Orders' || r.Status === 'รอรับแจ้งเบิก' || r.Status === 'รับคำสั่งแล้ว' || r.Status === 'อนุมัติเบิกสินค้า')).forEach(r => {
+      STATE.requisitions.filter(r => isClientMatch(r.ClientName, r.ClientID, selectedClient) && (r.Status === 'Pending' || r.Status === 'Receive Orders' || r.Status === 'รอรับแจ้งเบิก' || r.Status === 'รับคำสั่งแล้ว' || r.Status === 'อนุมัติเบิกสินค้า')).forEach(r => {
         const stObj = getRequisitionStatusDisplay(r.Status, isClient);
         const isWeighed = typeof r.TotalWeight === 'string' && r.TotalWeight.indexOf('ชั่ง') !== -1;
         const weightText = isWeighed ? 'น้ำหนักชั่ง' : (fmtNum(r.TotalWeight, 2) + ' กก.');
@@ -7144,7 +7372,7 @@
           '</tr>'
         );
       });
-      STATE.receivings.filter(r => (!selectedClient || r.ClientName === selectedClient) && (r.Status === 'Pending' || r.Status === 'Receive Orders' || r.Status === 'รอรับแจ้งฝาก' || r.Status === 'รับคำสั่งแล้ว' || r.Status === 'อนุมัติรับฝาก')).forEach(r => {
+      STATE.receivings.filter(r => isClientMatch(r.ClientName, r.ClientID, selectedClient) && (r.Status === 'Pending' || r.Status === 'Receive Orders' || r.Status === 'รอรับแจ้งฝาก' || r.Status === 'รับคำสั่งแล้ว' || r.Status === 'อนุมัติรับฝาก')).forEach(r => {
         const stObj = getReceivingStatusDisplay(r.Status, isClient);
         const isWeighed = typeof r.TotalWeight === 'string' && r.TotalWeight.indexOf('ชั่ง') !== -1;
         const weightText = isWeighed ? 'น้ำหนักชั่ง' : (fmtNum(r.TotalWeight, 2) + ' กก.');
@@ -7237,7 +7465,7 @@
           '<td style="padding:10px 12px;"><strong>' + escapeHtml(m.ClientName || '-') + '</strong></td>' +
           '<td class="text-center" style="padding:10px 12px; white-space:nowrap;">' + typeBadge + '</td>' +
           '<td style="padding:10px 12px;">' + refDocHtml + '</td>' +
-          '<td style="padding:10px 12px;">' + escapeHtml(m.LotNo) + '</td>' +
+          '<td class="text-center" style="padding:10px 12px;">' + escapeHtml(m.LotNo) + '</td>' +
           '<td style="padding:10px 12px;">' + escapeHtml(m.ProductName) + '</td>' +
           '<td class="text-right" style="padding:10px 12px; font-weight:700; color:' + (isIn ? '#15803D' : '#DC2626') + ';">' + (isIn ? '+' : '') + fmtNum(m.QtyChange) + ' ' + escapeHtml(m.Unit) + '</td>' +
           '<td class="text-right" style="padding:10px 12px;">' + fmtNum(Math.abs(m.WeightChange), 2) + '</td>' +
@@ -7261,8 +7489,11 @@
         : activeStocks.map(s => {
             const due = isDateDueSoon(s.NextBillingDate, 5);
             return '<tr>' +
-              '<td><strong>' + escapeHtml(s.LotNo) + '</strong></td>' +
-              '<td>' + escapeHtml(s.ClientName) + '</td>' +
+              '<td class="text-center"><strong>' + escapeHtml(s.LotNo) + '</strong></td>' +
+              '<td><strong>' + escapeHtml((function() {
+              const c = (STATE.clients || []).find(x => (s.ClientID && (x.ClientID === s.ClientID || x.ClientCode === s.ClientID)) || (s.ClientName && (x.ClientName === s.ClientName || (x.ContactPerson && x.ContactPerson === s.ClientName) || x.ClientName.indexOf(s.ClientName) !== -1 || s.ClientName.indexOf(x.ClientName) !== -1)));
+              return c ? c.ClientName : (s.ClientName || '-');
+            })()) + '</strong></td>' +
               '<td>' + escapeHtml(s.ProductName) + '</td>' +
               '<td class="text-right" style="font-weight:700; color:' + (parseFloat(s.RemainQty) > 0 ? '#10B981' : '#64748B') + ';"><strong>' + fmtNum(s.RemainQty) + '</strong> ' + escapeHtml(s.Unit) + '</td>' +
               '<td class="text-right">' + fmtNum(s.RemainWeight, 2) + '</td>' +
@@ -7338,7 +7569,25 @@
         };
         const res = await callServer('saveClient', STATE.auth, payload);
         if (res && res.success) {
-          STATE.clients = res.clients || STATE.clients;
+          if (res.clients) STATE.clients = res.clients;
+          if (res.stock) STATE.stock = res.stock;
+          if (res.products) STATE.products = res.products;
+          if (res.receivings) STATE.receivings = res.receivings;
+          if (res.requisitions) STATE.requisitions = res.requisitions;
+          if (res.movements) STATE.movements = res.movements;
+          if (res.users) STATE.users = res.users;
+
+          syncClientDataAcrossCollections(STATE.products, STATE.stock, STATE.receivings, STATE.requisitions, STATE.movements, STATE.clients, STATE.users);
+
+          // ซิงค์การเปลี่ยนชื่อลูกค้าไปยัง Supabase ทันที
+          if (typeof SupabaseEngine !== 'undefined' && SupabaseEngine.isReady()) {
+            try {
+              await SupabaseEngine.pushAllToSupabase(LocalPreviewEngine.getDb());
+            } catch (errSync) {
+              console.warn('Supabase cascade sync warning:', errSync);
+            }
+          }
+
           closeModal('modalClient');
           renderAllViews();
           showToast(res.message, 'success');
@@ -7444,7 +7693,7 @@
 
       // 1. จาก STATE.stock: สินค้าแต่ละ Lot ในสต็อกคงเหลือถือเป็น 1 รายการแถวแยกจากกันชัดเจน (ป้องกัน LotNo ซ้ำ 100%)
       (STATE.stock || []).forEach(s => {
-        if (effectiveClient && s.ClientName !== effectiveClient && s.ClientID !== effectiveClient) {
+        if (effectiveClient && !isClientMatch(s.ClientName, s.ClientID, effectiveClient)) {
           return;
         }
         const lotKeyCheck = String(s.LotNo || '').trim().toLowerCase();
@@ -7520,8 +7769,14 @@
           InitialWeight: parseFloat(s.InitialWeight) || rWeight,
           RemainQty: rQty,
           RemainWeight: isW && rWeight <= 0 ? 'น้ำหนักชั่ง' : rWeight,
-          ClientID: s.ClientID || (prodMatch ? prodMatch.ClientID : ''),
-          ClientName: s.ClientName || (prodMatch ? prodMatch.ClientName : ''),
+          ClientID: (function() {
+            const c = (STATE.clients || []).find(x => (s.ClientID && (x.ClientID === s.ClientID || x.ClientCode === s.ClientID)) || (s.ClientName && (x.ClientName === s.ClientName || (x.ContactPerson && x.ContactPerson === s.ClientName) || x.ClientName.indexOf(s.ClientName) !== -1 || s.ClientName.indexOf(x.ClientName) !== -1)));
+            return c ? c.ClientID : (s.ClientID || (prodMatch ? prodMatch.ClientID : ''));
+          })(),
+          ClientName: (function() {
+            const c = (STATE.clients || []).find(x => (s.ClientID && (x.ClientID === s.ClientID || x.ClientCode === s.ClientID)) || (s.ClientName && (x.ClientName === s.ClientName || (x.ContactPerson && x.ContactPerson === s.ClientName) || x.ClientName.indexOf(s.ClientName) !== -1 || s.ClientName.indexOf(x.ClientName) !== -1)));
+            return c ? c.ClientName : (s.ClientName || (prodMatch ? prodMatch.ClientName : ''));
+          })(),
           ImageURL: imgUrl,
           ReceiveDate: s.ReceiveDate || '',
           OutOfStockDate: s.OutOfStockDate || '',
@@ -7635,7 +7890,7 @@
         if (!checkProdDateInRange(item.ReceiveDate)) return false;
 
         // ตัวกรองลูกค้า
-        if (cli && item.ClientName !== cli && item.ClientID !== cli) return false;
+        if (cli && !isClientMatch(item.ClientName, item.ClientID, cli)) return false;
 
         // ค้นหาข้อความ
         if (q) {
@@ -7714,7 +7969,7 @@
 
       const tbody = document.getElementById('productsTableBody');
       if (pageItems.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="empty-state"><i class="fa-solid fa-box-open"></i>ไม่พบรายการสต็อกสินค้าตามเงื่อนไขที่ค้นหา</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="empty-state"><i class="fa-solid fa-box-open"></i>ไม่พบรายการสต็อกสินค้าตามเงื่อนไขที่ค้นหา</td></tr>';
       } else {
         const isClient = STATE.user && STATE.user.role === 'Client Portal';
 
@@ -7724,7 +7979,9 @@
             ? '<img src="' + escapeHtml(finalImgSrc) + '" style="width:46px;height:46px;object-fit:cover;border-radius:8px;border:1px solid #cbd5e1;cursor:pointer;" onclick="viewFullProductImage(\'' + escapeHtml(finalImgSrc) + '\', \'' + escapeHtml(p.ProductName) + '\')" onerror="this.onerror=null; this.parentElement.innerHTML=\'<div style=\\\'width:46px;height:46px;border-radius:8px;background:#E0F2FE;color:#0284C7;display:flex;align-items:center;justify-content:center;font-size:18px;\\\'><i class=\\\'fa-solid fa-fish-fins\\\'></i></div>\';">'
             : '<div style="width:46px;height:46px;border-radius:8px;background:#E0F2FE;color:#0284C7;display:flex;align-items:center;justify-content:center;font-size:18px;"><i class="fa-solid fa-fish-fins"></i></div>';
 
+          const initQty = (p.InitialQty !== undefined && !isNaN(parseFloat(p.InitialQty))) ? parseFloat(p.InitialQty) : (parseFloat(p.RemainQty) || 0);
           const remQty = parseFloat(p.RemainQty) || 0;
+          const outQty = Math.max(0, initQty - remQty);
           const isInStock = remQty > 0;
           const statusBadge = isInStock
             ? '<span class="status-badge status-รับเข้าสต็อกสำเร็จ"><i class="fa-solid fa-circle-check"></i> ' + (isClient ? 'เพิ่มสต็อกเสร็จสมบูรณ์' : 'รับเข้าสต็อกสำเร็จ') + '</span>'
@@ -7761,15 +8018,18 @@
             totalWeightDisp = fmtNum(numW, 2);
           }
 
+          const outStyle = outQty > 0 ? 'font-weight:700; color:#EF4444;' : 'font-weight:normal; color:#111827;';
+
           return '<tr>' +
-            '<td><strong>' + escapeHtml(lotText) + '</strong></td>' +
+            '<td class="text-center"><strong>' + escapeHtml(lotText) + '</strong></td>' +
             '<td><strong>' + escapeHtml(p.ProductName) + '</strong><br><small style="color:var(--text-muted);">' + escapeHtml(p.Description || '-') + '</small></td>' +
             '<td class="text-center">' + imgHtml + '</td>' +
-            '<td><span class="status-badge status-ReceiveOrders">' + escapeHtml(p.CategoryName) + '</span></td>' +
             '<td class="text-center"><strong>' + escapeHtml(p.Unit) + '</strong></td>' +
             '<td class="text-right"><strong>' + weightDisp + '</strong></td>' +
-            '<td class="text-right" style="font-weight:700; color:' + (isInStock ? '#10B981' : '#EF4444') + ';">' + fmtNum(remQty) + '</td>' +
-            '<td class="text-right" style="font-weight:700; color:var(--primary-blue);">' + totalWeightDisp + '</td>' +
+            '<td class="text-right" style="font-weight:700; color:#10B981;">' + fmtNum(initQty) + '</td>' +
+            '<td class="text-right" style="' + outStyle + '">' + fmtNum(outQty) + '</td>' +
+            '<td class="text-right" style="font-weight:700; color:' + (isInStock ? '#0284C7' : '#EF4444') + ';">' + fmtNum(remQty) + '</td>' +
+            '<td class="text-right" style="font-weight:700; color:#0284C7;">' + totalWeightDisp + '</td>' +
             '<td class="text-center">' + statusBadge + '</td>' +
             '<td class="text-center" style="white-space:nowrap;"><div style="display:inline-flex; gap:6px; align-items:center; justify-content:center;">' +
               actionButtons.join(' ') +
@@ -8664,37 +8924,31 @@ function editProduct(p) {
       const cli = document.getElementById('prodFilterClient') ? document.getElementById('prodFilterClient').value : '';
       const isClient = STATE.user && STATE.user.role === 'Client Portal';
       const list = getFilteredProducts();
-      const headers = ['Lot No.', 'ชื่อสินค้า', 'รายละเอียด', 'หมวดหมู่', 'หน่วยนับ', 'น้ำหนัก/หน่วย', 'คงเหลือ (หน่วย)', 'น้ำหนักรวม (กก.)', 'หมายเหตุ'];
+      // คอลัมน์ หมวดหมู่ เอาออก, เพิ่มคอลัมน์ รับเข้า และ เบิกออก
+      const headers = ['Lot No.', 'ชื่อสินค้า', 'รายละเอียด', 'หน่วยนับ', 'น้ำหนัก/หน่วย', 'รับเข้า', 'เบิกออก', 'คงเหลือ (หน่วย)', 'น้ำหนักรวม (กก.)', 'หมายเหตุ'];
       const rows = list.map(p => {
-        let remQty = 0;
+        const stockObj = (STATE.stock || []).find(s => (p.StockID && s.StockID === p.StockID) || (p.LotNo && p.LotNo !== '-' && s.LotNo === p.LotNo)) || p;
+        const initQty = (stockObj.InitialQty !== undefined && !isNaN(parseFloat(stockObj.InitialQty))) ? parseFloat(stockObj.InitialQty) : ((p.InitialQty !== undefined && !isNaN(parseFloat(p.InitialQty))) ? parseFloat(p.InitialQty) : (parseFloat(p.RemainQty) || 0));
+        const remQty = parseFloat(p.RemainQty) || 0;
+        const outQty = Math.max(0, initQty - remQty);
+
         let remWeight = 0;
-        let activeLots = [];
-        const matchingStocks = STATE.stock.filter(s =>
-          (s.ProductID === p.ProductID || s.ProductName === p.ProductName) &&
-          (!cli || s.ClientName === cli || s.ClientID === cli)
-        );
-        if (matchingStocks.length > 0) {
-          matchingStocks.forEach(s => {
-            remQty += parseFloat(s.RemainQty) || 0;
-            remWeight += parseFloat(s.RemainWeight) || 0;
-            if (s.LotNo) activeLots.push(s.LotNo);
-          });
-          if (remWeight === 0 && remQty > 0) {
-            remWeight = parseFloat((remQty * (parseFloat(p.WeightPerUnit) || 0)).toFixed(2));
-          }
-        } else if (p.RemainQty !== undefined && p.RemainQty !== null && p.RemainQty !== '') {
-          remQty = parseFloat(p.RemainQty) || 0;
-          remWeight = parseFloat(p.RemainWeight) || (remQty * (parseFloat(p.WeightPerUnit) || 0));
+        const isWeighed = (typeof p.WeightPerUnit === 'string' && p.WeightPerUnit.indexOf('ชั่ง') !== -1) || p.isWeighed === true;
+        if (p.RemainWeight !== undefined && p.RemainWeight !== null && p.RemainWeight !== '') {
+          remWeight = parseFloat(p.RemainWeight) || 0;
         }
-        let lotText = p.LotNo || (activeLots.length > 0 ? activeLots[0] : '-');
-        const statusText = remQty > 0 ? (isClient ? 'เพิ่มสต็อกเสร็จสมบูรณ์' : 'รับเข้าสต็อกสำเร็จ') : 'สินค้าหมด';
-        const isWeighed = typeof p.WeightPerUnit === 'string' && p.WeightPerUnit.indexOf('ชั่ง') !== -1;
-        const weightValCol = isWeighed ? 'น้ำหนักชั่ง' : (p.WeightPerUnit || 0);
+        if (remWeight === 0 && remQty > 0 && !isWeighed) {
+          remWeight = parseFloat((remQty * (parseFloat(p.WeightPerUnit) || 0)).toFixed(2));
+        }
+
+        const lotText = (p.LotNo && p.LotNo.trim()) ? p.LotNo.trim() : '-';
+        const weightValCol = isWeighed ? 'น้ำหนักชั่ง' : (p.WeightPerUnit !== undefined && p.WeightPerUnit !== null ? p.WeightPerUnit : 0);
         const remWeightCol = remWeight > 0 ? remWeight : (isWeighed ? 'น้ำหนักชั่ง' : 0);
-        const remarkCol = remQty <= 0 ? getOutOfStockRemarkForStock(matchingStocks[0] || p) : '';
-        return [lotText, p.ProductName, p.Description, p.CategoryName, p.Unit, weightValCol, remQty, remWeightCol, remarkCol];
+        const remarkCol = remQty <= 0 ? getOutOfStockRemarkForStock(stockObj) : '';
+
+        return [lotText, p.ProductName, p.Description, p.Unit, weightValCol, initQty, outQty, remQty, remWeightCol, remarkCol];
       });
-      downloadTableFile('Stock_POR_MARINE_' + formatYMDCompact(), headers, rows, format);
+      downloadTableFile('Stock_POR_MARINE_' + formatYMDCompact(), headers, rows, format, { isStock: true, selectedClient: cli });
     }
 
     /**
@@ -9553,7 +9807,7 @@ function editProduct(p) {
       const canApprove = STATE.user && ['Admin', 'Manager', 'Office'].indexOf(STATE.user.role) !== -1;
 
       const list = STATE.receivings.filter(r => {
-        if (cli && r.ClientName !== cli && r.ClientID !== cli) return false;
+        if (cli && !isClientMatch(r.ClientName, r.ClientID, cli)) return false;
         if (st) {
           const stObj = getReceivingStatusDisplay(r.Status, false);
           if (st === 'รอรับแจ้งฝาก' && stObj.step !== 1) return false;
@@ -11767,7 +12021,7 @@ function editProduct(p) {
       const canApprove = STATE.user && ['Admin', 'Manager', 'Office'].indexOf(STATE.user.role) !== -1;
 
       const list = STATE.requisitions.filter(r => {
-        if (cli && r.ClientName !== cli && r.ClientID !== cli) return false;
+        if (cli && !isClientMatch(r.ClientName, r.ClientID, cli)) return false;
         if (st) {
           const stObj = getRequisitionStatusDisplay(r.Status, false);
           if (st === 'รอรับแจ้งเบิก' && stObj.step !== 1) return false;
@@ -13339,7 +13593,7 @@ function editProduct(p) {
         const rows = STATE.stock.filter(s => {
           const rem = parseFloat(s.RemainQty) || 0;
           if (rpt === 'STOCK_OUT' && rem > 0) return false;
-          if (fClient && s.ClientName !== fClient && s.ClientID !== fClient) return false;
+          if (fClient && !isClientMatch(s.ClientName, s.ClientID, fClient)) return false;
           if (fProd && String(s.ProductName).toLowerCase().indexOf(fProd) === -1) return false;
           if (fLot && String(s.LotNo).toLowerCase().indexOf(fLot) === -1) return false;
           if (!checkDateInRange(s.ReceiveDate)) return false;
@@ -13354,8 +13608,25 @@ function editProduct(p) {
         });
         return {
           title: rpt === 'STOCK_OUT' ? 'รายงานสินค้าหมด' : 'รายงานสินค้าคงเหลือ',
-          headers: ['Lot No.', 'ชื่อสินค้า', 'หน่วยนับ', 'น้ำหนัก/หน่วย', 'รับเข้าเริ่มต้น', 'คงเหลือ (หน่วย)', 'น้ำหนักคงเหลือ (กก.)', 'วันรับฝาก', 'วันครบรอบบิล', 'หมายเหตุ'],
-          rows: rows.map(s => [s.LotNo, s.ProductName, s.Unit, fmtNum(s.WeightPerUnit, 2), fmtNum(s.InitialQty), fmtNum(s.RemainQty), fmtNum(s.RemainWeight, 2), s.ReceiveDate, s.NextBillingDate, getOutOfStockRemarkForStock(s)]),
+          headers: ['Lot No.', 'ชื่อสินค้า', 'หน่วยนับ', 'น้ำหนัก/หน่วย', 'รับเข้าเริ่มต้น', 'เบิกออก', 'คงเหลือ (หน่วย)', 'น้ำหนักคงเหลือ', 'วันรับฝาก', 'วันครบรอบบิล', 'หมายเหตุ'],
+          rows: rows.map(s => {
+            const initQty = (parseFloat(s.InitialQty) !== undefined && !isNaN(parseFloat(s.InitialQty))) ? parseFloat(s.InitialQty) : (parseFloat(s.RemainQty) || 0);
+            const remQty = parseFloat(s.RemainQty) || 0;
+            const outQty = Math.max(0, initQty - remQty);
+            return [
+              s.LotNo,
+              s.ProductName,
+              s.Unit,
+              fmtNum(s.WeightPerUnit, 2),
+              fmtNum(initQty),
+              fmtNum(outQty),
+              fmtNum(remQty),
+              fmtNum(s.RemainWeight, 2),
+              s.ReceiveDate,
+              s.NextBillingDate,
+              getOutOfStockRemarkForStock(s)
+            ];
+          }),
           totalQty: rows.reduce((a, b) => a + (parseFloat(b.RemainQty) || 0), 0),
           totalWeight: rows.reduce((a, b) => a + (parseFloat(b.RemainWeight) || 0), 0)
         };
@@ -13365,7 +13636,7 @@ function editProduct(p) {
         const moves = STATE.movements.filter(m => {
           if (rpt === 'INBOUND' && String(m.MovementType).indexOf('IN') === -1) return false;
           if (rpt === 'OUTBOUND' && String(m.MovementType).indexOf('OUT') === -1) return false;
-          if (fClient && m.ClientName !== fClient && m.ClientID !== fClient) return false;
+          if (fClient && !isClientMatch(m.ClientName, m.ClientID, fClient)) return false;
           if (fProd && String(m.ProductName).toLowerCase().indexOf(fProd) === -1) return false;
           if (fLot && String(m.LotNo).toLowerCase().indexOf(fLot) === -1) return false;
           if (!checkDateInRange(m.Timestamp)) return false;
@@ -13401,13 +13672,40 @@ function editProduct(p) {
           };
         }
 
+        const isInbound = (rpt === 'INBOUND');
+        const isOutbound = (rpt === 'OUTBOUND');
+        const lastColHeader = 'ทะเบียนรถ';
+
         return {
-          title: rpt === 'INBOUND' ? 'รายงานฝากเข้า' : (rpt === 'OUTBOUND' ? 'รายงานเบิกออก' : 'รายงานประวัติการเคลื่อนไหวสต๊อก'),
-          headers: ['วันที่-เวลา', 'ประเภท', 'เลขที่เอกสาร', 'Lot No.', 'ชื่อสินค้า', 'หน่วยนับ', 'จำนวนเปลี่ยนแปลง', 'น้ำหนัก (กก.)', 'คงเหลือ (หน่วย)', 'น้ำหนักคงเหลือ (กก.)', 'ทะเบียนรถ'],
+          title: isInbound ? 'รายงานฝากเข้า' : (isOutbound ? 'รายงานเบิกออก' : 'รายงานประวัติการเคลื่อนไหวสต๊อก'),
+          headers: ['วันที่-เวลา', 'ประเภท', 'เลขที่เอกสาร', 'Lot No.', 'ชื่อสินค้า', 'หน่วยนับ', 'จำนวนเปลี่ยนแปลง', 'น้ำหนัก (กก.)', (isInbound ? 'คงเหลือ (หน่วย)' : 'คงเหลือ(หน่วย)'), 'น้ำหนักคงเหลือ (กก.)', lastColHeader],
           rows: moves.map(m => {
             const isAmended = String(m.MovementType || '').indexOf('ปรับปรุง') !== -1 || String(m.Notes || '').indexOf('ปรับปรุงรายการ') !== -1;
             const refDocStr = isAmended ? (m.RefDocNo + ' (รายการปรับปรุง)') : m.RefDocNo;
-            return [m.Timestamp, (String(m.MovementType).indexOf('IN') !== -1 ? 'สินค้าเข้า' : 'สินค้าออก'), refDocStr, m.LotNo, m.ProductName, m.Unit, fmtNum(m.QtyChange), fmtNum(Math.abs(m.WeightChange), 2), fmtNum(m.BalanceQty), fmtNum(m.BalanceWeight, 2), m.VehicleInfo || '-'];
+            // คอลัมน์ "ทะเบียนรถ": หากมีข้อมูลรถ/ทะเบียนรถ ให้แสดงข้อมูลรถ แต่หากไม่มีและเป็นยอดยกมา ให้แสดง "ยอดยกมา"
+            const vehicle = (m.VehicleInfo && m.VehicleInfo !== '-') ? m.VehicleInfo.trim() : '';
+            const lastColVal = vehicle || m.Notes || (isInbound ? 'ยอดยกมา' : '-');
+            let dispQty = fmtNum(m.QtyChange);
+            if (isOutbound) {
+              const numQ = Math.abs(parseFloat(m.QtyChange) || 0);
+              dispQty = '-' + fmtNum(numQ);
+            } else if (isInbound) {
+              const numQ = Math.abs(parseFloat(m.QtyChange) || 0);
+              dispQty = fmtNum(numQ);
+            }
+            return [
+              m.Timestamp,
+              (String(m.MovementType).indexOf('IN') !== -1 ? 'สินค้าเข้า' : 'สินค้าออก'),
+              refDocStr,
+              m.LotNo,
+              m.ProductName,
+              m.Unit,
+              dispQty,
+              fmtNum(Math.abs(m.WeightChange), 2),
+              fmtNum(m.BalanceQty),
+              fmtNum(m.BalanceWeight, 2),
+              lastColVal
+            ];
           }),
           totalQty: moves.reduce((a, b) => a + Math.abs(parseFloat(b.QtyChange) || 0), 0),
           totalWeight: moves.reduce((a, b) => a + Math.abs(parseFloat(b.WeightChange) || 0), 0)
@@ -13425,7 +13723,7 @@ function editProduct(p) {
         LotNo: m.LotNo,
         Details: m.Notes || ''
       })).filter(l => {
-        if (fClient && l.ClientName !== fClient) return false;
+        if (fClient && !isClientMatch(l.ClientName, l.ClientID, fClient)) return false;
         if (fProd && String(l.ProductName).toLowerCase().indexOf(fProd) === -1) return false;
         if (fLot && String(l.LotNo).toLowerCase().indexOf(fLot) === -1) return false;
         if (!checkDateInRange(l.Timestamp)) return false;
@@ -13444,15 +13742,23 @@ function editProduct(p) {
     function renderActiveReport() {
       const data = getActiveReportData();
       document.getElementById('activeReportHeading').textContent = data.title;
-      document.getElementById('activeReportSummaryBadge').textContent =
-        'รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวม: ' + fmtNum(data.totalWeight, 2) + ' กก.';
+
+      // รายงานสินค้าหมด บรรทัดที่ 2 ตัด "จำนวนรวม: 0 หน่วย | น้ำหนักรวม: 0.00 กก." ออก แสดงเป็น "รายงานสินค้าหมด รวม ... รายการ"
+      if (STATE.activeReportType === 'STOCK_OUT') {
+        document.getElementById('activeReportSummaryBadge').textContent = 'รวม ' + fmtNum(data.rows.length) + ' รายการ';
+      } else {
+        document.getElementById('activeReportSummaryBadge').textContent =
+          'รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวม: ' + fmtNum(data.totalWeight, 2) + ' กก.';
+      }
 
       const isRightCol = (headerName) => {
         const h = String(headerName || '').replace(/\s+/g, '');
         return (
           h.indexOf('น้ำหนัก/หน่วย') !== -1 ||
           h.indexOf('รับเข้าเริ่มต้น') !== -1 ||
+          h.indexOf('เบิกออก') !== -1 ||
           h.indexOf('น้ำหนักคงเหลือ') !== -1 ||
+          h.indexOf('คงเหลือ(หน่วย)') !== -1 ||
           h.indexOf('คงเหลือ(หน่วย)') !== -1 ||
           h.indexOf('จำนวนคงเหลือ') !== -1 ||
           h.indexOf('จำนวนเปลี่ยนแปลง') !== -1 ||
@@ -13463,27 +13769,55 @@ function editProduct(p) {
         );
       };
 
+      const isCenterCol = (headerName) => {
+        const h = String(headerName || '').replace(/\s+/g, '');
+        return (
+          h.indexOf('LotNo') !== -1 ||
+          h.indexOf('รหัสLot') !== -1 ||
+          h === 'หน่วยนับ' ||
+          h.indexOf('วันรับฝาก') !== -1 ||
+          h.indexOf('วันครบรอบบิล') !== -1
+        );
+      };
+
       document.getElementById('activeReportThead').innerHTML =
-        '<tr>' + data.headers.map(h => '<th' + (isRightCol(h) ? ' class="text-right"' : '') + '>' + escapeHtml(h) + '</th>').join('') + '</tr>';
+        '<tr>' + data.headers.map(h => '<th' + (isRightCol(h) ? ' class="text-right"' : (isCenterCol(h) ? ' class="text-center"' : '')) + '>' + escapeHtml(h) + '</th>').join('') + '</tr>';
 
       const tbody = document.getElementById('activeReportTbody');
       if (data.rows.length === 0) {
         tbody.innerHTML = '<tr><td colspan="' + data.headers.length + '" class="empty-state">ไม่พบข้อมูลรายงานตามตัวกรองที่เลือก</td></tr>';
       } else {
-        const remainColIdx = data.headers.findIndex(h => h.indexOf('คงเหลือ (หน่วย)') !== -1 || h.indexOf('จำนวนคงเหลือ (หน่วย)') !== -1);
         tbody.innerHTML = data.rows.map(r =>
           '<tr>' + r.map((c, idx) => {
             const h = data.headers[idx] || '';
             const right = isRightCol(h);
+            const center = isCenterCol(h);
             let style = '';
-            let cls = right ? ' class="text-right"' : '';
+            let cls = right ? ' class="text-right"' : (center ? ' class="text-center"' : '');
 
-            if (idx === remainColIdx) {
-              const numVal = parseFloat(String(c).replace(/,/g, '')) || 0;
-              if (numVal > 0) {
-                style = ' style="color:#10B981; font-weight:700;"';
+            // สีตัวเลขข้อมูลตามสเปก
+            if (h.indexOf('รับเข้าเริ่มต้น') !== -1) {
+              style = ' style="color:#10B981; font-weight:700;"';
+            } else if (h.indexOf('เบิกออก') !== -1) {
+              const numV = parseFloat(String(c).replace(/,/g, '')) || 0;
+              if (numV > 0) {
+                style = ' style="color:#EF4444; font-weight:700;"';
+              } else {
+                style = ' style="color:#111827; font-weight:normal;"';
               }
+            } else if (h.indexOf('คงเหลือ') !== -1 && h.indexOf('น้ำหนัก') === -1) {
+              style = ' style="color:#0284C7; font-weight:700;"';
+            } else if (h.indexOf('จำนวนเปลี่ยนแปลง') !== -1) {
+              const numV = parseFloat(String(c).replace(/,/g, '')) || 0;
+              if (STATE.activeReportType === 'INBOUND' || numV > 0) {
+                style = ' style="color:#10B981; font-weight:700;"';
+              } else if (STATE.activeReportType === 'OUTBOUND' || numV < 0) {
+                style = ' style="color:#EF4444; font-weight:700;"';
+              }
+            } else if (h.indexOf('หมายเหตุ') !== -1 && String(c || '').indexOf('หมด') !== -1) {
+              style = ' style="color:#EF4444; font-weight:700;"';
             }
+
             if (h === 'เลขที่เอกสาร' && String(c || '').indexOf(' (รายการปรับปรุง)') !== -1) {
               const baseDoc = String(c).replace(' (รายการปรับปรุง)', '');
               return '<td' + cls + style + '><strong>' + escapeHtml(baseDoc) + '</strong><div style="font-size:11.5px; color:#D97706; font-weight:600; margin-top:2px;">(รายการปรับปรุง)</div></td>';
@@ -13494,106 +13828,613 @@ function editProduct(p) {
       }
     }
 
-    function getExcelHeaderTitles() {
-      let clientName = '';
-      const rptClientEl = document.getElementById('rptFilterClient');
-      const prodClientEl = document.getElementById('prodFilterClient');
-      const dashClientEl = document.getElementById('dashClientFilter');
+    function getExcelHeaderTitles(optionalClientFilter) {
+      const defaultCompany = (STATE.settings && STATE.settings.map && STATE.settings.map.COMPANY_NAME) || 'บริษัท พรมารีน จำกัด';
+      const currentUser = STATE.user || {};
+      const isClientPortal = currentUser.role === 'Client Portal';
 
-      if (rptClientEl && rptClientEl.value) clientName = rptClientEl.value.trim();
-      else if (prodClientEl && prodClientEl.value) clientName = prodClientEl.value.trim();
-      else if (dashClientEl && dashClientEl.value) clientName = dashClientEl.value.trim();
-      else if (STATE.user && STATE.user.clientName) clientName = STATE.user.clientName.trim();
+      let line1 = defaultCompany;
 
-      if (!clientName) {
-        if (STATE.clients && STATE.clients.length > 0) {
-          clientName = STATE.clients[0].ClientName || '';
+      // กฎข้อ 3: สำหรับ User "Client Portal" ให้ใช้ชื่อของบริษัทหรือของลูกค้านั้นๆ
+      if (isClientPortal) {
+        line1 = currentUser.clientName || defaultCompany;
+      } else {
+        // สำหรับ 4 User: admin, manager, office, store (เจ้าหน้าที่ของบริษัท พรมารีน จำกัด)
+        // กฎข้อ 1: ถ้าไม่ได้เลือกกรองชื่อลูกค้า ให้ใช้ชื่อบริษัท (defaultCompany)
+        // กฎข้อ 2: ถ้าเลือกกรองชื่อลูกค้า ให้ใช้ชื่อลูกค้า
+        let selectedClient = optionalClientFilter || '';
+        if (!selectedClient && typeof document !== 'undefined') {
+          const rptClientEl = document.getElementById('rptFilterClient');
+          const prodClientEl = document.getElementById('prodFilterClient');
+          const lotClientEl = document.getElementById('lotFilterClient');
+          const dashClientEl = document.getElementById('dashClientFilter');
+          if (rptClientEl && rptClientEl.value) selectedClient = rptClientEl.value.trim();
+          else if (prodClientEl && prodClientEl.value) selectedClient = prodClientEl.value.trim();
+          else if (lotClientEl && lotClientEl.value) selectedClient = lotClientEl.value.trim();
+          else if (dashClientEl && dashClientEl.value) selectedClient = dashClientEl.value.trim();
         }
-      }
-      if (!clientName) clientName = 'บริษัท NC FOOD จำกัด';
 
-      let formattedClient = clientName;
-      if (formattedClient.indexOf('บจก.') === 0) {
-        formattedClient = formattedClient.replace('บจก.', 'บริษัท').trim();
-      }
-      if (formattedClient.indexOf('CO.,LTD.') !== -1 || formattedClient.indexOf('CO., LTD.') !== -1) {
-        formattedClient = formattedClient.replace(/CO\.,\s*LTD\./i, '').trim();
-        if (formattedClient.indexOf('บริษัท') !== 0) {
-          formattedClient = 'บริษัท ' + formattedClient + ' จำกัด';
-        } else if (formattedClient.indexOf('จำกัด') === -1) {
-          formattedClient = formattedClient + ' จำกัด';
+        if (selectedClient && selectedClient !== '-- ทุกรายชื่อลูกค้า --' && selectedClient !== 'ทุกรายชื่อลูกค้า' && selectedClient !== '') {
+          // ตรวจสอบชื่อลูกค้าที่ถูกต้องจาก STATE.clients หรือใช้ชื่อที่กรอง
+          const cObj = (STATE.clients || []).find(c => 
+            c.ClientName === selectedClient || 
+            c.ClientID === selectedClient || 
+            c.ClientCode === selectedClient ||
+            (c.ContactPerson && c.ContactPerson === selectedClient)
+          );
+          line1 = cObj ? cObj.ClientName : selectedClient;
+        } else {
+          line1 = defaultCompany;
         }
-      } else if (formattedClient.indexOf('บริษัท') !== 0 && formattedClient.indexOf('จำกัด') === -1 && formattedClient.toLowerCase().indexOf('arom') === -1) {
-        formattedClient = 'บริษัท ' + formattedClient + ' จำกัด';
       }
 
       const THAI_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
       const now = new Date();
       const thaiMonth = THAI_MONTHS[now.getMonth()];
-      const thaiYear = now.getFullYear() + 543;
+      let thaiYear = now.getFullYear();
+      if (thaiYear < 2400) thaiYear += 543;
       const subtitle = 'สรุปสต็อกคงเหลือยกมา เดือน ' + thaiMonth + ' ' + thaiYear;
 
-      return { line1: formattedClient, line2: subtitle };
+      return { line1: line1, line2: subtitle };
     }
 
-    function downloadTableFile(fileBaseName, headers, rows, format) {
-      const titles = getExcelHeaderTitles();
+    function downloadTableFile(fileBaseName, headers, rows, format, options = {}) {
+      const titles = getExcelHeaderTitles(options && options.selectedClient);
+      if (options && options.titleLine1) titles.line1 = options.titleLine1;
+      if (options && options.titleLine2) titles.line2 = options.titleLine2;
+
       const colSpan = Math.max(headers.length, 1);
+      const isStock = (options && options.isStock) || fileBaseName.indexOf('Stock_POR_MARINE') === 0;
+      const isLotDetails = (options && options.isLotDetails) || fileBaseName.indexOf('Lot_Details_POR_MARINE') === 0;
+      const isStockRemainingReport = (options && options.isStockRemainingReport) || fileBaseName.indexOf('Report_STOCK_ALL') === 0 || fileBaseName.indexOf('Report_STOCK_OUT') === 0;
+      const isInboundReport = (options && options.isInboundReport) || fileBaseName.indexOf('Report_INBOUND') === 0;
+      const isOutboundReport = (options && options.isOutboundReport) || fileBaseName.indexOf('Report_OUTBOUND') === 0;
+      const isMovementReport = isInboundReport || isOutboundReport || (options && options.isMovementReport) || fileBaseName.indexOf('Report_MOVEMENT') === 0;
+      const exportDateStr = formatTodayThai();
+
+      if (options && options.titleLine2) {
+        titles.line2 = options.titleLine2;
+      } else if (isLotDetails) {
+        titles.line2 = 'รายการสินค้าและรายละเอียด';
+      } else if (isStockRemainingReport) {
+        titles.line2 = 'รายงานสินค้าคงเหลือ';
+      } else if (isInboundReport) {
+        titles.line2 = 'รายงานฝากเข้า';
+      } else if (isOutboundReport) {
+        titles.line2 = 'รายงานเบิกออก';
+      }
+
+      function formatCleanNumber(v) {
+        if (v === '' || v === null || v === undefined) return '';
+        if (typeof v === 'string' && v.indexOf('ชั่ง') !== -1) return v;
+        const n = parseFloat(String(v).replace(/,/g, ''));
+        if (isNaN(n)) return String(v);
+        return n % 1 === 0 ? String(n) : String(parseFloat(n.toFixed(2)));
+      }
+
+      function formatHeaderHtml(h) {
+        let s = escapeHtml(h);
+        s = s.replace(/น้ำหนัก\/หน่วย\s*\(กก\.\)/g, 'น้ำหนัก/หน่วย<br>(กก.)');
+        s = s.replace(/คงเหลือ\s*\(หน่วย\)/g, 'คงเหลือ<br>(หน่วย)');
+        s = s.replace(/น้ำหนักรวม\s*\(กก\.\)/g, 'น้ำหนักรวม<br>(กก.)');
+        s = s.replace(/อัตราค่าฝาก\s*\(B\/กก\.\/วัน\)/g, 'อัตราค่าฝาก<br>(B/กก./วัน)');
+        s = s.replace(/อัตราค่าฝาก\s*\(฿\/กก\.\/วัน\)/g, 'อัตราค่าฝาก<br>(B/กก./วัน)');
+        return s;
+      }
 
       if (format === 'csv') {
         const csvLines = [
           '"' + titles.line1.replace(/"/g, '""') + '"',
-          '"' + titles.line2.replace(/"/g, '""') + '"',
-          headers.join(',')
+          '"' + titles.line2.replace(/"/g, '""') + '"'
         ];
+        if (isStock || isLotDetails || isStockRemainingReport || isMovementReport) {
+          const emptyCols = new Array(Math.max(headers.length - 1, 0)).fill('""').join(',');
+          csvLines.push(emptyCols + ',"(วันที่ ' + exportDateStr + ')"');
+        }
+        csvLines.push(headers.map(h => '"' + h.replace(/"/g, '""') + '"').join(','));
         rows.forEach(r => {
-          csvLines.push(r.map(v => '"' + String(v === undefined || v === null ? '' : v).replace(/"/g, '""') + '"').join(','));
+          csvLines.push(r.map((v, cIdx) => {
+            let strVal = String(v === undefined || v === null ? '' : v);
+            if (isStock) {
+              if (cIdx === 1 || cIdx === 2) {
+                strVal = strVal ? (' ' + strVal.trim()) : '';
+              } else if (cIdx === 4 || cIdx === 5 || cIdx === 6 || cIdx === 7 || cIdx === 8) {
+                strVal = formatCleanNumber(strVal);
+              }
+            } else if (isLotDetails) {
+              if (cIdx === 2 || cIdx === 3) {
+                strVal = strVal ? (' ' + strVal.trim()) : '';
+              } else if (cIdx === 5 || cIdx === 6 || cIdx === 7 || cIdx === 8 || cIdx === 9) {
+                strVal = formatCleanNumber(strVal);
+              }
+            } else if (isStockRemainingReport) {
+              if (cIdx === 1) {
+                strVal = strVal ? (' ' + strVal.trim()) : '';
+              } else if (cIdx === 3 || cIdx === 4 || cIdx === 5 || cIdx === 6 || cIdx === 7) {
+                strVal = formatCleanNumber(strVal);
+              }
+            } else if (isMovementReport) {
+              if (cIdx === 4 || (cIdx === 10 && headers[10] === 'หมายเหตุ')) {
+                strVal = strVal ? (' ' + strVal.trim()) : '';
+              } else if (cIdx === 6 || cIdx === 7 || cIdx === 8 || cIdx === 9) {
+                strVal = formatCleanNumber(strVal);
+              }
+            }
+            return '"' + strVal.replace(/"/g, '""') + '"';
+          }).join(','));
         });
-        const blob = new Blob(['﻿' + csvLines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+        const blob = new Blob(['\ufeff' + csvLines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
         link.download = fileBaseName + '.csv';
         link.click();
         showToast('ดาวน์โหลดไฟล์ CSV เรียบร้อยแล้ว', 'success');
-      } else {
-        let tableHtml = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"><style>' +
-          'table { border-collapse: collapse; width: 100%; font-family: Sarabun, Arial, sans-serif; }' +
-          '.excel-title-1 { font-size: 16pt; font-weight: bold; text-align: center; color: #002060; height: 35px; border: none; }' +
-          '.excel-title-2 { font-size: 14pt; font-weight: bold; text-align: center; color: #000000; height: 30px; border: none; }' +
-          'th { background-color: #0A3D62; color: #FFFFFF; font-weight: bold; border: 1px solid #000000; padding: 8px; text-align: center; }' +
-          'td { border: 1px solid #000000; padding: 6px; }' +
-          '</style></head><body><table border="1">' +
-          '<thead>' +
-          '<tr><th colspan="' + colSpan + '" class="excel-title-1" style="font-size:16pt; font-weight:bold; text-align:center; background:#ffffff; color:#0A3D62; border:none; padding:10px;">' + escapeHtml(titles.line1) + '</th></tr>' +
-          '<tr><th colspan="' + colSpan + '" class="excel-title-2" style="font-size:14pt; font-weight:bold; text-align:center; background:#ffffff; color:#000000; border:none; padding:8px;">' + escapeHtml(titles.line2) + '</th></tr>' +
-          '<tr>' +
-          headers.map(h => '<th style="background-color:#0A3D62; color:#ffffff; font-weight:bold; border:1px solid #000000; padding:8px;">' + escapeHtml(h) + '</th>').join('') +
+        return;
+      }
+
+      // Format for Excel (.xls / HTML Table format)
+      // =========================================================================
+      // Case 1: รายการสินค้าและรายละเอียด (Lot Details Export - 12 คอลัมน์)
+      // =========================================================================
+      if (isLotDetails) {
+        let colgroupHtml = '<colgroup>' +
+          '<col width="90" style="width: 68pt;">' +   // Lot No.
+          '<col width="120" style="width: 90pt;">' +  // เลขที่เอกสาร
+          '<col width="210" style="width: 158pt;">' + // ชื่อสินค้า
+          '<col width="180" style="width: 135pt;">' + // ลูกค้าเจ้าของสินค้า
+          '<col width="100" style="width: 75pt;">' +  // หน่วยนับ
+          '<col width="115" style="width: 86pt;">' +  // น้ำหนัก/หน่วย (กก.)
+          '<col width="115" style="width: 86pt;">' +  // คงเหลือ (หน่วย)
+          '<col width="115" style="width: 86pt;">' +  // น้ำหนักรวม (กก.)
+          '<col width="100" style="width: 75pt;">' +  // รอบบิล (วัน)
+          '<col width="115" style="width: 86pt;">' +  // อัตราค่าฝาก (B/กก./วัน)
+          '<col width="115" style="width: 86pt;">' +  // วันรับฝาก
+          '<col width="115" style="width: 86pt;">' +  // วันครบรอบบิล
+          '</colgroup>';
+
+        let theadHtml = '<thead>' +
+          '<tr height="46" style="mso-height-source:userset; height:34.5pt;">' +
+            '<th colspan="12" class="excel-title-1" style="font-size:20pt; font-weight:bold; text-align:center; vertical-align:middle; background:#ffffff; color:#0A3D62; border:none; height:34.5pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(titles.line1) + '</th>' +
           '</tr>' +
-          '</thead><tbody>' +
-          rows.map(r => '<tr>' + r.map(c => '<td>' + escapeHtml(c) + '</td>').join('') + '</tr>').join('') +
-          '</tbody></table></body></html>';
-        const blob = new Blob(['﻿' + tableHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+          '<tr height="46" style="mso-height-source:userset; height:34.5pt;">' +
+            '<th colspan="12" class="excel-title-2" style="font-size:14pt; font-weight:bold; text-align:center; vertical-align:middle; background:#ffffff; color:#000000; border:none; height:34.5pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(titles.line2) + '</th>' +
+          '</tr>' +
+          '<tr height="33" style="mso-height-source:userset; height:24.75pt;">' +
+            '<td colspan="11" style="border:none; background:#ffffff; height:24.75pt; vertical-align:middle;"></td>' +
+            '<td class="excel-export-date" style="border:none; background:#ffffff; text-align:right; font-size:10pt; color:#000000; font-weight:normal; vertical-align:middle; white-space:nowrap; font-family:Sarabun, Arial, sans-serif; height:24.75pt;">(วันที่ ' + escapeHtml(exportDateStr) + ')</td>' +
+          '</tr>' +
+          '<tr height="66" style="mso-height-source:userset; height:49.5pt;">' +
+          headers.map(h => {
+            return '<th style="background-color:#BDD7EE; color:#000000; font-weight:bold; border:0.5pt solid #757171; padding:4px 6px; text-align:center; vertical-align:middle; font-size:11pt; height:49.5pt; font-family:Sarabun, Arial, sans-serif;">' + formatHeaderHtml(h) + '</th>';
+          }).join('') +
+          '</tr>' +
+          '</thead>';
+
+        let tbodyHtml = '<tbody>' +
+          rows.map(r => {
+            let cellsHtml = '';
+            r.forEach((c, cIdx) => {
+              const rawStr = String(c === undefined || c === null ? '' : c).trim();
+              if (cIdx === 2 || cIdx === 3) {
+                const textVal = rawStr ? ('&nbsp;' + escapeHtml(rawStr)) : '';
+                cellsHtml += '<td style="border:0.5pt solid #AEABAB; text-align:left; vertical-align:middle; padding:4px 8px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif; mso-number-format:\\"\\\\@\\"; white-space:nowrap;">' + textVal + '</td>';
+              } else if (cIdx === 5 || cIdx === 6 || cIdx === 7 || cIdx === 8 || cIdx === 9) {
+                const dispNum = formatCleanNumber(rawStr);
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(dispNum) + '</td>';
+              } else {
+                const formatAttr = (cIdx === 0 || cIdx === 1) ? ' mso-number-format:\\"\\\\@\\";' : '';
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif;' + formatAttr + '">' + escapeHtml(rawStr) + '</td>';
+              }
+            });
+            return '<tr height="33" style="mso-height-source:userset; height:24.75pt;">' + cellsHtml + '</tr>';
+          }).join('') +
+          '</tbody>';
+
+        let tableHtml = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">' +
+          '<head><meta charset="UTF-8"><style>' +
+          'table { border-collapse: collapse; font-family: Sarabun, Tahoma, Arial, sans-serif; mso-displayed-decimal-separator:"."; mso-displayed-thousand-separator:","; }' +
+          'th, td { font-family: Sarabun, Tahoma, Arial, sans-serif; vertical-align: middle; }' +
+          '.excel-title-1 { font-size: 20pt; font-weight: bold; text-align: center; vertical-align: middle; border: none; height: 34.5pt; color: #0A3D62; }' +
+          '.excel-title-2 { font-size: 14pt; font-weight: bold; text-align: center; vertical-align: middle; border: none; height: 34.5pt; color: #000000; }' +
+          'th { border: 0.5pt solid #757171; }' +
+          'td { border: 0.5pt solid #AEABAB; }' +
+          '</style></head><body>' +
+          '<table border="0" style="border-collapse:collapse; border:none;">' +
+          colgroupHtml + theadHtml + tbodyHtml +
+          '</table></body></html>';
+
+        const blob = new Blob(['\ufeff' + tableHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
         link.download = fileBaseName + '.xls';
         link.click();
         showToast('ดาวน์โหลดไฟล์ Excel เรียบร้อยแล้ว', 'success');
+        return;
       }
+
+      // =========================================================================
+      // Case 2: ศูนย์รวมรายงานสต๊อกสินค้า - รายงานสินค้าคงเหลือ / สินค้าหมด (11 คอลัมน์)
+      // =========================================================================
+      if (isStockRemainingReport) {
+        let colgroupHtml = '<colgroup>' +
+          '<col width="90" style="width: 68pt;">' +   // Lot No.
+          '<col width="230" style="width: 172pt;">' + // ชื่อสินค้า
+          '<col width="80" style="width: 60pt;">' +   // หน่วยนับ
+          '<col width="110" style="width: 82pt;">' +  // น้ำหนัก/หน่วย
+          '<col width="110" style="width: 82pt;">' +  // รับเข้าเริ่มต้น
+          '<col width="90" style="width: 68pt;">' +   // เบิกออก
+          '<col width="120" style="width: 90pt;">' +  // คงเหลือ (หน่วย)
+          '<col width="130" style="width: 98pt;">' +  // น้ำหนักคงเหลือ
+          '<col width="110" style="width: 82pt;">' +  // วันรับฝาก
+          '<col width="110" style="width: 82pt;">' +  // วันครบรอบบิล
+          '<col width="140" style="width: 105pt;">' + // หมายเหตุ
+          '</colgroup>';
+
+        let theadHtml = '<thead>' +
+          '<tr height="46" style="mso-height-source:userset; height:34.5pt;">' +
+            '<th colspan="11" class="excel-title-1" style="font-size:20pt; font-weight:bold; text-align:center; vertical-align:middle; background:#ffffff; color:#0A3D62; border:none; height:34.5pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(titles.line1) + '</th>' +
+          '</tr>' +
+          '<tr height="46" style="mso-height-source:userset; height:34.5pt;">' +
+            '<th colspan="11" class="excel-title-2" style="font-size:14pt; font-weight:bold; text-align:center; vertical-align:middle; background:#ffffff; color:#000000; border:none; height:34.5pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(titles.line2) + '</th>' +
+          '</tr>' +
+          '<tr height="33" style="mso-height-source:userset; height:24.75pt;">' +
+            '<td colspan="10" style="border:none; background:#ffffff; height:24.75pt; vertical-align:middle;"></td>' +
+            '<td class="excel-export-date" style="border:none; background:#ffffff; text-align:right; font-size:10pt; color:#000000; font-weight:normal; vertical-align:middle; white-space:nowrap; font-family:Sarabun, Arial, sans-serif; height:24.75pt;">(วันที่ ' + escapeHtml(exportDateStr) + ')</td>' +
+          '</tr>' +
+          '<tr height="33" style="mso-height-source:userset; height:24.75pt;">' +
+          headers.map(h => {
+            return '<th style="background-color:#BDD7EE; color:#000000; font-weight:bold; border:0.5pt solid #757171; padding:4px 6px; text-align:center; vertical-align:middle; font-size:11pt; height:24.75pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(h) + '</th>';
+          }).join('') +
+          '</tr>' +
+          '</thead>';
+
+        let tbodyHtml = '<tbody>' +
+          rows.map(r => {
+            let cellsHtml = '';
+            r.forEach((c, cIdx) => {
+              const rawStr = String(c === undefined || c === null ? '' : c).trim();
+              if (cIdx === 1) {
+                const textVal = rawStr ? ('&nbsp;' + escapeHtml(rawStr)) : '';
+                cellsHtml += '<td style="border:0.5pt solid #AEABAB; text-align:left; vertical-align:middle; padding:4px 8px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif; mso-number-format:\\"\\\\@\\"; white-space:nowrap;">' + textVal + '</td>';
+              } else if (cIdx === 4) {
+                const dispNum = formatCleanNumber(rawStr);
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:bold; height:24.75pt; font-family:Sarabun, Arial, sans-serif; color:#10B981;">' + escapeHtml(dispNum) + '</td>';
+              } else if (cIdx === 5) {
+                const dispNum = formatCleanNumber(rawStr);
+                const numV = parseFloat(String(rawStr).replace(/,/g, '')) || 0;
+                const outColor = numV > 0 ? ' color:#EF4444; font-weight:bold;' : ' color:#000000; font-weight:normal;';
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; height:24.75pt; font-family:Sarabun, Arial, sans-serif;' + outColor + '">' + escapeHtml(dispNum) + '</td>';
+              } else if (cIdx === 6) {
+                const dispNum = formatCleanNumber(rawStr);
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:bold; height:24.75pt; font-family:Sarabun, Arial, sans-serif; color:#0284C7;">' + escapeHtml(dispNum) + '</td>';
+              } else if (cIdx === 3 || cIdx === 7) {
+                const dispNum = formatCleanNumber(rawStr);
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(dispNum) + '</td>';
+              } else if (cIdx === 10) {
+                const isOutOfStock = rawStr.indexOf('หมด') !== -1;
+                const noteColor = isOutOfStock ? ' color:#EF4444; font-weight:bold;' : '';
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; height:24.75pt; font-family:Sarabun, Arial, sans-serif;' + noteColor + '">' + escapeHtml(rawStr) + '</td>';
+              } else {
+                const formatAttr = (cIdx === 0) ? ' mso-number-format:\\"\\\\@\\";' : '';
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif;' + formatAttr + '">' + escapeHtml(rawStr) + '</td>';
+              }
+            });
+            return '<tr height="33" style="mso-height-source:userset; height:24.75pt;">' + cellsHtml + '</tr>';
+          }).join('') +
+          '</tbody>';
+
+        let tableHtml = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">' +
+          '<head><meta charset="UTF-8"><style>' +
+          'table { border-collapse: collapse; font-family: Sarabun, Tahoma, Arial, sans-serif; mso-displayed-decimal-separator:"."; mso-displayed-thousand-separator:","; }' +
+          'th, td { font-family: Sarabun, Tahoma, Arial, sans-serif; vertical-align: middle; }' +
+          '.excel-title-1 { font-size: 20pt; font-weight: bold; text-align: center; vertical-align: middle; border: none; height: 34.5pt; color: #0A3D62; }' +
+          '.excel-title-2 { font-size: 14pt; font-weight: bold; text-align: center; vertical-align: middle; border: none; height: 34.5pt; color: #000000; }' +
+          'th { border: 0.5pt solid #757171; }' +
+          'td { border: 0.5pt solid #AEABAB; }' +
+          '</style></head><body>' +
+          '<table border="0" style="border-collapse:collapse; border:none;">' +
+          colgroupHtml + theadHtml + tbodyHtml +
+          '</table></body></html>';
+
+        const blob = new Blob(['\ufeff' + tableHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = fileBaseName + '.xls';
+        link.click();
+        showToast('ดาวน์โหลดไฟล์ Excel เรียบร้อยแล้ว', 'success');
+        return;
+      }
+
+      // =========================================================================
+      // Case 3: รายงานฝากเข้า และ รายงานเบิกออก / เคลื่อนไหวสต๊อก (11 คอลัมน์)
+      // ตามสเปก:
+      // 1. ความกว้างคอลัมน์ เส้นตารางบาง สีฟ้า #BDD7EE, “ชื่อสินค้า และ หมายเหตุ” ชิดซ้ายเว้น 1 วรรค ช่องอื่นตรงกลาง, ตัวหนังสือทั้งหมดอยู่กลางบรรทัด
+      // 2. บรรทัดที่ 2:
+      //    - รายงานฝากเข้า รวม ... รายการ | จำนวนรวม: ... หน่วย | น้ำหนักรวม: ... กก.
+      //    - รายงานเบิกออก รวม ... รายการ | จำนวนรวม: ... หน่วย | น้ำหนักรวม: ... กก.
+      // 3. บนช่องหมายเหตุ: ลงวันที่สั่ง Export ด้วย (ชิดขวาเหนือคอลัมน์ 11)
+      // 4. จำนวนเปลี่ยนแปลง: ฝากเข้า สีเขียว, เบิกออก สีแดง
+      // 5. แถว 1 สูง 34.5pt ขนาด 20pt ตัวหนา
+      // 6. แถว 2 สูง 34.5pt ขนาด 14pt ตัวหนา
+      // 7. แถว 3 สูง 24.75pt ขนาด 10pt ตัวบาง
+      // 8. แถวที่ 4 สูง 24.75pt ขนาด 11pt ตัวหนา
+      // 9. แถวที่ 5+ สูง 24.75pt ขนาด 11pt ตัวบาง
+      // 10. เส้นตารางบางทั้งหมด 0.5pt solid #000000, แถว 1-3 ไม่มีเส้นขอบ
+      // =========================================================================
+      if (isMovementReport) {
+        let colgroupHtml = '<colgroup>' +
+          '<col width="215" style="width: 160pt;">' + // วันที่-เวลา
+          '<col width="105" style="width: 78pt;">' +  // ประเภท
+          '<col width="145" style="width: 108pt;">' + // เลขที่เอกสาร
+          '<col width="105" style="width: 78pt;">' +  // Lot No.
+          '<col width="215" style="width: 160pt;">' + // ชื่อสินค้า
+          '<col width="105" style="width: 78pt;">' +  // หน่วยนับ
+          '<col width="145" style="width: 108pt;">' + // จำนวนเปลี่ยนแปลง
+          '<col width="105" style="width: 78pt;">' +  // น้ำหนัก (กก.)
+          '<col width="145" style="width: 108pt;">' + // คงเหลือ (หน่วย)
+          '<col width="145" style="width: 108pt;">' + // น้ำหนักคงเหลือ (กก.)
+          '<col width="145" style="width: 108pt;">' + // หมายเหตุ / ทะเบียนรถ
+          '</colgroup>';
+
+        let theadHtml = '<thead>' +
+          '<tr height="46" style="mso-height-source:userset; height:34.5pt;">' +
+            '<th colspan="11" class="excel-title-1" style="font-size:20pt; font-weight:bold; text-align:center; vertical-align:middle; background:#ffffff; color:#0A3D62; border:none; height:34.5pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(titles.line1) + '</th>' +
+          '</tr>' +
+          '<tr height="46" style="mso-height-source:userset; height:34.5pt;">' +
+            '<th colspan="11" class="excel-title-2" style="font-size:14pt; font-weight:bold; text-align:center; vertical-align:middle; background:#ffffff; color:#000000; border:none; height:34.5pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(titles.line2) + '</th>' +
+          '</tr>' +
+          '<tr height="33" style="mso-height-source:userset; height:24.75pt;">' +
+            '<td colspan="10" style="border:none; background:#ffffff; height:24.75pt; vertical-align:middle;"></td>' +
+            '<td class="excel-export-date" style="border:none; background:#ffffff; text-align:right; font-size:10pt; color:#000000; font-weight:normal; vertical-align:middle; white-space:nowrap; font-family:Sarabun, Arial, sans-serif; height:24.75pt;">(วันที่ ' + escapeHtml(exportDateStr) + ')</td>' +
+          '</tr>' +
+          '<tr height="33" style="mso-height-source:userset; height:24.75pt;">' +
+          headers.map(h => {
+            return '<th style="background-color:#BDD7EE; color:#000000; font-weight:bold; border:0.5pt solid #757171; padding:4px 6px; text-align:center; vertical-align:middle; font-size:11pt; height:24.75pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(h) + '</th>';
+          }).join('') +
+          '</tr>' +
+          '</thead>';
+
+        let tbodyHtml = '<tbody>' +
+          rows.map(r => {
+            let cellsHtml = '';
+            r.forEach((c, cIdx) => {
+              const rawStr = String(c === undefined || c === null ? '' : c).trim();
+              if (cIdx === 4 || (cIdx === 10 && headers[10] === 'หมายเหตุ')) {
+                // ข้อ 1: “ชื่อสินค้า และ หมายเหตุ” ชิดซ้ายเว้น1วรรค
+                const textVal = rawStr ? ('&nbsp;' + escapeHtml(rawStr)) : '';
+                cellsHtml += '<td style="border:0.5pt solid #AEABAB; text-align:left; vertical-align:middle; padding:4px 8px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif; mso-number-format:\\"\\\\@\\"; white-space:nowrap;">' + textVal + '</td>';
+              } else if (cIdx === 6) {
+                // ข้อ 4: จำนวนเปลี่ยนแปลง: ฝากเข้า สีเขียว, เบิกออก สีแดง
+                const isNegative = rawStr.indexOf('-') !== -1;
+                const changeColor = (isOutboundReport || isNegative) ? '#EF4444' : '#10B981';
+                const dispNum = (rawStr === '0' || rawStr === '') ? rawStr : (isNegative ? ('-' + formatCleanNumber(rawStr.replace('-', ''))) : formatCleanNumber(rawStr));
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:bold; height:24.75pt; font-family:Sarabun, Arial, sans-serif; color:' + changeColor + ';">' + escapeHtml(dispNum) + '</td>';
+              } else if (cIdx === 8) {
+                // คงเหลือ (หน่วย): สีฟ้า
+                const dispNum = formatCleanNumber(rawStr);
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:bold; height:24.75pt; font-family:Sarabun, Arial, sans-serif; color:#0284C7;">' + escapeHtml(dispNum) + '</td>';
+              } else if (cIdx === 7 || cIdx === 9) {
+                // น้ำหนัก (กก.), น้ำหนักคงเหลือ (กก.): ตรงกลาง
+                const dispNum = formatCleanNumber(rawStr);
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(dispNum) + '</td>';
+              } else {
+                // วันที่-เวลา, ประเภท, เลขที่เอกสาร, Lot No., หน่วยนับ, ทะเบียนรถ: จัดตรงกลาง
+                const formatAttr = (cIdx === 0 || cIdx === 2 || cIdx === 3) ? ' mso-number-format:\\"\\\\@\\";' : '';
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif;' + formatAttr + '">' + escapeHtml(rawStr) + '</td>';
+              }
+            });
+            return '<tr height="33" style="mso-height-source:userset; height:24.75pt;">' + cellsHtml + '</tr>';
+          }).join('') +
+          '</tbody>';
+
+        let tableHtml = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">' +
+          '<head><meta charset="UTF-8"><style>' +
+          'table { border-collapse: collapse; font-family: Sarabun, Tahoma, Arial, sans-serif; mso-displayed-decimal-separator:"."; mso-displayed-thousand-separator:","; }' +
+          'th, td { font-family: Sarabun, Tahoma, Arial, sans-serif; vertical-align: middle; }' +
+          '.excel-title-1 { font-size: 20pt; font-weight: bold; text-align: center; vertical-align: middle; border: none; height: 34.5pt; color: #0A3D62; }' +
+          '.excel-title-2 { font-size: 14pt; font-weight: bold; text-align: center; vertical-align: middle; border: none; height: 34.5pt; color: #000000; }' +
+          'th { border: 0.5pt solid #757171; }' +
+          'td { border: 0.5pt solid #AEABAB; }' +
+          '</style></head><body>' +
+          '<table border="0" style="border-collapse:collapse; border:none;">' +
+          colgroupHtml + theadHtml + tbodyHtml +
+          '</table></body></html>';
+
+        const blob = new Blob(['\ufeff' + tableHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = fileBaseName + '.xls';
+        link.click();
+        showToast('ดาวน์โหลดไฟล์ Excel เรียบร้อยแล้ว', 'success');
+        return;
+      }
+
+      // =========================================================================
+      // Case 4: หน้าสต็อกสินค้า (Stock Export - 8 คอลัมน์)
+      // =========================================================================
+      if (isStock) {
+        let colgroupHtml = '<colgroup>' +
+          '<col width="100" style="width: 75pt;" align="center">' +   // Lot No.
+          '<col width="240" style="width: 180pt;">' +  // ชื่อสินค้า
+          '<col width="200" style="width: 150pt;">' +  // รายละเอียด
+          '<col width="90" style="width: 68pt;">' +    // หน่วยนับ
+          '<col width="110" style="width: 82pt;">' +   // น้ำหนัก/หน่วย
+          '<col width="100" style="width: 75pt;">' +   // รับเข้า
+          '<col width="100" style="width: 75pt;">' +   // เบิกออก
+          '<col width="120" style="width: 90pt;">' +   // คงเหลือ (หน่วย)
+          '<col width="120" style="width: 90pt;">' +   // น้ำหนักรวม (กก.)
+          '<col width="140" style="width: 105pt;">' +  // หมายเหตุ
+          '</colgroup>';
+
+        let theadHtml = '<thead>' +
+          '<tr height="46" style="mso-height-source:userset; height:34.5pt;">' +
+            '<th colspan="10" class="excel-title-1" style="font-size:20pt; font-weight:bold; text-align:center; vertical-align:middle; background:#ffffff; color:#0A3D62; border:none; height:34.5pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(titles.line1) + '</th>' +
+          '</tr>' +
+          '<tr height="46" style="mso-height-source:userset; height:34.5pt;">' +
+            '<th colspan="10" class="excel-title-2" style="font-size:14pt; font-weight:bold; text-align:center; vertical-align:middle; background:#ffffff; color:#000000; border:none; height:34.5pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(titles.line2) + '</th>' +
+          '</tr>' +
+          '<tr height="33" style="mso-height-source:userset; height:24.75pt;">' +
+            '<td colspan="9" style="border:none; background:#ffffff; height:24.75pt; vertical-align:middle;"></td>' +
+            '<td class="excel-export-date" style="border:none; background:#ffffff; text-align:right; font-size:10pt; color:#000000; font-weight:normal; vertical-align:middle; white-space:nowrap; font-family:Sarabun, Arial, sans-serif; height:24.75pt;">(วันที่ ' + escapeHtml(exportDateStr) + ')</td>' +
+          '</tr>' +
+          '<tr height="66" style="mso-height-source:userset; height:49.5pt;">' +
+          headers.map(h => {
+            return '<th style="background-color:#BDD7EE; color:#000000; font-weight:bold; border:0.5pt solid #757171; padding:4px 6px; text-align:center; vertical-align:middle; font-size:11pt; height:49.5pt; font-family:Sarabun, Arial, sans-serif;">' + formatHeaderHtml(h) + '</th>';
+          }).join('') +
+          '</tr>' +
+          '</thead>';
+
+        let tbodyHtml = '<tbody>' +
+          rows.map(r => {
+            let cellsHtml = '';
+            r.forEach((c, cIdx) => {
+              const rawStr = String(c === undefined || c === null ? '' : c).trim();
+              if (cIdx === 1 || cIdx === 2) {
+                const textVal = rawStr ? ('&nbsp;' + escapeHtml(rawStr)) : '';
+                cellsHtml += '<td style="border:0.5pt solid #AEABAB; text-align:left; vertical-align:middle; padding:4px 8px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif; mso-number-format:"\@"; white-space:nowrap;">' + textVal + '</td>';
+              } else if (cIdx === 5) {
+                // รับเข้า
+                const dispNum = formatCleanNumber(rawStr);
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:bold; height:24.75pt; font-family:Sarabun, Arial, sans-serif; color:#10B981;">' + escapeHtml(dispNum) + '</td>';
+              } else if (cIdx === 6) {
+                // เบิกออก (ถ้าเป็น 0 เป็นสีดำปกติ, มีจำนวนเบิกออกเป็นสีแดง)
+                const dispNum = formatCleanNumber(rawStr);
+                const numV = parseFloat(String(rawStr).replace(/,/g, '')) || 0;
+                const outColor = numV > 0 ? ' color:#EF4444; font-weight:bold;' : ' color:#000000; font-weight:normal;';
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; height:24.75pt; font-family:Sarabun, Arial, sans-serif;' + outColor + '">' + escapeHtml(dispNum) + '</td>';
+              } else if (cIdx === 7 || cIdx === 8) {
+                // คงเหลือ (หน่วย) และ น้ำหนักรวม (กก.)
+                const dispNum = formatCleanNumber(rawStr);
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:bold; height:24.75pt; font-family:Sarabun, Arial, sans-serif; color:#0284C7;">' + escapeHtml(dispNum) + '</td>';
+              } else if (cIdx === 4) {
+                // น้ำหนัก/หน่วย
+                const dispNum = formatCleanNumber(rawStr);
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(dispNum) + '</td>';
+              } else if (cIdx === 9) {
+                // หมายเหตุ
+                const isOutOfStock = rawStr.indexOf('หมด') !== -1;
+                const noteColor = isOutOfStock ? ' color:#EF4444; font-weight:bold;' : '';
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; height:24.75pt; font-family:Sarabun, Arial, sans-serif;' + noteColor + '">' + escapeHtml(rawStr) + '</td>';
+              } else if (cIdx === 0) {
+                // Lot No. -> จัดให้อยู่ตรงกลางคอลัมน์
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif; mso-number-format:"\@";">' + escapeHtml(rawStr) + '</td>';
+              } else {
+                // หน่วยนับ (cIdx 3)
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(rawStr) + '</td>';
+              }
+            });
+            return '<tr height="33" style="mso-height-source:userset; height:24.75pt;">' + cellsHtml + '</tr>';
+          }).join('') +
+          '</tbody>';
+
+        let tableHtml = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">' +
+          '<head><meta charset="UTF-8"><style>' +
+          'table { border-collapse: collapse; font-family: Sarabun, Tahoma, Arial, sans-serif; mso-displayed-decimal-separator:"."; mso-displayed-thousand-separator:","; }' +
+          'th, td { font-family: Sarabun, Tahoma, Arial, sans-serif; vertical-align: middle; }' +
+          '.excel-title-1 { font-size: 20pt; font-weight: bold; text-align: center; vertical-align: middle; border: none; height: 34.5pt; color: #0A3D62; }' +
+          '.excel-title-2 { font-size: 14pt; font-weight: bold; text-align: center; vertical-align: middle; border: none; height: 34.5pt; color: #000000; }' +
+          'th { border: 0.5pt solid #757171; }' +
+          'td { border: 0.5pt solid #AEABAB; }' +
+          '</style></head><body>' +
+          '<table border="0" style="border-collapse:collapse; border:none;">' +
+          colgroupHtml + theadHtml + tbodyHtml +
+          '</table></body></html>';
+
+        const blob = new Blob(['\ufeff' + tableHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = fileBaseName + '.xls';
+        link.click();
+        showToast('ดาวน์โหลดไฟล์ Excel เรียบร้อยแล้ว', 'success');
+        return;
+      }
+
+      // Generic fallback for other reports
+      let tableHtml = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"><style>' +
+        'table { border-collapse: collapse; width: 100%; font-family: Sarabun, Tahoma, Arial, sans-serif; }' +
+        'th, td { font-family: Sarabun, Tahoma, Arial, sans-serif; vertical-align: middle; }' +
+        '.excel-title-1 { font-size: 20pt; font-weight: bold; text-align: center; vertical-align: middle; color: #0A3D62; height: 34.5pt; border: none; }' +
+        '.excel-title-2 { font-size: 14pt; font-weight: bold; text-align: center; vertical-align: middle; color: #000000; height: 34.5pt; border: none; }' +
+        'th { background-color: #0A3D62; color: #FFFFFF; font-weight: bold; border: 0.5pt solid #757171; padding: 6px; text-align: center; vertical-align: middle; font-size: 11pt; height: 49.5pt; }' +
+        'td { border: 0.5pt solid #AEABAB; padding: 6px; vertical-align: middle; font-size: 11pt; height: 24.75pt; font-weight: normal; }' +
+        '</style></head><body><table border="0" style="border-collapse:collapse; border:none;">' +
+        '<thead>' +
+        '<tr height="46" style="mso-height-source:userset; height:34.5pt;"><th colspan="' + colSpan + '" class="excel-title-1" style="font-size:20pt; font-weight:bold; text-align:center; vertical-align:middle; background:#ffffff; color:#0A3D62; border:none; height:34.5pt;">' + escapeHtml(titles.line1) + '</th></tr>' +
+        '<tr height="46" style="mso-height-source:userset; height:34.5pt;"><th colspan="' + colSpan + '" class="excel-title-2" style="font-size:14pt; font-weight:bold; text-align:center; vertical-align:middle; background:#ffffff; color:#000000; border:none; height:34.5pt;">' + escapeHtml(titles.line2) + '</th></tr>' +
+        '<tr height="66" style="mso-height-source:userset; height:49.5pt;">' +
+        headers.map(h => '<th style="background-color:#0A3D62; color:#ffffff; font-weight:bold; border:0.5pt solid #757171; padding:6px; vertical-align:middle; font-size:11pt; height:49.5pt;">' + formatHeaderHtml(h) + '</th>').join('') +
+        '</tr>' +
+        '</thead><tbody>' +
+        rows.map(r => '<tr height="33" style="mso-height-source:userset; height:24.75pt;">' + r.map((c, idx) => {
+          const h = headers[idx] || '';
+          let cellColor = '';
+          if (h.indexOf('รับเข้าเริ่มต้น') !== -1) cellColor = ' color:#10B981; font-weight:bold;';
+          else if (h.indexOf('เบิกออก') !== -1) {
+            const numV = parseFloat(String(c).replace(/,/g, '')) || 0;
+            cellColor = numV > 0 ? ' color:#EF4444; font-weight:bold;' : ' color:#000000; font-weight:normal;';
+          }
+          else if (h.indexOf('คงเหลือ') !== -1 && h.indexOf('น้ำหนัก') === -1) cellColor = ' color:#0284C7; font-weight:bold;';
+          else if (h.indexOf('หมายเหตุ') !== -1 && String(c || '').indexOf('หมด') !== -1) cellColor = ' color:#EF4444; font-weight:bold;';
+          return '<td style="border:0.5pt solid #AEABAB; vertical-align:middle; font-size:11pt; height:24.75pt;' + cellColor + '">' + escapeHtml(c) + '</td>';
+        }).join('') + '</tr>').join('') +
+        '</tbody></table></body></html>';
+      const blob = new Blob(['\ufeff' + tableHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = fileBaseName + '.xls';
+      link.click();
+      showToast('ดาวน์โหลดไฟล์ Excel เรียบร้อยแล้ว', 'success');
     }
 
     function exportCurrentReport(format) {
       const data = getActiveReportData();
-      downloadTableFile('Report_' + STATE.activeReportType + '_' + formatYMDCompact(), data.headers, data.rows, format);
+      const rpt = STATE.activeReportType;
+      let titleLine2 = '';
+
+      if (rpt === 'STOCK_OUT') {
+        // รายงานสินค้าหมด บรรทัดที่ 2 ตัด "จำนวนรวม: 0 หน่วย | น้ำหนักรวม: 0.00 กก." ออก แสดงเป็น "รายงานสินค้าหมด รวม ... รายการ"
+        titleLine2 = 'รายงานสินค้าหมด รวม ' + fmtNum(data.rows.length) + ' รายการ';
+      } else if (rpt === 'STOCK_ALL') {
+        titleLine2 = 'รายงานสินค้าคงเหลือ รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวม: ' + fmtNum(data.totalWeight, 2) + ' กก.';
+      } else if (rpt === 'INBOUND') {
+        titleLine2 = 'รายงานฝากเข้า รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวม: ' + fmtNum(data.totalWeight, 2) + ' กก.';
+      } else if (rpt === 'OUTBOUND') {
+        titleLine2 = 'รายงานเบิกออก รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวม: ' + fmtNum(data.totalWeight, 2) + ' กก.';
+      } else {
+        titleLine2 = data.title + ' รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวม: ' + fmtNum(data.totalWeight, 2) + ' กก.';
+      }
+
+      downloadTableFile('Report_' + rpt + '_' + formatYMDCompact(), data.headers, data.rows, format, {
+        isStockRemainingReport: (rpt === 'STOCK_ALL' || rpt === 'STOCK_OUT'),
+        isInboundReport: (rpt === 'INBOUND'),
+        isOutboundReport: (rpt === 'OUTBOUND'),
+        isMovementReport: (rpt === 'INBOUND' || rpt === 'OUTBOUND' || rpt === 'MOVEMENT'),
+        titleLine2: titleLine2
+      });
     }
 
     function printCurrentReport() {
       const data = getActiveReportData();
+      const rpt = STATE.activeReportType;
+      let printSubTitle = data.title;
+      if (rpt === 'STOCK_OUT') {
+        printSubTitle = 'รายงานสินค้าหมด รวม ' + fmtNum(data.rows.length) + ' รายการ';
+      } else if (rpt === 'STOCK_ALL') {
+        printSubTitle = 'รายงานสินค้าคงเหลือ รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวม: ' + fmtNum(data.totalWeight, 2) + ' กก.';
+      } else if (rpt === 'INBOUND') {
+        printSubTitle = 'รายงานฝากเข้า รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวม: ' + fmtNum(data.totalWeight, 2) + ' กก.';
+      } else if (rpt === 'OUTBOUND') {
+        printSubTitle = 'รายงานเบิกออก รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวม: ' + fmtNum(data.totalWeight, 2) + ' กก.';
+      }
+
       const isRightCol = (headerName) => {
         const h = String(headerName || '').replace(/\s+/g, '');
         return (
           h.indexOf('น้ำหนัก/หน่วย') !== -1 ||
           h.indexOf('รับเข้าเริ่มต้น') !== -1 ||
+          h.indexOf('เบิกออก') !== -1 ||
           h.indexOf('น้ำหนักคงเหลือ') !== -1 ||
+          h.indexOf('คงเหลือ(หน่วย)') !== -1 ||
           h.indexOf('คงเหลือ(หน่วย)') !== -1 ||
           h.indexOf('จำนวนคงเหลือ') !== -1 ||
           h.indexOf('จำนวนเปลี่ยนแปลง') !== -1 ||
@@ -13604,12 +14445,26 @@ function editProduct(p) {
         );
       };
       const html =
-        '<div class="doc-header"><h2>บริษัท พรมารีน จำกัด (POR MARINE CO., LTD.)</h2><h3>' + escapeHtml(data.title) + '</h3><div>พิมพ์เมื่อ: ' + formatNowThai() + '</div></div>' +
+        '<div class="doc-header"><h2>บริษัท พรมารีน จำกัด (POR MARINE CO., LTD.)</h2><h3>' + escapeHtml(printSubTitle) + '</h3><div>พิมพ์เมื่อ: ' + formatNowThai() + '</div></div>' +
         '<table style="width:100%; border-collapse:collapse;" border="1"><thead><tr style="background:#0A3D62; color:#fff;">' +
         data.headers.map(h => '<th style="padding:6px; ' + (isRightCol(h) ? 'text-align:right;' : 'text-align:left;') + '">' + escapeHtml(h) + '</th>').join('') + '</tr></thead>' +
         '<tbody>' + data.rows.map(r => '<tr>' + r.map((c, idx) => {
           const h = data.headers[idx] || '';
-          return '<td style="padding:6px; ' + (isRightCol(h) ? 'text-align:right;' : 'text-align:left;') + '">' + escapeHtml(c) + '</td>';
+          let colStyle = isRightCol(h) ? 'text-align:right;' : 'text-align:left;';
+          if (h.indexOf('รับเข้าเริ่มต้น') !== -1) colStyle += ' color:#10B981; font-weight:700;';
+          else if (h.indexOf('เบิกออก') !== -1) {
+            const numV = parseFloat(String(c).replace(/,/g, '')) || 0;
+            if (numV > 0) colStyle += ' color:#EF4444; font-weight:700;';
+            else colStyle += ' color:#000000; font-weight:normal;';
+          }
+          else if (h.indexOf('คงเหลือ') !== -1 && h.indexOf('น้ำหนัก') === -1) colStyle += ' color:#0284C7; font-weight:700;';
+          else if (h.indexOf('จำนวนเปลี่ยนแปลง') !== -1) {
+            const numV = parseFloat(String(c).replace(/,/g, '')) || 0;
+            if (STATE.activeReportType === 'INBOUND' || numV > 0) colStyle += ' color:#10B981; font-weight:700;';
+            else if (STATE.activeReportType === 'OUTBOUND' || numV < 0) colStyle += ' color:#EF4444; font-weight:700;';
+          }
+          else if (h.indexOf('หมายเหตุ') !== -1 && String(c || '').indexOf('หมด') !== -1) colStyle += ' color:#EF4444; font-weight:700;';
+          return '<td style="padding:6px; ' + colStyle + '">' + escapeHtml(c) + '</td>';
         }).join('') + '</tr>').join('') + '</tbody></table>';
       STATE.currentPrintDoc = { fileName: 'Report_' + STATE.activeReportType + '_' + formatYMDCompact(), refNo: STATE.activeReportType, htmlContent: html };
       document.getElementById('modalDocPrintTitle').textContent = data.title;
@@ -13701,7 +14556,17 @@ function editProduct(p) {
               '<td><strong>' + escapeHtml(u.username) + '</strong></td>' +
               '<td>' + escapeHtml(u.fullName) + '</td>' +
               '<td><span class="status-badge status-ReceiveOrders">' + escapeHtml(u.role) + '</span></td>' +
-              '<td>' + escapeHtml(u.clientName || '-') + '</td>' +
+              '<td>' + escapeHtml((function() {
+                const role = String(u.role || '').trim();
+                const uname = String(u.username || '').toLowerCase().trim();
+                const uid = String(u.userId || '').toUpperCase().trim();
+                if (role === 'Admin' || role === 'Manager' || role === 'Office' || role === 'Store' || role === 'Warehouse' ||
+                    ['admin', 'manager', 'office', 'store'].indexOf(uname) !== -1 ||
+                    ['USR-001', 'USR-002', 'USR-003', 'USR-004'].indexOf(uid) !== -1) {
+                  return 'บริษัท พรมารีน จำกัด';
+                }
+                return u.clientName || '-';
+              })()) + '</td>' +
               '<td>' + escapeHtml(u.email || '-') + '<br><small>' + escapeHtml(u.phone || '') + '</small></td>' +
               '<td>' + escapeHtml(u.lastLogin || '-') + '</td>' +
               '<td class="text-center"><span class="status-badge ' + (u.status === 'Active' ? 'status-Approved' : 'status-Cancelled') + '">' + escapeHtml(u.status) + '</span></td>' +
@@ -13997,7 +14862,7 @@ function editProduct(p) {
         if (stFilter === 'InStock' && !isInStock) return false;
         if (stFilter === 'OutOfStock' && isInStock) return false;
         if (!checkLotDateInRange(item.ReceiveDate)) return false;
-        if (cli && item.ClientName !== cli && item.ClientID !== cli) return false;
+        if (cli && !isClientMatch(item.ClientName, item.ClientID, cli)) return false;
 
         if (q) {
           const outDoc = getOutboundDocNoForLot(item.LotNo).toLowerCase();
@@ -14097,7 +14962,12 @@ function editProduct(p) {
         const outDoc = getOutboundDocNoForLot(item.LotNo) || '-';
         const docNum = (inDoc && inDoc !== '-') ? inDoc : (outDoc && outDoc !== '-' ? outDoc : '-');
 
-        const clientObj = STATE.clients.find(c => c.ClientID === item.ClientID || c.ClientName === item.ClientName) || {};
+        const clientObj = (STATE.clients || []).find(c => 
+          (item.ClientID && (c.ClientID === item.ClientID || c.ClientCode === item.ClientID)) ||
+          (item.ClientName && (c.ClientName === item.ClientName || (c.ContactPerson && c.ContactPerson === item.ClientName) || c.ClientName.indexOf(item.ClientName) !== -1 || item.ClientName.indexOf(c.ClientName) !== -1))
+        ) || {};
+        const cDispName = clientObj.ClientName || item.ClientName || '-';
+        const cDispCode = clientObj.ClientCode || clientObj.ClientID || item.ClientID || '-';
         const billingDays = clientObj.BillingCycleDays || 30;
         const ratePerKg = clientObj.StorageRatePerKgDay || 0.8;
 
@@ -14122,7 +14992,7 @@ function editProduct(p) {
           : '<span class="status-badge status-Rejected" style="font-size:11px;"><i class="fa-solid fa-circle-xmark"></i> สินค้าหมด</span>';
 
         return '<tr>' +
-          '<td><strong style="color:#0A3D62; font-size:14px;">' + escapeHtml(item.LotNo) + '</strong></td>' +
+          '<td class="text-center"><strong style="color:#0A3D62; font-size:14px;">' + escapeHtml(item.LotNo) + '</strong></td>' +
           '<td><strong>' + escapeHtml(docNum) + '</strong></td>' +
           '<td><strong>' + escapeHtml(item.ProductName) + '</strong><br><small style="color:var(--text-muted);">' + escapeHtml(item.Description || '-') + '</small></td>' +
           '<td><strong>' + escapeHtml(item.ClientName || '-') + '</strong><br><small style="color:#64748B;">' + escapeHtml(item.ClientID || clientObj.ClientCode || '-') + '</small></td>' +
@@ -14471,7 +15341,23 @@ function editProduct(p) {
 
     function exportLotDetailsData(format) {
       const list = getFilteredLotDetails();
-      const headers = ['Lot No.', 'เลขที่เอกสาร', 'ชื่อสินค้า', 'ลูกค้าเจ้าของสินค้า', 'รหัสลูกค้า', 'หน่วยนับ', 'น้ำหนัก/หน่วย (กก.)', 'คงเหลือ (หน่วย)', 'น้ำหนักรวม (กก.)', 'รอบบิล (วัน)', 'อัตราค่าฝาก (฿/กก./วัน)', 'วันรับฝาก', 'วันครบรอบบิล', 'รายละเอียด'];
+      // ข้อ 1: รายการสินค้าและรายละเอียด ตอนสั่ง Export Excel ไม่ต้องแสดง รหัสลูกค้า, รายละเอียด
+      const headers = [
+        'Lot No.',
+        'เลขที่เอกสาร',
+        'ชื่อสินค้า',
+        'ลูกค้าเจ้าของสินค้า',
+        'หน่วยนับ',
+        'น้ำหนัก/หน่วย (กก.)',
+        'คงเหลือ (หน่วย)',
+        'น้ำหนักรวม (กก.)',
+        'รอบบิล (วัน)',
+        'อัตราค่าฝาก (B/กก./วัน)',
+        'วันรับฝาก',
+        'วันครบรอบบิล'
+      ];
+      let sumQty = 0;
+      let sumWeight = 0;
       const rows = list.map(item => {
         const stockObj = STATE.stock.find(s => s.LotNo === item.LotNo || s.StockID === item.StockID) || {};
         const inDoc = stockObj.ReceivingNo || item.ReceivingNo || '-';
@@ -14479,24 +15365,36 @@ function editProduct(p) {
         const docNum = (inDoc && inDoc !== '-') ? inDoc : (outDoc && outDoc !== '-' ? outDoc : '-');
         const clientObj = STATE.clients.find(c => c.ClientID === item.ClientID || c.ClientName === item.ClientName) || {};
 
+        const q = parseFloat(item.RemainQty) || 0;
+        const w = parseFloat(item.RemainWeight) || 0;
+        sumQty += q;
+        sumWeight += w;
+
         return [
           item.LotNo,
           docNum,
           item.ProductName,
-          item.ClientName,
-          item.ClientID || clientObj.ClientCode || '',
-          item.Unit,
+          item.ClientName || '-',
+          item.Unit || 'กล่อง',
           item.WeightPerUnit,
           item.RemainQty,
           item.RemainWeight,
           clientObj.BillingCycleDays || 30,
           clientObj.StorageRatePerKgDay || 0.8,
           item.ReceiveDate || '',
-          stockObj.NextBillingDate || '',
-          item.Description || ''
+          stockObj.NextBillingDate || ''
         ];
       });
-      downloadTableFile('Lot_Details_POR_MARINE_' + formatYMDCompact(), headers, rows, format);
+
+      const selectedClient = document.getElementById('lotFilterClient') ? document.getElementById('lotFilterClient').value : '';
+      const summaryText = 'แสดง ' + fmtNum(list.length) + ' รายการ Lot | จำนวนคงเหลือ: ' + fmtNum(sumQty) + ' หน่วย | น้ำหนักรวม: ' + fmtNum(sumWeight, 2) + ' กก.';
+      const titleLine2 = 'รายการสินค้าและรายละเอียด ' + summaryText;
+
+      downloadTableFile('Lot_Details_POR_MARINE_' + formatYMDCompact(), headers, rows, format, {
+        isLotDetails: true,
+        selectedClient: selectedClient,
+        titleLine2: titleLine2
+      });
     }
 
   </script>
