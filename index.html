@@ -799,15 +799,140 @@
       .page-content { padding: 14px; }
     }
 
-    /* Print Document Styling */
-    @media print {
-      body * { visibility: hidden; }
-      #printPreviewArea, #printPreviewArea * { visibility: visible; }
-      #printPreviewArea {
-        position: absolute; left: 0; top: 0; width: 100%;
-        padding: 0; margin: 0; box-shadow: none;
+    /* Print Document & Receipt Styling */
+    .print-only { display: none !important; }
+
+    .receipt-print-wrapper {
+      width: 100%;
+    }
+    .receipt-slip {
+      background: #ffffff;
+      box-sizing: border-box;
+      font-family: 'Sarabun', Tahoma, Arial, sans-serif;
+      color: #0F172A;
+    }
+
+    @media screen {
+      .receipt-slip-original {
+        max-width: 820px;
+        margin: 0 auto;
+        padding: 20px 24px;
+        background: #ffffff;
+        border: 1px solid #E2E8F0;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.06);
       }
-      .no-print { display: none !important; }
+    }
+
+    @page {
+      size: A4 portrait;
+      margin: 4mm 8mm;
+    }
+
+    @media print {
+      /* ป้องกันการเกิดหน้าที่ 2 โดยตัดส่วนประกอบอื่นๆ ของหน้าเว็บออกจาก Flow การพิมพ์ทั้งหมด */
+      body > *:not(#modalDocPrint) {
+        display: none !important;
+      }
+      .modal-backdrop:not(#modalDocPrint) {
+        display: none !important;
+      }
+      #globalLoader, #toastContainer {
+        display: none !important;
+      }
+
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        height: auto !important;
+        min-height: 0 !important;
+        overflow: hidden !important;
+      }
+
+      #modalDocPrint {
+        display: block !important;
+        position: static !important;
+        inset: auto !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        border: none !important;
+        overflow: visible !important;
+      }
+
+      #modalDocPrint .modal-dialog {
+        display: block !important;
+        position: static !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+      }
+
+      #modalDocPrint .modal-header,
+      .no-print {
+        display: none !important;
+      }
+
+      #printPreviewArea {
+        display: block !important;
+        position: static !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+      }
+
+      .print-only {
+        display: block !important;
+      }
+
+      /* ล็อก max-height: 278mm และจัดสลิปสูง 133mm ต่อสลิป ให้กระชับพอดีหน้า A4 ไม่ล้นไปหน้าที่ 2 */
+      .receipt-print-wrapper {
+        width: 100% !important;
+        height: 278mm !important;
+        max-height: 278mm !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+        page-break-inside: avoid !important;
+        page-break-after: avoid !important;
+      }
+
+      .receipt-slip {
+        box-sizing: border-box !important;
+        width: 100% !important;
+        height: 133mm !important;
+        max-height: 133mm !important;
+        overflow: hidden !important;
+        padding: 2mm 0 !important;
+        margin: 0 !important;
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        page-break-inside: avoid !important;
+        page-break-after: avoid !important;
+      }
+
+      .receipt-slip-copy {
+        border-top: 1px dashed #CBD5E1 !important;
+        padding-top: 3mm !important;
+        page-break-before: avoid !important;
+        page-break-inside: avoid !important;
+      }
     }
   </style>
 </head>
@@ -2579,9 +2704,7 @@
           <button class="btn btn-blue btn-sm" onclick="window.print()">
             <i class="fa-solid fa-print"></i> สั่งพิมพ์ (Print)
           </button>
-          <button class="btn btn-orange btn-sm" onclick="generatePdfFromModal()">
-            <i class="fa-solid fa-file-pdf"></i> สร้างไฟล์ PDF (Google Drive)
-          </button>
+
           <button class="btn btn-outline btn-sm" onclick="closeModal('modalDocPrint')">
             <i class="fa-solid fa-xmark"></i>
           </button>
@@ -13288,7 +13411,245 @@ function editProduct(p) {
       });
     }
 
-        function openPrintReceiptModal(docType, docData) {
+        function formatDocDate(doc) {
+      if (doc.ReceiveDate && doc.ReceiveDate.indexOf('/') !== -1) return doc.ReceiveDate;
+      if (doc.RequisitionDate && doc.RequisitionDate.indexOf('/') !== -1) return doc.RequisitionDate;
+      if (doc.DateTimeIn && doc.DateTimeIn.indexOf('/') !== -1) {
+        return doc.DateTimeIn.split(' ')[0];
+      }
+      if (doc.DateTimeOut && doc.DateTimeOut.indexOf('/') !== -1) {
+        return doc.DateTimeOut.split(' ')[0];
+      }
+      return formatTodayThai();
+    }
+
+    function formatDocTimeInOut(doc) {
+      let tIn = '';
+      let tOut = '';
+      if (doc.TimeIn) tIn = doc.TimeIn.trim();
+      else if (doc.DateTimeIn) {
+        const p = doc.DateTimeIn.trim().split(' ');
+        tIn = p.length > 1 ? p[1] : (p[0].indexOf(':') !== -1 ? p[0] : '');
+      }
+
+      if (doc.TimeOut) tOut = doc.TimeOut.trim();
+      else if (doc.DateTimeOut) {
+        const p = doc.DateTimeOut.trim().split(' ');
+        tOut = p.length > 1 ? p[1] : (p[0].indexOf(':') !== -1 ? p[0] : '');
+      }
+
+      if (tIn && tOut) return tIn + ' - ' + tOut;
+      if (tIn) return tIn + ' - ' + tIn;
+      if (tOut) return tOut + ' - ' + tOut;
+      return '-';
+    }
+
+    function buildReceiptSlipHtml(docType, docData, copyType) {
+      const isOutboundChecklist = docType === 'OUTBOUND_CHECKLIST';
+      const isInboundChecklist = docType === 'INBOUND_CHECKLIST';
+      const isChecklist = (isInboundChecklist || isOutboundChecklist);
+      const isRcv = (docType === 'RECEIVING' || isInboundChecklist);
+      const isReq = (docType === 'REQUISITION' || isOutboundChecklist);
+      const docNo = isRcv ? (docData.ReceivingNo || docData.DocNo || '-') : (docData.RequisitionNo || docData.DocNo || '-');
+
+      // ข้อ 1: ชื่อ ใบรับฝากสินค้า สีเขียว, ชื่อ ใบเบิกสินค้า สีแดง ทั้งต้นฉบับและสำเนาลูกค้า
+      let titleTh = isReq ? 'ใบเบิกสินค้า' : 'ใบรับฝากสินค้า';
+      if (isInboundChecklist) titleTh = 'ใบรายการแจ้งฝากสินค้าส่งหน้างาน';
+      else if (isOutboundChecklist) titleTh = 'ใบรายการจัดเตรียมสินค้าส่งหน้างาน';
+
+      const titleColor = isReq ? '#DC2626' : '#16A34A';
+      const copyLabel = copyType === 'COPY' ? '(สำเนาลูกค้า)' : '(ต้นฉบับ)';
+
+      const compName = (STATE.settings && STATE.settings.map && STATE.settings.map.COMPANY_NAME) || 'บริษัท พรมารีน จำกัด';
+      const compEng = (STATE.settings && STATE.settings.map && STATE.settings.map.COMPANY_ENG) || 'POR MARINE CO., LTD.';
+      const compAddr = (STATE.settings && STATE.settings.map && STATE.settings.map.COMPANY_ADDRESS) || '44/37 หมู่ที่ 3 ซ.สาครธานี ถ.สหกรณ์ ต.บางหญ้าแพรก อ.เมือง จ.สมุทรสาคร 74000';
+      const compTel = (STATE.settings && STATE.settings.map && STATE.settings.map.COMPANY_TEL) || 'โทร : 084-422-8686 , 086-800-6800 , 034-871111 แฟ็กซ์ : 034-871234';
+
+      const docDate = formatDocDate(docData);
+      const timeInOut = formatDocTimeInOut(docData);
+
+      let vehicle = (docData.VehicleInfo && docData.VehicleInfo.trim())
+        ? docData.VehicleInfo.trim()
+        : ((docData.vehicle_info && docData.vehicle_info.trim()) ? docData.vehicle_info.trim() : '');
+      if (!vehicle || vehicle === '-') {
+        vehicle = (isReq ? docData.RequesterName : docData.DepositorName) || '-';
+      }
+
+      let clientName = docData.ClientName || '-';
+      if ((!clientName || clientName === '-') && docData.ClientID) {
+        const cObj = (STATE.clients || []).find(c => c.ClientID === docData.ClientID || c.ClientCode === docData.ClientID);
+        if (cObj) clientName = cObj.ClientName;
+      }
+
+      let items = docData.items || docData.Items || [];
+      if ((!items || items.length === 0) && docNo && docNo !== '-') {
+        if (isRcv) {
+          items = (STATE.stock || []).filter(s => s.ReceivingNo === docNo).map(s => ({
+            LotNo: s.LotNo,
+            ProductName: s.ProductName,
+            Description: s.Description,
+            Unit: s.Unit,
+            WeightPerUnit: s.WeightPerUnit,
+            Qty: s.InitialQty || s.RemainQty,
+            TotalWeight: s.InitialWeight || s.RemainWeight,
+            Notes: s.VehicleInfo || ''
+          }));
+        } else {
+          items = (STATE.movements || []).filter(m => m.RefDocNo === docNo && String(m.MovementType).indexOf('OUT') !== -1).map(m => ({
+            LotNo: m.LotNo,
+            ProductName: m.ProductName,
+            Description: m.Description,
+            Unit: m.Unit,
+            WeightPerUnit: m.WeightPerUnit,
+            Qty: Math.abs(parseFloat(m.QtyChange) || 0),
+            TotalWeight: Math.abs(parseFloat(m.WeightChange) || 0),
+            Notes: m.Notes || ''
+          }));
+        }
+      }
+
+      let totalQty = 0;
+      let totalWeight = 0;
+      let rowsHtml = '';
+
+      items.forEach((it, idx) => {
+        const q = parseFloat(it.Qty !== undefined ? it.Qty : it.qty) || 0;
+        const isW = (typeof it.WeightPerUnit === 'string' && it.WeightPerUnit.indexOf('ชั่ง') !== -1) || it.isWeighed === true;
+        let w = parseFloat(it.TotalWeight !== undefined ? it.TotalWeight : it.totalWeight) || 0;
+        if (w === 0 && q > 0 && !isW) {
+          w = parseFloat((q * (parseFloat(it.WeightPerUnit) || 0)).toFixed(2));
+        }
+        totalQty += q;
+        totalWeight += w;
+
+        const wDisp = isW ? 'น้ำหนักชั่ง' : fmtNum(it.WeightPerUnit, 2);
+
+        rowsHtml +=
+          '<tr style="border-bottom:1px solid #CBD5E1;">' +
+            '<td style="padding:4px 3px; text-align:center; vertical-align:middle; border-left:1px solid #CBD5E1; border-right:1px solid #CBD5E1;">' + (idx + 1) + '</td>' +
+            '<td style="padding:4px 3px; text-align:center; vertical-align:middle; border-right:1px solid #CBD5E1; font-weight:600;">' + escapeHtml(it.LotNo || '-') + '</td>' +
+            '<td style="padding:4px 6px; text-align:left; vertical-align:middle; border-right:1px solid #CBD5E1;">' +
+              '<div style="font-weight:700; color:#0F172A;">' + escapeHtml(it.ProductName || '-') + '</div>' +
+              (it.Description ? '<div style="font-size:10px; color:#64748B; margin-top:1px;">' + escapeHtml(it.Description) + '</div>' : '') +
+            '</td>' +
+            '<td style="padding:4px 3px; text-align:center; vertical-align:middle; border-right:1px solid #CBD5E1;">' + wDisp + '</td>' +
+            '<td style="padding:4px 3px; text-align:center; vertical-align:middle; border-right:1px solid #CBD5E1; font-weight:600;">' + fmtNum(q) + '</td>' +
+            '<td style="padding:4px 3px; text-align:center; vertical-align:middle; border-right:1px solid #CBD5E1; font-weight:600;">' + fmtNum(w, 2) + '</td>' +
+            '<td style="padding:4px 4px; text-align:center; vertical-align:middle; border-right:1px solid #CBD5E1;">' + escapeHtml(it.Notes || it.Remark || '') + '</td>' +
+          '</tr>';
+      });
+
+      if (items.length === 0) {
+        rowsHtml = '<tr><td colspan="7" style="padding:10px; text-align:center; color:#94A3B8; border:1px solid #CBD5E1;">ไม่มีรายการสินค้า</td></tr>';
+        if (docData.TotalQty) totalQty = parseFloat(docData.TotalQty) || 0;
+        if (docData.TotalWeight) totalWeight = parseFloat(docData.TotalWeight) || 0;
+      }
+
+      const signTitleLeft = isReq ? 'ผู้เบิกสินค้า / พนักงานขับรถ' : 'ผู้ฝากสินค้า / พนักงานขับรถ';
+
+      return '<div class="receipt-slip-inner" style="box-sizing:border-box; font-family:Sarabun, Tahoma, Arial, sans-serif; color:#0F172A; line-height:1.3;">' +
+        '<!-- Header -->' +
+        '<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">' +
+          '<div style="display:flex; align-items:center; gap:10px;">' +
+            '<!-- PR Logo Badge -->' +
+            '<div style="width:44px; height:44px; border-radius:50%; background:#0A3D62; border:2px solid #E48D17; display:flex; align-items:center; justify-content:center; color:#E48D17; font-weight:800; font-size:18px; flex-shrink:0;">' +
+              'PR' +
+            '</div>' +
+            '<div>' +
+              '<div style="font-size:15px; font-weight:700; color:#0A3D62; letter-spacing:0.2px;">' +
+                escapeHtml(compName) + ' <span style="font-size:12px; font-weight:600;">(' + escapeHtml(compEng) + ')</span>' +
+              '</div>' +
+              '<div style="font-size:10px; color:#475569; margin-top:1px;">' +
+                escapeHtml(compAddr) +
+              '</div>' +
+              '<div style="font-size:10px; color:#475569;">' +
+                escapeHtml(compTel) +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div style="text-align:right;">' +
+            '<!-- ข้อ 1: ชื่อหัวข้อสีเขียวสำหรับใบรับฝากสินค้า, สีแดงสำหรับใบเบิกสินค้า -->' +
+            '<div style="font-size:21px; font-weight:700; color:' + titleColor + '; line-height:1.1;">' +
+              escapeHtml(titleTh) +
+            '</div>' +
+            '<div style="font-size:11px; color:#64748B; margin-top:2px;">' +
+              escapeHtml(copyLabel) +
+            '</div>' +
+            '<div style="font-size:13.5px; font-weight:700; color:#E48D17; margin-top:2px; letter-spacing:0.3px;">' +
+              'เลขที่เอกสาร: ' + escapeHtml(docNo) +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+
+        '<!-- Info Box -->' +
+        '<table style="width:100%; border-collapse:collapse; margin-bottom:6px; border:1px solid #CBD5E1; font-size:11px;">' +
+          '<tr style="border-bottom:1px solid #CBD5E1;">' +
+            '<td style="width:58%; padding:4px 8px; border-right:1px solid #CBD5E1;">' +
+              '<strong style="color:#0F172A;">ชื่อลูกค้า :</strong> <span style="color:#1E293B;">' + escapeHtml(clientName) + '</span>' +
+            '</td>' +
+            '<td style="width:42%; padding:4px 8px;">' +
+              '<strong style="color:#0F172A;">ทะเบียนรถ :</strong> <span style="color:#1E293B;">' + escapeHtml(vehicle) + '</span>' +
+            '</td>' +
+          '</tr>' +
+          '<tr>' +
+            '<td style="padding:4px 8px; border-right:1px solid #CBD5E1;">' +
+              '<strong style="color:#0F172A;">วันที่ :</strong> <span style="color:#1E293B;">' + escapeHtml(docDate) + '</span>' +
+            '</td>' +
+            '<td style="padding:4px 8px;">' +
+              '<strong style="color:#0F172A;">เวลาเข้า-ออก :</strong> <span style="color:#1E293B;">' + escapeHtml(timeInOut) + '</span>' +
+            '</td>' +
+          '</tr>' +
+        '</table>' +
+
+        '<!-- Items Table (ข้อ 4: Lot No. ลดความกว้าง, ข้อ 5: หมายเหตุ เพิ่มความกว้าง) -->' +
+        '<table style="width:100%; border-collapse:collapse; font-size:11px; margin-bottom:6px;">' +
+          '<thead>' +
+            '<tr style="background:#0A3D62; color:#FFFFFF;">' +
+              '<th style="padding:5px 3px; text-align:center; width:5%; border:1px solid #0A3D62; font-weight:700;">ลำดับ</th>' +
+              '<th style="padding:5px 3px; text-align:center; width:11%; border:1px solid #0A3D62; font-weight:700;">Lot No.</th>' +
+              '<th style="padding:5px 6px; text-align:center; width:37%; border:1px solid #0A3D62; font-weight:700;">รายการสินค้า / รายละเอียด</th>' +
+              '<th style="padding:5px 3px; text-align:center; width:10%; border:1px solid #0A3D62; font-weight:700;">กก./หน่วย</th>' +
+              '<th style="padding:5px 3px; text-align:center; width:10%; border:1px solid #0A3D62; font-weight:700;">จำนวน</th>' +
+              '<th style="padding:5px 3px; text-align:center; width:12%; border:1px solid #0A3D62; font-weight:700;">น้ำหนัก</th>' +
+              '<th style="padding:5px 4px; text-align:center; width:15%; border:1px solid #0A3D62; font-weight:700;">หมายเหตุ</th>' +
+            '</tr>' +
+          '</thead>' +
+          '<tbody>' +
+            rowsHtml +
+          '</tbody>' +
+          '<tfoot>' +
+            '<!-- ข้อ 1 & 6 & 7: จำนวนรวมทั้งสิ้น ไม่มีเส้นปิดด้านหน้าและล่าง, ส่วนผลลัพธ์เป็นเส้นคู่บางๆ ยาวไปจนสุดรวมช่องหมายเหตุ -->' +
+            '<tr style="font-weight:700; font-size:11.5px;">' +
+              '<td colspan="4" style="padding:5px 8px; text-align:right; border:none; border-top:1px solid #CBD5E1; color:#0F172A; background:transparent;">' +
+                'จำนวนรวมทั้งสิ้น:' +
+              '</td>' +
+              '<td style="padding:5px 3px; text-align:center; border-top:1px solid #CBD5E1; border-left:1px solid #CBD5E1; border-right:1px solid #CBD5E1; border-bottom:1px double #334155; color:#0A3D62; background:#FFFFFF;">' +
+                fmtNum(totalQty) + ' หน่วย' +
+              '</td>' +
+              '<td style="padding:5px 3px; text-align:center; border-top:1px solid #CBD5E1; border-right:1px solid #CBD5E1; border-bottom:1px double #334155; color:#B45309; background:#FFFFFF;">' +
+                fmtNum(totalWeight, 2) + ' กก.' +
+              '</td>' +
+              '<td style="border:none; border-top:1px solid #CBD5E1; border-right:1px solid #CBD5E1; border-bottom:1px double #334155; background:transparent;"></td>' +
+            '</tr>' +
+          '</tfoot>' +
+
+        '<!-- Signatures (ข้อ 2: ส่วนที่ให้ลงชื่อ เอาลงมาด้านล่างอีกหน่อย) -->' +
+        '<table style="width:100%; border:none; margin-top:28px; font-size:11px;">' +
+          '<tr>' +
+            '<td style="width:50%; text-align:center; border:none; vertical-align:top; padding:0 15px;">' +
+              '<div style="color:#475569;">ลงชื่อ ................................................................</div>' +
+              '<div style="font-weight:700; color:#0F172A; margin-top:4px;">' + escapeHtml(signTitleLeft) + '</div>' +
+            '</td>' +
+            '<td style="width:50%; text-align:center; border:none; vertical-align:top; padding:0 15px;">' +
+              '<div style="color:#475569;">ลงชื่อ ................................................................</div>' +
+              '<div style="font-weight:700; color:#0F172A; margin-top:4px;">เช็คเกอร์</div>' +
+            '</td>' +
+          '</tr>' +
+        '</table>' +
+      '</div>';
+    }
+
+    function openPrintReceiptModal(docType, docData) {
       if (typeof docData === 'string') {
         if (docType === 'REQUISITION' || docType === 'OUTBOUND_CHECKLIST') {
           docData = STATE.requisitions.find(x => x.RequisitionNo === docData) || {};
@@ -13296,145 +13657,40 @@ function editProduct(p) {
           docData = STATE.receivings.find(x => x.ReceivingNo === docData) || {};
         }
       }
+
       const isOutboundChecklist = docType === 'OUTBOUND_CHECKLIST';
       const isInboundChecklist = docType === 'INBOUND_CHECKLIST';
-      const isChecklist = (isInboundChecklist || isOutboundChecklist);
       const isRcv = (docType === 'RECEIVING' || isInboundChecklist);
       const isReq = (docType === 'REQUISITION' || isOutboundChecklist);
-      const docNo = isRcv ? docData.ReceivingNo : docData.RequisitionNo;
+      const docNo = isRcv ? (docData.ReceivingNo || docData.DocNo || '-') : (docData.RequisitionNo || docData.DocNo || '-');
+      const titleTh = isReq ? 'ใบเบิกสินค้า' : 'ใบรับฝากสินค้า';
 
-      let titleTh = 'ใบรับฝากสินค้าเข้าห้องเย็น (RECEIVING RECEIPT)';
-      if (isInboundChecklist) titleTh = 'ใบรายการแจ้งฝากสินค้าส่งหน้างาน (INBOUND CHECKLIST FOR WAREHOUSE FLOOR)';
-      else if (isOutboundChecklist) titleTh = 'ใบรายการจัดเตรียมสินค้าส่งหน้างาน (OUTBOUND CHECKLIST FOR WAREHOUSE FLOOR)';
-      else if (isReq) titleTh = 'ใบเบิกสินค้าออกจากห้องเย็น (DELIVERY / REQUISITION SLIP)';
-
-      const compName = (STATE.settings.map && STATE.settings.map.COMPANY_NAME) || 'บริษัท พรมารีน จำกัด';
-      const compEng = (STATE.settings.map && STATE.settings.map.COMPANY_ENG) || 'POR MARINE CO., LTD.';
-      const compAddr = (STATE.settings.map && STATE.settings.map.COMPANY_ADDRESS) || 'ระบบคลังสินค้าห้องเย็นรับฝากสินค้าแช่แข็งมาตรฐาน';
-
-      const items = docData.items || [];
-      let rowsHtml = '';
-
-      if (isChecklist) {
-        // รายการสำหรับหน้างานตรวจนับจริง (มีช่องตรวจนับจริง)
-        items.forEach((it, idx) => {
-          rowsHtml +=
-            '<tr>' +
-              '<td class="text-center" style="padding:8px; border:1px solid #cbd5e1;">' + (idx + 1) + '</td>' +
-              '<td style="padding:8px; border:1px solid #cbd5e1;"><strong>' + escapeHtml(it.LotNo || '-') + '</strong></td>' +
-              '<td style="padding:8px; border:1px solid #cbd5e1;"><strong>' + escapeHtml(it.ProductName) + '</strong><br><small>' + escapeHtml(it.Description || '') + '</small></td>' +
-              '<td class="text-center" style="padding:8px; border:1px solid #cbd5e1;">' + escapeHtml(it.Unit || 'กล่อง') + '</td>' +
-              '<td class="text-right" style="padding:8px; border:1px solid #cbd5e1;">' + fmtNum(it.WeightPerUnit, 2) + '</td>' +
-              '<td class="text-right" style="padding:8px; border:1px solid #cbd5e1;"><strong>' + fmtNum(it.Qty) + '</strong></td>' +
-              '<td class="text-right" style="padding:8px; border:1px solid #cbd5e1;"><strong>' + fmtNum(it.TotalWeight, 2) + '</strong></td>' +
-              '<td class="text-center" style="padding:8px; border:1px solid #cbd5e1; background:#FFFBEB; width:90px;">[ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ]</td>' +
-              '<td class="text-center" style="padding:8px; border:1px solid #cbd5e1; background:#FFFBEB; width:100px;">[ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ]</td>' +
-              '<td class="text-center" style="padding:8px; border:1px solid #cbd5e1; background:#FFFBEB; width:110px;">[ &nbsp;ปกติ / ชำรุด&nbsp; ]</td>' +
-            '</tr>';
-        });
-      } else {
-        // ใบรับฝาก หรือ ใบเบิกฉบับสมบูรณ์
-        items.forEach((it, idx) => {
-          rowsHtml +=
-            '<tr>' +
-              '<td class="text-center" style="padding:8px; border:1px solid #cbd5e1;">' + (idx + 1) + '</td>' +
-              '<td style="padding:8px; border:1px solid #cbd5e1;"><strong>' + escapeHtml(it.LotNo) + '</strong></td>' +
-              '<td style="padding:8px; border:1px solid #cbd5e1;"><strong>' + escapeHtml(it.ProductName) + '</strong><br><small>' + escapeHtml(it.Description || '') + '</small></td>' +
-              '<td class="text-center" style="padding:8px; border:1px solid #cbd5e1;">' + escapeHtml(it.Unit) + '</td>' +
-              '<td class="text-right" style="padding:8px; border:1px solid #cbd5e1;">' + fmtNum(it.WeightPerUnit, 2) + '</td>' +
-              '<td class="text-right" style="padding:8px; border:1px solid #cbd5e1;"><strong>' + fmtNum(it.Qty) + '</strong></td>' +
-              '<td class="text-right" style="padding:8px; border:1px solid #cbd5e1;"><strong>' + fmtNum(it.TotalWeight, 2) + '</strong></td>' +
-            '</tr>';
-        });
-      }
-
-      const stObj = isReq ? getRequisitionStatusDisplay(docData.Status, false) : getReceivingStatusDisplay(docData.Status, false);
+      const originalSlipHtml = buildReceiptSlipHtml(docType, docData, 'ORIGINAL');
+      const copySlipHtml = buildReceiptSlipHtml(docType, docData, 'COPY');
 
       const html =
-        '<div class="doc-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #F39C12; padding-bottom:14px; margin-bottom:16px;">' +
-          '<div style="display:flex; align-items:center; gap:14px;">' +
-            '<div style="width:58px;height:58px;border-radius:50%;background:#0A3D62;color:#F39C12;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:24px;border:2px solid #F39C12;">PR</div>' +
-            '<div>' +
-              '<div style="font-size:19px; font-weight:700; color:#0A3D62;">' + escapeHtml(compName) + ' (' + escapeHtml(compEng) + ')</div>' +
-              '<div style="font-size:12.5px; color:#475569;">' + escapeHtml(compAddr) + '</div>' +
-            '</div>' +
+        '<div class="receipt-print-wrapper">' +
+          '<!-- หน้าต้นฉบับ (แสดงบนหน้าเว็บ และแสดงครึ่งบนตอนสั่งพิมพ์ A4) -->' +
+          '<div class="receipt-slip receipt-slip-original">' +
+            originalSlipHtml +
           '</div>' +
-          '<div style="text-align:right;">' +
-            '<div style="font-size:15px; font-weight:700; color:#0A3D62;">' + titleTh + '</div>' +
-            '<div style="font-size:13.5px; font-weight:700; color:#D97706;">เลขที่เอกสาร: ' + escapeHtml(docNo) + '</div>' +
-            '<div style="font-size:12px;">สถานะ: <strong>' + escapeHtml(stObj.displayText) + '</strong></div>' +
+
+          '<!-- หน้าสำเนาลูกค้า (ซ่อนบนหน้าเว็บ แสดงเฉพาะครึ่งล่างตอนสั่งพิมพ์ A4) -->' +
+          '<div class="receipt-slip receipt-slip-copy print-only">' +
+            copySlipHtml +
           '</div>' +
-        '</div>' +
+        '</div>';
 
-        (isInboundChecklist ? '<div style="background:#FEF3C7; border:1px solid #FCD34D; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:12.5px; color:#92400E;"><strong>* เอกสารสำหรับเจ้าหน้าที่คลังหน้างาน (Store):</strong> ใช้สำหรับตรวจนับสินค้าจริงที่รถนำมาส่ง หากไม่ตรงให้บันทึกในช่องตรวจนับจริงเพื่อแจ้ง Office ทำการแก้ไขต่อไป</div>' : (isOutboundChecklist ? '<div style="background:#FEF3C7; border:1px solid #FCD34D; padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:12.5px; color:#92400E;"><strong>* เอกสารสำหรับเจ้าหน้าที่คลังหน้างาน (Store):</strong> ใช้สำหรับจัดเตรียมและเบิกสินค้าจริงตาม Lot No. เพื่อตรวจจ่ายให้รถที่มารับสินค้า หากจำนวนหรือน้ำหนักไม่ตรง ให้บันทึกในช่องตรวจจ่ายจริงเพื่อแจ้ง Office ทำการแก้ไขต่อไป</div>' : '')) +
-
-        '<table style="width:100%; border-collapse:collapse; margin-bottom:14px; font-size:13px;">' +
-          '<tr>' +
-            '<td style="padding:6px 10px; border:1px solid #cbd5e1; width:50%;"><strong>ชื่อลูกค้าผู้ฝากสินค้า:</strong> ' + escapeHtml(docData.ClientName) + '</td>' +
-            '<td style="padding:6px 10px; border:1px solid #cbd5e1; width:50%;"><strong>เลขที่' + (isReq ? 'เบิก' : 'ฝาก') + ':</strong> ' + escapeHtml(docNo) + '</td>' +
-          '</tr>' +
-          '<tr>' +
-            '<td style="padding:6px 10px; border:1px solid #cbd5e1;"><strong>วันที่/เวลาเข้า:</strong> ' + escapeHtml(docData.DateTimeIn || '-') + '</td>' +
-            '<td style="padding:6px 10px; border:1px solid #cbd5e1;"><strong>วันที่/เวลาออก:</strong> ' + escapeHtml(docData.DateTimeOut || formatNowThai()) + '</td>' +
-          '</tr>' +
-          '<tr>' +
-            '<td style="padding:6px 10px; border:1px solid #cbd5e1;"><strong>ผู้' + (isReq ? 'เบิก' : 'ฝาก') + ' / ทะเบียนรถ:</strong> ' + escapeHtml((isReq ? docData.RequesterName : docData.DepositorName) || '-') + ' (' + escapeHtml(docData.VehicleInfo || '-') + ')</td>' +
-            '<td style="padding:6px 10px; border:1px solid #cbd5e1;"><strong>หมายเหตุ:</strong> ' + escapeHtml(docData.Notes || '-') + '</td>' +
-          '</tr>' +
-        '</table>' +
-
-        '<table style="width:100%; border-collapse:collapse; margin-bottom:18px; font-size:12.5px;">' +
-          '<thead>' +
-            '<tr style="background:#0A3D62; color:#fff;">' +
-              '<th style="padding:8px; border:1px solid #0A3D62; text-align:center; width:38px;">ลำดับ</th>' +
-              '<th style="padding:8px; border:1px solid #0A3D62;">รหัส Lot No.</th>' +
-              '<th style="padding:8px; border:1px solid #0A3D62;">รายการสินค้า / รายละเอียด</th>' +
-              '<th style="padding:8px; border:1px solid #0A3D62; text-align:center;">หน่วยนับ</th>' +
-              '<th style="padding:8px; border:1px solid #0A3D62; text-align:right;">กก./หน่วย</th>' +
-              '<th style="padding:8px; border:1px solid #0A3D62; text-align:right;">จำนวนที่แจ้ง</th>' +
-              '<th style="padding:8px; border:1px solid #0A3D62; text-align:right;">น้ำหนักที่แจ้ง</th>' +
-              (isChecklist ? '<th style="padding:8px; border:1px solid #0A3D62; text-align:center; background:#D97706;">จำนวนนับจริง</th><th style="padding:8px; border:1px solid #0A3D62; text-align:center; background:#D97706;">น้ำหนักชั่งจริง</th><th style="padding:8px; border:1px solid #0A3D62; text-align:center; background:#D97706;">สภาพสินค้า</th>' : '') +
-            '</tr>' +
-          '</thead>' +
-          '<tbody>' + rowsHtml + '</tbody>' +
-          '<tfoot>' +
-            '<tr style="background:#FEF3C7; font-weight:700; font-size:13.5px;">' +
-              '<td colspan="5" style="padding:9px; border:1px solid #cbd5e1; text-align:right;">จำนวนรวมทั้งสิ้น:</td>' +
-              '<td style="padding:9px; border:1px solid #cbd5e1; text-align:right; color:#0A3D62;">' + fmtNum(docData.TotalQty) + ' หน่วย</td>' +
-              '<td style="padding:9px; border:1px solid #cbd5e1; text-align:right; color:#D97706;">' + fmtNum(docData.TotalWeight, 2) + ' กก.</td>' +
-              (isChecklist ? '<td colspan="3" style="padding:9px; border:1px solid #cbd5e1; background:#FEF3C7; text-align:center; color:#92400E;">[ หน้างานลงนามตรวจรับด้านล่าง ]</td>' : '') +
-            '</tr>' +
-          '</tfoot>' +
-        '</table>' +
-
-        '<table class="sig-grid" style="width:100%; margin-top:28px; border:none; font-size:13px;">' +
-          '<tr>' +
-            '<td style="text-align:center; width:33%; border:none;">' +
-              '<div>ลงชื่อ .......................................................</div>' +
-              '<div style="margin-top:4px;">( ' + escapeHtml((isReq ? docData.RequesterName : docData.DepositorName) || '...........................................') + ' )</div>' +
-              '<div style="font-weight:700; margin-top:2px;">' + (isReq ? 'ผู้เบิกสินค้า / พนักงานขับรถ' : 'ผู้ส่งสินค้า / พนักงานขับรถ') + '</div>' +
-            '</td>' +
-            '<td style="text-align:center; width:33%; border:none;">' +
-              '<div>ลงชื่อ .......................................................</div>' +
-              '<div style="margin-top:4px;">( ' + escapeHtml(docData.ReceiverName || 'เจ้าหน้าที่คลัง (Store)') + ' )</div>' +
-              '<div style="font-weight:700; margin-top:2px;">' + (isReq ? 'เจ้าหน้าที่จ่ายสินค้า' : 'เจ้าหน้าที่ตรวจนับหน้างาน (Store)') + '</div>' +
-            '</td>' +
-            '<td style="text-align:center; width:33%; border:none;">' +
-              '<div>ลงชื่อ .......................................................</div>' +
-              '<div style="margin-top:4px;">( ' + escapeHtml((isReq ? docData.ApproverName : docData.InspectorName) || 'ผู้จัดการ / ผู้อนุมัติ') + ' )</div>' +
-              '<div style="font-weight:700; margin-top:2px;">' + (isChecklist ? 'เจ้าหน้าที่สำนักงาน (Office)' : 'ผู้อนุมัติเข้าสต็อก (Manager / Office 2)') + '</div>' +
-            '</td>' +
-          '</tr>' +
-        '</table>' +
-
-        (isRcv ? '<div style="margin-top:18px; text-align:right; font-size:11px; color:#64748B;">* ต้นฉบับ: คลังห้องเย็น | สำเนา: ลูกค้าผู้ฝากสินค้า (Client Portal)</div>' : '');
-
-      STATE.currentPrintDoc = { fileName: (isChecklist ? 'CHECKLIST_' : (isRcv ? 'RECEIPT_' : 'REQ_')) + docNo, refNo: docNo, clientName: docData.ClientName, htmlContent: html };
+      STATE.currentPrintDoc = {
+        fileName: (isRcv ? 'RECEIPT_' : 'REQ_') + docNo,
+        refNo: docNo,
+        clientName: docData.ClientName,
+        htmlContent: html
+      };
       document.getElementById('modalDocPrintTitle').innerHTML = '<i class="fa-solid fa-file-invoice"></i> ' + titleTh + ' — ' + escapeHtml(docNo);
       document.getElementById('printPreviewArea').innerHTML = html;
       openModal('modalDocPrint');
     }
-
 
     async function generatePdfFromModal() {
       if (!STATE.currentPrintDoc) return;
