@@ -1842,6 +1842,21 @@
                 </button>
               </div>
             </div>
+
+            <!-- 28. ล้างข้อมูลเพื่อเริ่มต้นทดลองระบบใหม่ (Trial Reset) -->
+            <div class="card-box" style="border-left:4px solid #EF4444; margin-top:20px;">
+              <div class="card-box-header">
+                <div class="card-box-title" style="color:#DC2626;">
+                  <i class="fa-solid fa-triangle-exclamation"></i> 28. ล้างข้อมูลเพื่อเริ่มทดลองระบบ (Trial Mode Setup)
+                </div>
+              </div>
+              <p style="font-size:13.5px; color:var(--text-muted); margin-bottom:14px; line-height:1.6;">
+                ล้างข้อมูลสินค้า ข้อมูลลูกค้า สต็อกสินค้าคงเหลือ ใบรับฝาก ใบเบิก และรายงานการเคลื่อนไหวทั้งหมด เพื่อเริ่มต้นทดลองระบบใหม่ตั้งแต่ต้น โดยจะคงไว้เฉพาะ <strong>ผู้ใช้งานระบบ 4 User (admin, manager, office, store)</strong> และ <strong>หมวดหมู่สินค้า (Categories)</strong> เท่านั้น
+              </p>
+              <button type="button" class="btn btn-danger" onclick="handleClearAllDataForTrial()">
+                <i class="fa-solid fa-trash-can"></i> ล้างข้อมูลสินค้า ลูกค้า และสต็อกทั้งหมด (เริ่มทดลองระบบ)
+              </button>
+            </div>
           </div>
         </section>
 
@@ -3969,8 +3984,32 @@
         return result;
       }
 
+      async function clearSupabaseTablesForTrial() {
+        const sb = getClient();
+        if (!sb) return false;
+        try {
+          await Promise.allSettled([
+            sb.from('wms_movements').delete().neq('movement_id', '___NEVER___'),
+            sb.from('wms_requisition_items').delete().neq('item_id', '___NEVER___'),
+            sb.from('wms_requisitions').delete().neq('requisition_no', '___NEVER___'),
+            sb.from('wms_receiving_items').delete().neq('item_id', '___NEVER___'),
+            sb.from('wms_receivings').delete().neq('receiving_no', '___NEVER___'),
+            sb.from('wms_stock').delete().neq('stock_id', '___NEVER___'),
+            sb.from('wms_products').delete().neq('product_id', '___NEVER___'),
+            sb.from('wms_clients').delete().neq('client_id', '___NEVER___'),
+            sb.from('wms_audit_logs').delete().neq('log_id', '___NEVER___'),
+            sb.from('wms_users').delete().not('username', 'in', '("admin","manager","office","store")')
+          ]);
+          return true;
+        } catch (err) {
+          console.warn('Clear Supabase error:', err);
+          return false;
+        }
+      }
+
       return {
         getClient,
+        clearSupabaseTablesForTrial,
         pullFromSupabase,
         pushAllToSupabase,
         uploadProductImage,
@@ -4426,12 +4465,14 @@
         }
       };
 
+      const STORAGE_KEY = 'POR_LOCAL_PREVIEW_DB_TRIAL_CLEAN_V2';
+
       function loadDbFromStorage() {
         try {
-          const s = localStorage.getItem('POR_LOCAL_PREVIEW_DB_CLEAN_V1');
+          const s = localStorage.getItem(STORAGE_KEY);
           if (s) {
             const parsed = JSON.parse(s);
-            if (parsed && Array.isArray(parsed.products) && parsed.products.length > 0) {
+            if (parsed && typeof parsed === 'object') {
               return parsed;
             }
           }
@@ -4441,26 +4482,34 @@
 
       function saveDbToStorage() {
         try {
-          localStorage.setItem('POR_LOCAL_PREVIEW_DB_CLEAN_V1', JSON.stringify(db));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
         } catch (e) {}
       }
 
+      // ล้างแคชข้อมูลเก่าทั้งหมดเพื่อเริ่มต้นทดลองระบบใหม่
       try {
-        const rawLocal = localStorage.getItem('POR_LOCAL_PREVIEW_DB_CLEAN_V1');
-        if (rawLocal && (rawLocal.indexOf('หมึกบั้ง AA') === -1 || rawLocal.indexOf('PM-Q004') === -1 || rawLocal.indexOf('REQ-20261022-0002') === -1 || rawLocal.indexOf('OUT-') === -1 || rawLocal.indexOf('IN-691021') === -1)) {
-          localStorage.removeItem('POR_LOCAL_PREVIEW_DB_CLEAN_V1');
-        }
+        localStorage.removeItem('POR_LOCAL_PREVIEW_DB_CLEAN_V1');
+        localStorage.removeItem('POR_LOCAL_PREVIEW_DB_V2');
+        localStorage.removeItem('POR_LOCAL_PREVIEW_DB');
+        localStorage.removeItem('POR_READ_NOTIFS');
+        localStorage.removeItem('POR_READ_NOTIFS_V2');
       } catch(e) {}
+
       const storedDb = loadDbFromStorage();
-      const db = storedDb ? Object.assign({}, defaultDb, storedDb) : defaultDb;
-      if (Array.isArray(db.clients)) {
-        db.clients.forEach(c => {
-          const r = parseFloat(c.StorageRatePerKgDay);
-          if (isNaN(r) || r <= 0 || Math.abs(r - 0.35) < 0.0001 || Math.abs(r - 0.4) < 0.0001) {
-            c.StorageRatePerKgDay = 0.8;
-          }
-        });
-      }
+      const db = storedDb ? Object.assign({}, defaultDb, storedDb) : Object.assign({}, defaultDb);
+      // เริ่มต้นทดลองระบบ: ลบข้อมูล สินค้า ลูกค้า สต็อก และรายงานต่างๆ คงไว้เฉพาะ 4 User และ Categories
+      db.clients = [];
+      db.products = [];
+      db.stock = [];
+      db.receivings = [];
+      db.requisitions = [];
+      db.movements = [];
+      db.users = [
+        { userId: 'USR-001', username: 'admin', pass: 'admin123', fullName: 'ผู้ดูแลระบบ (System Admin)', role: 'Admin', clientId: '', clientName: 'บริษัท พรมารีน จำกัด', email: 'admin@pormarine.co.th', phone: '081-000-0001', status: 'Active', lastLogin: '' },
+        { userId: 'USR-002', username: 'manager', pass: 'manager123', fullName: 'ผู้จัดการคลัง (Manager)', role: 'Manager', clientId: '', clientName: 'บริษัท พรมารีน จำกัด', email: 'manager@pormarine.co.th', phone: '081-000-0002', status: 'Active', lastLogin: '' },
+        { userId: 'USR-003', username: 'office', pass: 'office123', fullName: 'เจ้าหน้าที่สนง. (Office)', role: 'Office', clientId: '', clientName: 'บริษัท พรมารีน จำกัด', email: 'office@pormarine.co.th', phone: '081-000-0003', status: 'Active', lastLogin: '' },
+        { userId: 'USR-004', username: 'store', pass: 'store123', fullName: 'เจ้าหน้าที่คลัง (Store)', role: 'Store', clientId: '', clientName: 'บริษัท พรมารีน จำกัด', email: 'store@pormarine.co.th', phone: '081-000-0004', status: 'Active', lastLogin: '' }
+      ];
       saveDbToStorage();
 
       function buildBundle(u) {
@@ -15713,6 +15762,62 @@ function editProduct(p) {
         }
       } catch (err) {
         Swal.fire('สำรองข้อมูลไม่สำเร็จ', err.message, 'error');
+      } finally {
+        hideLoader();
+      }
+    }
+
+    async function handleClearAllDataForTrial() {
+      const result = await Swal.fire({
+        title: 'ยืนยันการล้างข้อมูลเพื่อเริ่มทดลองระบบ?',
+        html: '<p style="font-size:14px; color:#475569;">ระบบจะทำการลบข้อมูล <strong>สินค้า, ลูกค้า, สต็อก, ใบรับฝาก, ใบเบิก และรายงานการเคลื่อนไหวทั้งหมด</strong><br><br>โดยคงไว้เฉพาะ <strong>ผู้ใช้งานระบบ 4 User (admin, manager, office, store)</strong> และ <strong>หมวดหมู่สินค้า (Categories)</strong> เท่านั้น</p>',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#EF4444',
+        cancelButtonColor: '#64748B',
+        confirmButtonText: 'ใช่, ล้างข้อมูลทั้งหมด',
+        cancelButtonText: 'ยกเลิก'
+      });
+
+      if (!result.isConfirmed) return;
+
+      showLoader('กำลังล้างข้อมูลและเริ่มต้นระบบใหม่...');
+      try {
+        // 1. ล้างข้อมูลใน LocalPreviewEngine
+        const db = LocalPreviewEngine.getDb();
+        db.clients = [];
+        db.products = [];
+        db.stock = [];
+        db.receivings = [];
+        db.requisitions = [];
+        db.movements = [];
+        db.users = [
+          { userId: 'USR-001', username: 'admin', pass: 'admin123', fullName: 'ผู้ดูแลระบบ (System Admin)', role: 'Admin', clientId: '', clientName: 'บริษัท พรมารีน จำกัด', email: 'admin@pormarine.co.th', phone: '081-000-0001', status: 'Active', lastLogin: '' },
+          { userId: 'USR-002', username: 'manager', pass: 'manager123', fullName: 'ผู้จัดการคลัง (Manager)', role: 'Manager', clientId: '', clientName: 'บริษัท พรมารีน จำกัด', email: 'manager@pormarine.co.th', phone: '081-000-0002', status: 'Active', lastLogin: '' },
+          { userId: 'USR-003', username: 'office', pass: 'office123', fullName: 'เจ้าหน้าที่สนง. (Office)', role: 'Office', clientId: '', clientName: 'บริษัท พรมารีน จำกัด', email: 'office@pormarine.co.th', phone: '081-000-0003', status: 'Active', lastLogin: '' },
+          { userId: 'USR-004', username: 'store', pass: 'store123', fullName: 'เจ้าหน้าที่คลัง (Store)', role: 'Store', clientId: '', clientName: 'บริษัท พรมารีน จำกัด', email: 'store@pormarine.co.th', phone: '081-000-0004', status: 'Active', lastLogin: '' }
+        ];
+        LocalPreviewEngine.saveDb();
+
+        // 2. ถ้าเชื่อมต่อ Supabase ให้ล้างตารางบน Supabase ด้วย
+        if (typeof SupabaseEngine !== 'undefined' && SupabaseEngine.isReady()) {
+          await SupabaseEngine.clearSupabaseTablesForTrial();
+          await SupabaseEngine.pushAllToSupabase(db);
+        }
+
+        // 3. รีเฟรช STATE ในหน่วยความจำ
+        STATE.clients = [];
+        STATE.products = [];
+        STATE.stock = [];
+        STATE.receivings = [];
+        STATE.requisitions = [];
+        STATE.movements = [];
+        STATE.users = db.users;
+
+        renderAllViews();
+        showToast('ล้างข้อมูลสินค้า ลูกค้า และรายงานต่างๆ เรียบร้อยแล้ว พร้อมเริ่มทดลองระบบ', 'success');
+      } catch (err) {
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
       } finally {
         hideLoader();
       }
