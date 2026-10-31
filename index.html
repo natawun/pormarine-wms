@@ -1632,6 +1632,9 @@
             <button class="btn btn-outline report-tab-btn" data-rpt="OUTBOUND" onclick="selectReportType('OUTBOUND')">
               📤 รายงานเบิกออก
             </button>
+            <button class="btn btn-outline report-tab-btn" data-rpt="STOCK_CARD" onclick="selectReportType('STOCK_CARD')">
+              📋 รายงานตัดสต็อก
+            </button>
           </div>
 
           <!-- Filter สำหรับรายงาน & Audit Log -->
@@ -1649,7 +1652,7 @@
 
             <div class="filter-group">
               <label>กรองตามลูกค้า</label>
-              <select id="rptFilterClient" class="form-select" onchange="renderActiveReport()">
+              <select id="rptFilterClient" class="form-select" onchange="updateRptLotDatalist(); renderActiveReport();">
                 <option value="">ทุกรายชื่อลูกค้า</option>
               </select>
             </div>
@@ -1659,7 +1662,8 @@
             </div>
             <div class="filter-group">
               <label>กรองตาม Lot No.</label>
-              <input type="text" id="rptFilterLot" class="form-control" placeholder="พิมพ์รหัส Lot No...." oninput="renderActiveReport()">
+              <input type="text" id="rptFilterLot" class="form-control" list="rptLotDatalist" placeholder="พิมพ์หรือเลือกรหัส Lot No...." oninput="renderActiveReport()" onchange="renderActiveReport()">
+              <datalist id="rptLotDatalist"></datalist>
             </div>
             <div class="filter-group" style="min-width:205px; max-width:215px; flex:none;">
               <label style="white-space:nowrap; font-size:11.5px;"><i class="fa-solid fa-calendar-days"></i> กรองตาม วันที่เข้า (เริ่ม - สิ้นสุด)</label>
@@ -1676,6 +1680,12 @@
             <div class="card-box-header">
               <div class="card-box-title" id="activeReportHeading">รายงานสินค้าคงเหลือ</div>
               <div id="activeReportSummaryBadge" style="font-weight:700; color:var(--primary-blue);"></div>
+            </div>
+            <!-- Header พิเศษสำหรับรายงานตัดสต็อก (Stock Card) ตามแบบฟอร์ม -->
+            <div id="stockCardHeaderBlock" style="display:none; text-align:center; padding:12px 10px 8px 10px; border-bottom:1px solid #E2E8F0; margin-bottom:12px;">
+              <h2 id="stockCardClientTitle" style="font-size:22px; font-weight:700; color:#0A3D62; margin:0 0 4px 0; font-family:'Sarabun', sans-serif;"></h2>
+              <div id="stockCardProductTitle" style="font-size:16px; font-weight:700; color:#0F172A; margin:0 0 8px 0; font-family:'Sarabun', sans-serif;"></div>
+              <div id="stockCardDateText" style="text-align:right; font-size:12.5px; color:#475569; font-weight:500;"></div>
             </div>
             <div class="table-responsive">
               <table class="data-table" id="activeReportTable">
@@ -6801,6 +6811,41 @@
           el.disabled = false;
         }
       });
+      updateRptLotDatalist();
+    }
+
+    function updateRptLotDatalist() {
+      const clientEl = document.getElementById('rptFilterClient');
+      const fClient = clientEl ? clientEl.value.trim() : '';
+      const datalist = document.getElementById('rptLotDatalist');
+      if (!datalist) return;
+
+      const lots = new Set();
+      (STATE.stock || []).forEach(s => {
+        if (!fClient || isClientMatch(s.ClientName, s.ClientID, fClient)) {
+          if (s.LotNo && s.LotNo !== '-') lots.add(s.LotNo);
+        }
+      });
+      (STATE.receivings || []).forEach(r => {
+        if (!fClient || isClientMatch(r.ClientName, r.ClientID, fClient)) {
+          (r.items || []).forEach(it => {
+            const l = it.LotNo || it.lotNo;
+            if (l && l !== '-') lots.add(l);
+          });
+        }
+      });
+      (STATE.movements || []).forEach(m => {
+        if (!fClient || isClientMatch(m.ClientName, m.ClientID, fClient)) {
+          if (m.LotNo && m.LotNo !== '-') lots.add(m.LotNo);
+        }
+      });
+
+      const sortedLots = Array.from(lots).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+      datalist.innerHTML = sortedLots.map(lot => {
+        const s = (STATE.stock || []).find(x => x.LotNo === lot);
+        const prod = s && s.ProductName ? (' - ' + s.ProductName) : '';
+        return '<option value="' + escapeHtml(lot) + '">' + escapeHtml(lot + prod) + '</option>';
+      }).join('');
     }
 
     function getCategoryDropdownOptions(selectedCatName = '') {
@@ -7310,6 +7355,28 @@
       let todayCount = 0, todayQty = 0, todayNetWeight = 0;
 
       filteredMoves.forEach(m => {
+        // กฎ: รายการเบิกเดือนนี้, รายการฝากเดือนนี้, รายการเคลื่อนไหววันนี้ ไม่ต้องเอารายการยกเลิกมารวม
+        const isAmended = String(m.MovementType || '').indexOf('ปรับปรุง') !== -1 || String(m.Notes || '').indexOf('ปรับปรุงรายการ') !== -1;
+        const isExplicitCancelled = String(m.MovementType || '').indexOf('ยกเลิก') !== -1 || String(m.Notes || '').indexOf('ยกเลิก') !== -1 || m.IsCancelled === true;
+        if (isExplicitCancelled) return;
+
+        if (!isAmended && m.RefDocNo) {
+          const docUpper = String(m.RefDocNo).trim().toUpperCase();
+          const hasAmendedSibling = (STATE.movements || []).some(other =>
+            other !== m &&
+            String(other.RefDocNo || '').trim().toUpperCase() === docUpper &&
+            (String(other.MovementType || '').indexOf('ปรับปรุง') !== -1 || String(other.Notes || '').indexOf('ปรับปรุงรายการ') !== -1)
+          );
+          const docInSystem = (STATE.requisitions || []).find(r => String(r.RequisitionNo || '').trim().toUpperCase() === docUpper) ||
+                              (STATE.receivings || []).find(r => String(r.ReceivingNo || '').trim().toUpperCase() === docUpper);
+          const isDocStatusAmended = docInSystem && String(docInSystem.Status || '').indexOf('ปรับปรุง') !== -1;
+          const isDocStatusCancelled = docInSystem && String(docInSystem.Status || '').indexOf('ยกเลิก') !== -1;
+
+          if (hasAmendedSibling || isDocStatusAmended || isDocStatusCancelled) {
+            return; // ไม่ต้องเอารายการยกเลิกมารวม
+          }
+        }
+
         const ts = String(m.Timestamp || '');
         const q = Math.abs(parseFloat(m.QtyChange) || 0);
         const rawW = parseFloat(m.WeightChange) || 0;
@@ -7580,8 +7647,33 @@
           : '<span style="display:inline-flex; align-items:center; justify-content:center; gap:4px; padding:3px 9px; border-radius:4px; font-size:11.5px; font-weight:700; white-space:nowrap; background:#FEE2E2; color:#DC2626; border:1px solid #FCA5A5;">📤 สินค้าออก</span>';
 
         const isAmended = String(m.MovementType || '').indexOf('ปรับปรุง') !== -1 || String(m.Notes || '').indexOf('ปรับปรุงรายการ') !== -1;
-        const refDocHtml = '<strong>' + escapeHtml(m.RefDocNo) + '</strong>' +
-          (isAmended ? '<div style="font-size:11.5px; color:#D97706; font-weight:600; margin-top:2px;">(รายการปรับปรุง)</div>' : '');
+        
+        let isOriginalAmended = false;
+        if (!isAmended && m.RefDocNo) {
+          const docUpper = String(m.RefDocNo).trim().toUpperCase();
+          const hasAmendedSibling = (STATE.movements || []).some(other =>
+            other !== m &&
+            String(other.RefDocNo || '').trim().toUpperCase() === docUpper &&
+            (String(other.MovementType || '').indexOf('ปรับปรุง') !== -1 || String(other.Notes || '').indexOf('ปรับปรุงรายการ') !== -1)
+          );
+          const docInSystem = (STATE.requisitions || []).find(r => String(r.RequisitionNo || '').trim().toUpperCase() === docUpper) ||
+                              (STATE.receivings || []).find(r => String(r.ReceivingNo || '').trim().toUpperCase() === docUpper);
+          const isDocStatusAmended = docInSystem && String(docInSystem.Status || '').indexOf('ปรับปรุง') !== -1;
+          const isExplicitCancelled = String(m.MovementType || '').indexOf('ยกเลิก') !== -1 || String(m.Notes || '').indexOf('ยกเลิก') !== -1 || m.IsCancelled === true;
+
+          if (hasAmendedSibling || isDocStatusAmended || isExplicitCancelled) {
+            isOriginalAmended = true;
+          }
+        }
+
+        let badgeSubHtml = '';
+        if (isAmended) {
+          badgeSubHtml = '<div style="font-size:11.5px; color:#D97706; font-weight:600; margin-top:2px;">(รายการปรับปรุง)</div>';
+        } else if (isOriginalAmended) {
+          badgeSubHtml = '<div style="font-size:11.5px; color:#DC2626; font-weight:600; margin-top:2px;">(ยกเลิกรายการ)</div>';
+        }
+
+        const refDocHtml = '<strong>' + escapeHtml(m.RefDocNo) + '</strong>' + badgeSubHtml;
 
         return '<tr>' +
           '<td style="padding:10px 12px; white-space:nowrap;">' + escapeHtml(m.Timestamp) + '</td>' +
@@ -13845,6 +13937,217 @@ function editProduct(p) {
       const fProd = (document.getElementById('rptFilterProduct').value || '').toLowerCase().trim();
       const fLot = (document.getElementById('rptFilterLot').value || '').toLowerCase().trim();
 
+      if (rpt === 'STOCK_CARD') {
+        const clientVal = (document.getElementById('rptFilterClient') ? document.getElementById('rptFilterClient').value : '').trim();
+        const lotVal = (document.getElementById('rptFilterLot') ? document.getElementById('rptFilterLot').value : '').trim();
+
+        // เงื่อนไข: ถ้ายังไม่ใส่ทั้ง 2 รายการ ยังไม่ต้องแสดงรายละเอียด
+        if (!clientVal || !lotVal) {
+          return {
+            title: 'รายงานตัดสต็อก (Stock Card)',
+            isStockCard: true,
+            isReady: false,
+            message: 'กรุณาเลือกชื่อลูกค้าและระบุ Lot No.',
+            headers: ['วันที่', 'เลขที่เอกสาร', 'ทะเบียนรถ', 'น้ำหนัก/หน่วย (กก.)', 'เข้า (หน่วย)', 'ออก (หน่วย)', 'คงเหลือ (หน่วย)', 'คงเหลือ (กก.)', 'วันครบรอบบิล', 'หมายเหตุ'],
+            rows: [],
+            totalQty: 0,
+            totalWeight: 0
+          };
+        }
+
+        // ค้นหาข้อมูลลูกค้า
+        const clientObj = (STATE.clients || []).find(c => isClientMatch(c.ClientName, c.ClientID, clientVal)) || {};
+        const clientDisplayName = clientObj.ClientName || clientVal;
+
+        // ค้นหาข้อมูล Lot ใน STATE.stock
+        const stockItem = (STATE.stock || []).find(s => isClientMatch(s.ClientName, s.ClientID, clientVal) && String(s.LotNo || '').trim().toLowerCase() === lotVal.toLowerCase()) ||
+                          (STATE.stock || []).find(s => String(s.LotNo || '').trim().toLowerCase() === lotVal.toLowerCase());
+
+        const lotNorm = lotVal.toLowerCase();
+        let productName = stockItem ? (stockItem.ProductName || '') : '';
+        let unit = stockItem ? (stockItem.Unit || 'หน่วย') : 'หน่วย';
+        let weightPerUnit = stockItem ? (parseFloat(stockItem.WeightPerUnit) || 0) : 0;
+        let nextBillingDate = stockItem ? extractDateOnlyThai(stockItem.NextBillingDate) : '';
+
+        // ถ้าไม่มีข้อมูลใน stockItem ให้ลองค้นหาจาก receivings หรือ products
+        if (!productName) {
+          (STATE.receivings || []).forEach(r => {
+            if (isClientMatch(r.ClientName, r.ClientID, clientVal)) {
+              (r.items || []).forEach(it => {
+                if (String(it.LotNo || it.lotNo || '').trim().toLowerCase() === lotNorm) {
+                  productName = it.ProductName || it.productName || productName;
+                  unit = it.Unit || it.unit || unit;
+                  if (!weightPerUnit) weightPerUnit = parseFloat(it.WeightPerUnit || it.weightPerUnit) || 0;
+                }
+              });
+            }
+          });
+        }
+        if (!productName) {
+          const p = (STATE.products || []).find(x => String(x.LotNo || '').trim().toLowerCase() === lotNorm);
+          if (p) {
+            productName = p.ProductName || '';
+            unit = p.Unit || unit;
+            if (!weightPerUnit) weightPerUnit = parseFloat(p.WeightPerUnit) || 0;
+          }
+        }
+
+        // รวบรวม Transaction สำหรับ Lot นี้
+        const txList = [];
+
+        // 1. ค้นหาประวัติรับเข้า (IN) จาก STATE.movements
+        const inMoves = (STATE.movements || []).filter(m => {
+          if (String(m.LotNo || '').trim().toLowerCase() !== lotNorm) return false;
+          if (String(m.MovementType || '').toUpperCase().indexOf('IN') === -1) return false;
+          const isExplicitCancelled = String(m.MovementType || '').indexOf('ยกเลิก') !== -1 || String(m.Notes || '').indexOf('ยกเลิก') !== -1 || m.IsCancelled === true;
+          if (isExplicitCancelled) return false;
+          const isAmended = String(m.MovementType || '').indexOf('ปรับปรุง') !== -1 || String(m.Notes || '').indexOf('ปรับปรุงรายการ') !== -1;
+          if (!isAmended && m.RefDocNo) {
+            const docUpper = String(m.RefDocNo).trim().toUpperCase();
+            const hasAmendedSibling = (STATE.movements || []).some(other =>
+              other !== m &&
+              String(other.RefDocNo || '').trim().toUpperCase() === docUpper &&
+              (String(other.MovementType || '').indexOf('ปรับปรุง') !== -1 || String(other.Notes || '').indexOf('ปรับปรุงรายการ') !== -1)
+            );
+            if (hasAmendedSibling) return false;
+          }
+          return true;
+        });
+
+        if (inMoves.length > 0) {
+          inMoves.forEach(m => {
+            const rawW = parseFloat(m.WeightPerUnit) || weightPerUnit;
+            if (!weightPerUnit && rawW) weightPerUnit = rawW;
+            const q = Math.abs(parseFloat(m.QtyChange) || 0);
+            const veh = (m.VehicleInfo && m.VehicleInfo !== '-') ? m.VehicleInfo.trim() : (m.Notes && m.Notes.indexOf('ยกมา') !== -1 ? m.Notes : 'ยอดยกมา');
+            txList.push({
+              type: 'IN',
+              rawTimestamp: m.Timestamp,
+              date: extractDateOnlyThai(m.Timestamp),
+              docNo: m.RefDocNo || 'IN-' + lotVal.toUpperCase(),
+              vehicle: veh,
+              weightPerUnit: rawW,
+              qty: q,
+              nextBillingDate: nextBillingDate,
+              notes: (m.Notes && m.Notes !== 'อนุมัติรับฝากเข้าสต็อก' && m.Notes !== 'ยอดยกมา') ? m.Notes : ''
+            });
+          });
+        } else if (stockItem) {
+          // หากไม่มี movement IN บันทึกไว้ แต่มีใน STATE.stock ถือเป็นยอดยกมารับเข้า
+          const initQ = (parseFloat(stockItem.InitialQty) !== undefined && !isNaN(parseFloat(stockItem.InitialQty))) ? parseFloat(stockItem.InitialQty) : (parseFloat(stockItem.RemainQty) || 0);
+          const rcvVeh = (stockItem.VehicleInfo && stockItem.VehicleInfo !== '-') ? stockItem.VehicleInfo.trim() : 'ยอดยกมา';
+          txList.push({
+            type: 'IN',
+            rawTimestamp: stockItem.ReceiveDate,
+            date: extractDateOnlyThai(stockItem.ReceiveDate),
+            docNo: stockItem.ReceivingNo || ('IN-' + lotVal.toUpperCase()),
+            vehicle: rcvVeh,
+            weightPerUnit: weightPerUnit,
+            qty: initQ,
+            nextBillingDate: nextBillingDate,
+            notes: stockItem.Notes || ''
+          });
+        }
+
+        // 2. ค้นหาประวัติเบิกออก (OUT) จาก STATE.movements
+        const outMoves = (STATE.movements || []).filter(m => {
+          if (String(m.LotNo || '').trim().toLowerCase() !== lotNorm) return false;
+          if (String(m.MovementType || '').toUpperCase().indexOf('OUT') === -1) return false;
+          const isExplicitCancelled = String(m.MovementType || '').indexOf('ยกเลิก') !== -1 || String(m.Notes || '').indexOf('ยกเลิก') !== -1 || m.IsCancelled === true;
+          if (isExplicitCancelled) return false;
+          const isAmended = String(m.MovementType || '').indexOf('ปรับปรุง') !== -1 || String(m.Notes || '').indexOf('ปรับปรุงรายการ') !== -1;
+          if (!isAmended && m.RefDocNo) {
+            const docUpper = String(m.RefDocNo).trim().toUpperCase();
+            const hasAmendedSibling = (STATE.movements || []).some(other =>
+              other !== m &&
+              String(other.RefDocNo || '').trim().toUpperCase() === docUpper &&
+              (String(other.MovementType || '').indexOf('ปรับปรุง') !== -1 || String(other.Notes || '').indexOf('ปรับปรุงรายการ') !== -1)
+            );
+            if (hasAmendedSibling) return false;
+          }
+          return true;
+        });
+
+        outMoves.forEach(m => {
+          let veh = (m.VehicleInfo && m.VehicleInfo !== '-') ? m.VehicleInfo.trim() : '';
+          if (!veh && m.RefDocNo) {
+            const rq = (STATE.requisitions || []).find(r => String(r.RequisitionNo || '').trim().toUpperCase() === String(m.RefDocNo).trim().toUpperCase());
+            if (rq && rq.VehicleInfo && rq.VehicleInfo !== '-') veh = rq.VehicleInfo.trim();
+          }
+          const q = Math.abs(parseFloat(m.QtyChange) || 0);
+          txList.push({
+            type: 'OUT',
+            rawTimestamp: m.Timestamp,
+            date: extractDateOnlyThai(m.Timestamp),
+            docNo: m.RefDocNo || 'OUT-' + lotVal.toUpperCase(),
+            vehicle: veh,
+            weightPerUnit: weightPerUnit,
+            qty: q,
+            nextBillingDate: nextBillingDate,
+            notes: (m.Notes && m.Notes !== 'อนุมัติเบิกสินค้าออกจากห้องเย็น') ? m.Notes : ''
+          });
+        });
+
+        // 3. เรียงลำดับตามวันเวลา (น้อยไปมาก) โดย IN มาก่อน OUT หากวันเดียวกัน
+        txList.sort((a, b) => {
+          const tA = parseThaiDateTimeToObj(a.rawTimestamp)?.getTime() || 0;
+          const tB = parseThaiDateTimeToObj(b.rawTimestamp)?.getTime() || 0;
+          if (tA !== tB) return tA - tB;
+          if (a.type === 'IN' && b.type === 'OUT') return -1;
+          if (a.type === 'OUT' && b.type === 'IN') return 1;
+          return 0;
+        });
+
+        // 4. คำนวณยอดคงเหลือสะสม (Running balance)
+        let runningQty = 0;
+        txList.forEach(tx => {
+          if (tx.type === 'IN') {
+            runningQty += tx.qty;
+            tx.inQty = tx.qty;
+            tx.outQty = null;
+          } else {
+            runningQty -= tx.qty;
+            tx.inQty = null;
+            tx.outQty = tx.qty;
+          }
+          tx.remainQty = Math.max(0, runningQty);
+          tx.remainWeight = tx.remainQty * (tx.weightPerUnit || weightPerUnit);
+        });
+
+        const finalRemainQty = txList.length > 0 ? txList[txList.length - 1].remainQty : (stockItem ? (parseFloat(stockItem.RemainQty) || 0) : 0);
+        const finalRemainWeight = txList.length > 0 ? txList[txList.length - 1].remainWeight : (stockItem ? (parseFloat(stockItem.RemainWeight) || 0) : 0);
+
+        return {
+          title: 'รายงานตัดสต็อก',
+          isStockCard: true,
+          isReady: true,
+          clientName: clientDisplayName,
+          lotNo: lotVal.toUpperCase(),
+          productName: productName,
+          unit: unit,
+          weightPerUnit: weightPerUnit,
+          exportDateStr: formatTodayThai(),
+          headers: ['วันที่', 'เลขที่เอกสาร', 'ทะเบียนรถ', 'น้ำหนัก/หน่วย (กก.)', 'เข้า (หน่วย)', 'ออก (หน่วย)', 'คงเหลือ (หน่วย)', 'คงเหลือ (กก.)', 'วันครบรอบบิล', 'หมายเหตุ'],
+          transactions: txList,
+          rows: txList.map(tx => [
+            tx.date,
+            tx.docNo,
+            tx.vehicle,
+            tx.type === 'IN' ? (fmtNum(tx.weightPerUnit, 2)) : '',
+            tx.inQty !== null ? fmtNum(tx.inQty) : '',
+            tx.outQty !== null ? fmtNum(tx.outQty) : '',
+            fmtNum(tx.remainQty),
+            fmtNum(tx.remainWeight, 2),
+            tx.nextBillingDate,
+            '' // ช่องหมายเหตุ ไม่ต้องแสดงรายละเอียด
+          ]),
+          remainQty: finalRemainQty,
+          remainWeight: finalRemainWeight,
+          totalQty: finalRemainQty,
+          totalWeight: finalRemainWeight
+        };
+      }
+
       if (rpt === 'STOCK_ALL' || rpt === 'STOCK_OUT') {
         const rows = STATE.stock.filter(s => {
           const rem = parseFloat(s.RemainQty) || 0;
@@ -13896,6 +14199,30 @@ function editProduct(p) {
           if (fProd && String(m.ProductName).toLowerCase().indexOf(fProd) === -1) return false;
           if (fLot && String(m.LotNo).toLowerCase().indexOf(fLot) === -1) return false;
           if (!checkDateInRange(m.Timestamp)) return false;
+
+          // ข้อ 1: "รายงานเบิกออก" และ "รายงานฝากเข้า" ให้เอารายการยกเลิกออก ไม่ต้องแสดงและไม่ต้องเอามาคำนวนยอดรวม
+          if (rpt === 'INBOUND' || rpt === 'OUTBOUND') {
+            const isAmended = String(m.MovementType || '').indexOf('ปรับปรุง') !== -1 || String(m.Notes || '').indexOf('ปรับปรุงรายการ') !== -1;
+            const isExplicitCancelled = String(m.MovementType || '').indexOf('ยกเลิก') !== -1 || String(m.Notes || '').indexOf('ยกเลิก') !== -1 || m.IsCancelled === true;
+            if (isExplicitCancelled) return false;
+
+            if (!isAmended && m.RefDocNo) {
+              const docUpper = String(m.RefDocNo).trim().toUpperCase();
+              const hasAmendedSibling = (STATE.movements || []).some(other =>
+                other !== m &&
+                String(other.RefDocNo || '').trim().toUpperCase() === docUpper &&
+                (String(other.MovementType || '').indexOf('ปรับปรุง') !== -1 || String(other.Notes || '').indexOf('ปรับปรุงรายการ') !== -1)
+              );
+              const docInSystem = (STATE.requisitions || []).find(r => String(r.RequisitionNo || '').trim().toUpperCase() === docUpper) ||
+                                  (STATE.receivings || []).find(r => String(r.ReceivingNo || '').trim().toUpperCase() === docUpper);
+              const isDocStatusAmended = docInSystem && String(docInSystem.Status || '').indexOf('ปรับปรุง') !== -1;
+
+              if (hasAmendedSibling || isDocStatusAmended) {
+                return false; // เอารายการเดิมที่ถูกยกเลิกออก ไม่ต้องแสดงและไม่ต้องเอามาคำนวณยอดรวม
+              }
+            }
+          }
+
           return true;
         });
         moves.sort((a, b) => {
@@ -13937,7 +14264,25 @@ function editProduct(p) {
           headers: ['วันที่-เวลา', 'ประเภท', 'เลขที่เอกสาร', 'Lot No.', 'ชื่อสินค้า', 'หน่วยนับ', 'จำนวนเปลี่ยนแปลง', 'น้ำหนัก (กก.)', (isInbound ? 'คงเหลือ (หน่วย)' : 'คงเหลือ(หน่วย)'), 'น้ำหนักคงเหลือ (กก.)', lastColHeader],
           rows: moves.map(m => {
             const isAmended = String(m.MovementType || '').indexOf('ปรับปรุง') !== -1 || String(m.Notes || '').indexOf('ปรับปรุงรายการ') !== -1;
-            const refDocStr = isAmended ? (m.RefDocNo + ' (รายการปรับปรุง)') : m.RefDocNo;
+            let refDocStr = m.RefDocNo;
+            if (isAmended) {
+              refDocStr = m.RefDocNo + ' (รายการปรับปรุง)';
+            } else if (m.RefDocNo) {
+              const docUpper = String(m.RefDocNo).trim().toUpperCase();
+              const hasAmendedSibling = (STATE.movements || []).some(other =>
+                other !== m &&
+                String(other.RefDocNo || '').trim().toUpperCase() === docUpper &&
+                (String(other.MovementType || '').indexOf('ปรับปรุง') !== -1 || String(other.Notes || '').indexOf('ปรับปรุงรายการ') !== -1)
+              );
+              const docInSystem = (STATE.requisitions || []).find(r => String(r.RequisitionNo || '').trim().toUpperCase() === docUpper) ||
+                                  (STATE.receivings || []).find(r => String(r.ReceivingNo || '').trim().toUpperCase() === docUpper);
+              const isDocStatusAmended = docInSystem && String(docInSystem.Status || '').indexOf('ปรับปรุง') !== -1;
+              const isExplicitCancelled = String(m.MovementType || '').indexOf('ยกเลิก') !== -1 || String(m.Notes || '').indexOf('ยกเลิก') !== -1 || m.IsCancelled === true;
+
+              if (hasAmendedSibling || isDocStatusAmended || isExplicitCancelled) {
+                refDocStr = m.RefDocNo + ' (ยกเลิกรายการ)';
+              }
+            }
             // คอลัมน์ "ทะเบียนรถ": หากมีข้อมูลรถ/ทะเบียนรถ ให้แสดงข้อมูลรถ แต่หากไม่มีและเป็นยอดยกมา ให้แสดง "ยอดยกมา"
             const vehicle = (m.VehicleInfo && m.VehicleInfo !== '-') ? m.VehicleInfo.trim() : '';
             const lastColVal = vehicle || m.Notes || (isInbound ? 'ยอดยกมา' : '-');
@@ -13997,11 +14342,128 @@ function editProduct(p) {
 
     function renderActiveReport() {
       const data = getActiveReportData();
+
+      // การแสดงผลเฉพาะสำหรับ รายงานตัดสต็อก (STOCK_CARD)
+      if (STATE.activeReportType === 'STOCK_CARD') {
+        const headerBlock = document.getElementById('stockCardHeaderBlock');
+        if (!data.isReady) {
+          if (headerBlock) headerBlock.style.display = 'none';
+          document.getElementById('activeReportHeading').textContent = 'รายงานตัดสต็อก (Stock Card)';
+          document.getElementById('activeReportSummaryBadge').innerHTML = '<span style="color:#64748B; font-weight:500;"><i class="fa-solid fa-circle-info"></i> กรุณาเลือกชื่อลูกค้าและระบุ Lot No. เพื่อแสดงข้อมูล</span>';
+          document.getElementById('activeReportThead').innerHTML =
+            '<tr style="background:#BDD7EE; color:#000000; font-weight:700;">' +
+            '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8;">วันที่</th>' +
+            '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8;">เลขที่เอกสาร</th>' +
+            '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8;">ทะเบียนรถ</th>' +
+            '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8;">น้ำหนัก/หน่วย<br>(กก.)</th>' +
+            '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; color:#10B981;">เข้า<br><span style="color:#ffffff; font-weight:normal;">(หน่วย)</span></th>' +
+            '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; color:#EF4444;">ออก<br><span style="color:#ffffff; font-weight:normal;">(หน่วย)</span></th>' +
+            '<th colspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8;">คงเหลือ</th>' +
+            '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8;">วันครบรอบบิล</th>' +
+            '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8;">หมายเหตุ</th>' +
+            '</tr>' +
+            '<tr style="background:#BDD7EE; color:#000000; font-weight:700;">' +
+            '<th class="text-center" style="vertical-align:middle; border:1px solid #94A3B8;">(หน่วย)</th>' +
+            '<th class="text-center" style="vertical-align:middle; border:1px solid #94A3B8;">(กก.)</th>' +
+            '</tr>';
+          document.getElementById('activeReportTbody').innerHTML =
+            '<tr><td colspan="10" style="text-align:center; padding:44px 16px; background:#F8FAFC; border:1px dashed #CBD5E1;">' +
+            '<div style="max-width:440px; margin:0 auto;">' +
+            '<i class="fa-solid fa-filter" style="font-size:32px; color:#94A3B8; margin-bottom:12px; display:block;"></i>' +
+            '<div style="font-size:16px; font-weight:700; color:#334155; margin-bottom:6px;">กรุณาเลือก "ชื่อลูกค้า" และระบุ "Lot No."</div>' +
+            '<div style="font-size:13px; color:#64748B; line-height:1.5;">ระบบจะดึงข้อมูลประวัติการรับเข้าและรายการเบิกตัดสต็อกของ Lot ดังกล่าวมาแสดงผล พร้อมคำนวณยอดคงเหลือสะสมอัตโนมัติ</div>' +
+            '</div></td></tr>';
+          return;
+        }
+
+        // เมื่อเลือกครบทั้ง 2 รายการแล้ว (data.isReady)
+        if (headerBlock) {
+          headerBlock.style.display = 'block';
+          document.getElementById('stockCardClientTitle').textContent = data.clientName;
+          document.getElementById('stockCardProductTitle').textContent = 'Lot No. ' + data.lotNo + (data.productName ? (' ' + data.productName) : '');
+          document.getElementById('stockCardDateText').textContent = '(วันที่ ' + data.exportDateStr + ')';
+        }
+        document.getElementById('activeReportHeading').textContent = 'รายงานตัดสต็อก: ' + data.clientName + ' (' + data.lotNo + ')';
+        document.getElementById('activeReportSummaryBadge').innerHTML =
+          '<span style="color:#0284C7; font-weight:700;">คงเหลือ: ' + fmtNum(data.remainQty) + ' ' + escapeHtml(data.unit) + ' | น้ำหนักคงเหลือ: ' + fmtNum(data.remainWeight, 2) + ' กก.</span>';
+
+        document.getElementById('activeReportThead').innerHTML =
+          '<tr style="background:#BDD7EE; color:#000000; font-weight:700;">' +
+          '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; padding:8px 6px;">วันที่</th>' +
+          '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; padding:8px 6px;">เลขที่เอกสาร</th>' +
+          '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; padding:8px 6px;">ทะเบียนรถ</th>' +
+          '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; padding:8px 6px;">น้ำหนัก/หน่วย<br>(กก.)</th>' +
+          '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; color:#10B981; padding:8px 6px;">เข้า<br><span style="color:#ffffff; font-weight:normal;">(หน่วย)</span></th>' +
+          '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; color:#EF4444; padding:8px 6px;">ออก<br><span style="color:#ffffff; font-weight:normal;">(หน่วย)</span></th>' +
+          '<th colspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; padding:8px 6px;">คงเหลือ</th>' +
+          '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; padding:8px 6px;">วันครบรอบบิล</th>' +
+          '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; padding:8px 6px;">หมายเหตุ</th>' +
+          '</tr>' +
+          '<tr style="background:#BDD7EE; color:#000000; font-weight:700;">' +
+          '<th class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; padding:6px;">(หน่วย)</th>' +
+          '<th class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; padding:6px;">(กก.)</th>' +
+          '</tr>';
+
+        const tbody = document.getElementById('activeReportTbody');
+        if (data.transactions.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="10" class="empty-state">ไม่พบข้อมูลประวัติการเคลื่อนไหวสต๊อกสำหรับ Lot No. ' + escapeHtml(data.lotNo) + '</td></tr>';
+          return;
+        }
+
+        let rowsHtml = data.transactions.map(tx => {
+          const isIN = tx.type === 'IN';
+          const docColor = isIN ? '#10B981' : '#EF4444';
+          const inDisplay = tx.inQty !== null ? ('<span style="color:#10B981; font-weight:700;">' + fmtNum(tx.inQty) + '</span>') : '';
+          const outDisplay = tx.outQty !== null ? ('<span style="color:#EF4444; font-weight:700;">' + fmtNum(tx.outQty) + '</span>') : '';
+          const wPerUnitDisp = isIN && tx.weightPerUnit ? fmtNum(tx.weightPerUnit, 2) : '';
+
+          return '<tr style="border-bottom:1px solid #E2E8F0;">' +
+            '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1;">' + escapeHtml(tx.date) + '</td>' +
+            '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1; color:' + docColor + '; font-weight:700;">' + escapeHtml(tx.docNo) + '</td>' +
+            '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1;">' + escapeHtml(tx.vehicle || '-') + '</td>' +
+            '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1;">' + escapeHtml(wPerUnitDisp) + '</td>' +
+            '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1;">' + inDisplay + '</td>' +
+            '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1;">' + outDisplay + '</td>' +
+            '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1; font-weight:600;">' + fmtNum(tx.remainQty) + '</td>' +
+            '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1;">' + fmtNum(tx.remainWeight, 2) + '</td>' +
+            '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1;">' + escapeHtml(tx.nextBillingDate || '-') + '</td>' +
+            '<td style="padding:8px 8px; border:1px solid #CBD5E1;"></td>' +
+            '</tr>';
+        }).join('');
+
+        // บรรทัดว่างสำหรับความสวยงามเหมือนในรูปตัวอย่าง
+        rowsHtml += '<tr>' +
+          '<td style="border:1px solid #CBD5E1; height:24px;"></td>'.repeat(10) +
+          '</tr>';
+
+        // แถวสรุปผลรวมจำนวนคงเหลือท้ายตาราง
+        rowsHtml += '<tr>' +
+          '<td colspan="6" style="border:none; text-align:right; font-weight:700; padding:12px 14px; font-size:14.5px; color:#0F172A;">จำนวนคงเหลือ:</td>' +
+          '<td style="border:1.5px solid #94A3B8; text-align:center; font-weight:700; color:#0284C7; padding:10px 8px; font-size:14.5px; background:#F0F9FF; white-space:nowrap;">' + fmtNum(data.remainQty) + ' ' + escapeHtml(data.unit) + '</td>' +
+          '<td style="border:1.5px solid #94A3B8; text-align:center; font-weight:700; color:#0284C7; padding:10px 8px; font-size:14.5px; background:#F0F9FF; white-space:nowrap;">รวม: ' + fmtNum(data.remainWeight, 2) + ' กก.</td>' +
+          '<td colspan="2" style="border:none;"></td>' +
+          '</tr>';
+
+        tbody.innerHTML = rowsHtml;
+        return;
+      } else {
+        const headerBlock = document.getElementById('stockCardHeaderBlock');
+        if (headerBlock) headerBlock.style.display = 'none';
+      }
+
       document.getElementById('activeReportHeading').textContent = data.title;
 
       // รายงานสินค้าหมด บรรทัดที่ 2 ตัด "จำนวนรวม: 0 หน่วย | น้ำหนักรวม: 0.00 กก." ออก แสดงเป็น "รายงานสินค้าหมด รวม ... รายการ"
       if (STATE.activeReportType === 'STOCK_OUT') {
         document.getElementById('activeReportSummaryBadge').textContent = 'รวม ' + fmtNum(data.rows.length) + ' รายการ';
+      } else if (STATE.activeReportType === 'OUTBOUND') {
+        // ข้อ 2: รายงานเบิกออก เปลี่ยนเป็น "น้ำหนักรวมออก: ...กก."
+        document.getElementById('activeReportSummaryBadge').textContent =
+          'รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวมออก: ' + fmtNum(data.totalWeight, 2) + ' กก.';
+      } else if (STATE.activeReportType === 'INBOUND') {
+        // ข้อ 3: รายงานฝากเข้า เปลี่ยนเป็น "น้ำหนักรวมเข้า: ...กก."
+        document.getElementById('activeReportSummaryBadge').textContent =
+          'รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวมเข้า: ' + fmtNum(data.totalWeight, 2) + ' กก.';
       } else {
         document.getElementById('activeReportSummaryBadge').textContent =
           'รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวม: ' + fmtNum(data.totalWeight, 2) + ' กก.';
@@ -14074,9 +14536,14 @@ function editProduct(p) {
               style = ' style="color:#EF4444; font-weight:700;"';
             }
 
-            if (h === 'เลขที่เอกสาร' && String(c || '').indexOf(' (รายการปรับปรุง)') !== -1) {
-              const baseDoc = String(c).replace(' (รายการปรับปรุง)', '');
-              return '<td' + cls + style + '><strong>' + escapeHtml(baseDoc) + '</strong><div style="font-size:11.5px; color:#D97706; font-weight:600; margin-top:2px;">(รายการปรับปรุง)</div></td>';
+            if (h === 'เลขที่เอกสาร') {
+              if (String(c || '').indexOf(' (รายการปรับปรุง)') !== -1) {
+                const baseDoc = String(c).replace(' (รายการปรับปรุง)', '');
+                return '<td' + cls + style + '><strong>' + escapeHtml(baseDoc) + '</strong><div style="font-size:11.5px; color:#D97706; font-weight:600; margin-top:2px;">(รายการปรับปรุง)</div></td>';
+              } else if (String(c || '').indexOf(' (ยกเลิกรายการ)') !== -1) {
+                const baseDoc = String(c).replace(' (ยกเลิกรายการ)', '');
+                return '<td' + cls + style + '><strong>' + escapeHtml(baseDoc) + '</strong><div style="font-size:11.5px; color:#DC2626; font-weight:600; margin-top:2px;">(ยกเลิกรายการ)</div></td>';
+              }
             }
             return '<td' + cls + style + '>' + escapeHtml(c) + '</td>';
           }).join('') + '</tr>'
@@ -14146,6 +14613,7 @@ function editProduct(p) {
       const isInboundReport = (options && options.isInboundReport) || fileBaseName.indexOf('Report_INBOUND') === 0;
       const isOutboundReport = (options && options.isOutboundReport) || fileBaseName.indexOf('Report_OUTBOUND') === 0;
       const isMovementReport = isInboundReport || isOutboundReport || (options && options.isMovementReport) || fileBaseName.indexOf('Report_MOVEMENT') === 0;
+      const isStockCardReport = (options && options.isStockCardReport) || fileBaseName.indexOf('Report_STOCK_CARD') === 0;
       const exportDateStr = formatTodayThai();
 
       if (options && options.titleLine2) {
@@ -14305,6 +14773,121 @@ function editProduct(p) {
         link.download = fileBaseName + '.xls';
         link.click();
         showToast('ดาวน์โหลดไฟล์ Excel เรียบร้อยแล้ว', 'success');
+        return;
+      }
+
+      // =========================================================================
+      // Case: รายงานตัดสต็อก (Stock Card Export - 10 คอลัมน์) ตามแบบฟอร์ม image_a910a4.png
+      // =========================================================================
+      if (isStockCardReport) {
+        const scData = (options && options.stockCardData) || {};
+        const colgroupHtml = '<colgroup>' +
+          '<col width="110" style="width: 82pt;">' +  // วันที่
+          '<col width="130" style="width: 98pt;">' +  // เลขที่เอกสาร
+          '<col width="120" style="width: 90pt;">' +  // ทะเบียนรถ
+          '<col width="115" style="width: 86pt;">' +  // น้ำหนัก/หน่วย (กก.)
+          '<col width="100" style="width: 75pt;">' +  // เข้า (หน่วย)
+          '<col width="100" style="width: 75pt;">' +  // ออก (หน่วย)
+          '<col width="110" style="width: 82pt;">' +  // คงเหลือ (หน่วย)
+          '<col width="115" style="width: 86pt;">' +  // คงเหลือ (กก.)
+          '<col width="115" style="width: 86pt;">' +  // วันครบรอบบิล
+          '<col width="140" style="width: 105pt;">' + // หมายเหตุ
+          '</colgroup>';
+
+        const theadHtml = '<thead>' +
+          '<tr height="46" style="mso-height-source:userset; height:34.5pt;">' +
+            '<th colspan="10" class="excel-title-1" style="font-size:20pt; font-weight:bold; text-align:center; vertical-align:middle; background:#ffffff; color:#0A3D62; border:none; height:34.5pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(titles.line1) + '</th>' +
+          '</tr>' +
+          '<tr height="40" style="mso-height-source:userset; height:30pt;">' +
+            '<th colspan="10" class="excel-title-2" style="font-size:14pt; font-weight:bold; text-align:center; vertical-align:middle; background:#ffffff; color:#000000; border:none; height:30pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(titles.line2) + '</th>' +
+          '</tr>' +
+          '<tr height="30" style="mso-height-source:userset; height:22.5pt;">' +
+            '<td colspan="9" style="border:none; background:#ffffff; height:22.5pt; vertical-align:middle;"></td>' +
+            '<td class="excel-export-date" style="border:none; background:#ffffff; text-align:right; font-size:10pt; color:#000000; font-weight:normal; vertical-align:middle; white-space:nowrap; font-family:Sarabun, Arial, sans-serif; height:22.5pt;">(วันที่ ' + escapeHtml(exportDateStr) + ')</td>' +
+          '</tr>' +
+          '<tr height="33" style="mso-height-source:userset; height:24.75pt;">' +
+            '<th rowspan="2" style="background-color:#BDD7EE; color:#000000; font-weight:bold; border:0.5pt solid #757171; padding:4px 6px; text-align:center; vertical-align:middle; font-size:11pt; font-family:Sarabun, Arial, sans-serif;">วันที่</th>' +
+            '<th rowspan="2" style="background-color:#BDD7EE; color:#000000; font-weight:bold; border:0.5pt solid #757171; padding:4px 6px; text-align:center; vertical-align:middle; font-size:11pt; font-family:Sarabun, Arial, sans-serif;">เลขที่เอกสาร</th>' +
+            '<th rowspan="2" style="background-color:#BDD7EE; color:#000000; font-weight:bold; border:0.5pt solid #757171; padding:4px 6px; text-align:center; vertical-align:middle; font-size:11pt; font-family:Sarabun, Arial, sans-serif;">ทะเบียนรถ</th>' +
+            '<th rowspan="2" style="background-color:#BDD7EE; color:#000000; font-weight:bold; border:0.5pt solid #757171; padding:4px 6px; text-align:center; vertical-align:middle; font-size:11pt; font-family:Sarabun, Arial, sans-serif;">น้ำหนัก/หน่วย<br>(กก.)</th>' +
+            '<th rowspan="2" style="background-color:#BDD7EE; color:#10B981; font-weight:bold; border:0.5pt solid #757171; padding:4px 6px; text-align:center; vertical-align:middle; font-size:11pt; font-family:Sarabun, Arial, sans-serif;">เข้า<br><span style="color:#000000; font-weight:normal;">(หน่วย)</span></th>' +
+            '<th rowspan="2" style="background-color:#BDD7EE; color:#EF4444; font-weight:bold; border:0.5pt solid #757171; padding:4px 6px; text-align:center; vertical-align:middle; font-size:11pt; font-family:Sarabun, Arial, sans-serif;">ออก<br><span style="color:#000000; font-weight:normal;">(หน่วย)</span></th>' +
+            '<th colspan="2" style="background-color:#BDD7EE; color:#000000; font-weight:bold; border:0.5pt solid #757171; padding:4px 6px; text-align:center; vertical-align:middle; font-size:11pt; font-family:Sarabun, Arial, sans-serif;">คงเหลือ</th>' +
+            '<th rowspan="2" style="background-color:#BDD7EE; color:#000000; font-weight:bold; border:0.5pt solid #757171; padding:4px 6px; text-align:center; vertical-align:middle; font-size:11pt; font-family:Sarabun, Arial, sans-serif;">วันครบรอบบิล</th>' +
+            '<th rowspan="2" style="background-color:#BDD7EE; color:#000000; font-weight:bold; border:0.5pt solid #757171; padding:4px 6px; text-align:center; vertical-align:middle; font-size:11pt; font-family:Sarabun, Arial, sans-serif;">หมายเหตุ</th>' +
+          '</tr>' +
+          '<tr height="28" style="mso-height-source:userset; height:21pt;">' +
+            '<th style="background-color:#BDD7EE; color:#000000; font-weight:bold; border:0.5pt solid #757171; padding:4px 6px; text-align:center; vertical-align:middle; font-size:11pt; font-family:Sarabun, Arial, sans-serif;">(หน่วย)</th>' +
+            '<th style="background-color:#BDD7EE; color:#000000; font-weight:bold; border:0.5pt solid #757171; padding:4px 6px; text-align:center; vertical-align:middle; font-size:11pt; font-family:Sarabun, Arial, sans-serif;">(กก.)</th>' +
+          '</tr>' +
+          '</thead>';
+
+        let tbodyRowsHtml = rows.map(r => {
+          let cellsHtml = '';
+          r.forEach((c, cIdx) => {
+            const rawStr = String(c === undefined || c === null ? '' : c).trim();
+            if (cIdx === 1) {
+              const isIN = rawStr.indexOf('IN') !== -1;
+              const isOUT = rawStr.indexOf('OUT') !== -1;
+              const color = isIN ? '#10B981' : (isOUT ? '#EF4444' : '#000000');
+              cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:bold; height:24.75pt; font-family:Sarabun, Arial, sans-serif; color:' + color + '; mso-number-format:"\@";"><font color="' + color + '"><b>' + escapeHtml(rawStr) + '</b></font></td>';
+            } else if (cIdx === 4) {
+              const dispNum = formatCleanNumber(rawStr);
+              cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:bold; height:24.75pt; font-family:Sarabun, Arial, sans-serif; color:#10B981;">' + escapeHtml(dispNum) + '</td>';
+            } else if (cIdx === 5) {
+              const dispNum = formatCleanNumber(rawStr);
+              cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:bold; height:24.75pt; font-family:Sarabun, Arial, sans-serif; color:#EF4444;">' + escapeHtml(dispNum) + '</td>';
+            } else if (cIdx === 6) {
+              const dispNum = formatCleanNumber(rawStr);
+              cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:bold; height:24.75pt; font-family:Sarabun, Arial, sans-serif; color:#0284C7;">' + escapeHtml(dispNum) + '</td>';
+            } else if (cIdx === 3 || cIdx === 7) {
+              const dispNum = formatCleanNumber(rawStr);
+              cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(dispNum) + '</td>';
+            } else if (cIdx === 9) {
+              // ช่องหมายเหตุ ไม่ต้องแสดงรายละเอียด
+              cellsHtml += '<td style="border:0.5pt solid #AEABAB; text-align:left; vertical-align:middle; padding:4px 8px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif;"></td>';
+            } else {
+              cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(rawStr) + '</td>';
+            }
+          });
+          return '<tr height="33" style="mso-height-source:userset; height:24.75pt;">' + cellsHtml + '</tr>';
+        }).join('');
+
+        tbodyRowsHtml += '<tr height="25" style="mso-height-source:userset; height:18.75pt;">' +
+          '<td style="border:0.5pt solid #AEABAB;"></td>'.repeat(10) +
+          '</tr>';
+
+        const finalQtyDisp = scData.remainQty !== undefined ? (formatCleanNumber(scData.remainQty) + ' ' + (scData.unit || 'หน่วย')) : '';
+        const finalWeightDisp = scData.remainWeight !== undefined ? ('รวม: ' + formatCleanNumber(scData.remainWeight) + ' กก.') : '';
+
+        tbodyRowsHtml += '<tr height="36" style="mso-height-source:userset; height:27pt;">' +
+          '<td colspan="6" style="border:none; text-align:right; font-weight:bold; font-size:11pt; vertical-align:middle; padding:4px 10px; font-family:Sarabun, Arial, sans-serif;">จำนวนคงเหลือ:</td>' +
+          '<td align="center" style="border:0.5pt solid #757171; text-align:center; font-weight:bold; font-size:11pt; color:#0284C7; background:#F0F9FF; vertical-align:middle; padding:4px 6px; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(finalQtyDisp) + '</td>' +
+          '<td align="center" style="border:0.5pt solid #757171; text-align:center; font-weight:bold; font-size:11pt; color:#0284C7; background:#F0F9FF; vertical-align:middle; padding:4px 6px; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(finalWeightDisp) + '</td>' +
+          '<td colspan="2" style="border:none;"></td>' +
+          '</tr>';
+
+        const tbodyHtml = '<tbody>' + tbodyRowsHtml + '</tbody>';
+
+        let tableHtml = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">' +
+          '<head><meta charset="UTF-8"><style>' +
+          'table { border-collapse: collapse; font-family: Sarabun, Tahoma, Arial, sans-serif; mso-displayed-decimal-separator:"."; mso-displayed-thousand-separator:","; }' +
+          'th, td { font-family: Sarabun, Tahoma, Arial, sans-serif; vertical-align: middle; }' +
+          '.excel-title-1 { font-size: 20pt; font-weight: bold; text-align: center; vertical-align: middle; border: none; height: 34.5pt; color: #0A3D62; }' +
+          '.excel-title-2 { font-size: 14pt; font-weight: bold; text-align: center; vertical-align: middle; border: none; height: 30pt; color: #000000; }' +
+          'th { border: 0.5pt solid #757171; }' +
+          'td { border: 0.5pt solid #AEABAB; }' +
+          '</style></head><body>' +
+          '<table border="0" style="border-collapse:collapse; border:none;">' +
+          colgroupHtml + theadHtml + tbodyHtml +
+          '</table></body></html>';
+
+        const blob = new Blob(['﻿' + tableHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = fileBaseName + '.xls';
+        link.click();
+        showToast('ดาวน์โหลดไฟล์ Excel รายงานตัดสต็อกเรียบร้อยแล้ว', 'success');
         return;
       }
 
@@ -14473,9 +15056,23 @@ function editProduct(p) {
                 // น้ำหนัก (กก.), น้ำหนักคงเหลือ (กก.): ตรงกลาง
                 const dispNum = formatCleanNumber(rawStr);
                 cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(dispNum) + '</td>';
+              } else if (cIdx === 2) {
+                // เลขที่เอกสาร: IN สีเขียว, OUT สีแดง
+                const isIN = rawStr.indexOf('IN') !== -1;
+                const isOUT = rawStr.indexOf('OUT') !== -1;
+                const docColor = isIN ? '#10B981' : (isOUT ? '#EF4444' : '#000000');
+                let docDisplay = '<font color="' + docColor + '"><strong>' + escapeHtml(rawStr) + '</strong></font>';
+                if (rawStr.indexOf('(รายการปรับปรุง)') !== -1) {
+                  const base = rawStr.replace('(รายการปรับปรุง)', '').trim();
+                  docDisplay = '<strong>' + escapeHtml(base) + '</strong><br><span style="font-size:9pt; color:#D97706; font-weight:bold;">(รายการปรับปรุง)</span>';
+                } else if (rawStr.indexOf('(ยกเลิกรายการ)') !== -1) {
+                  const base = rawStr.replace('(ยกเลิกรายการ)', '').trim();
+                  docDisplay = '<strong>' + escapeHtml(base) + '</strong><br><span style="font-size:9pt; color:#DC2626; font-weight:bold;">(ยกเลิกรายการ)</span>';
+                }
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif; mso-number-format:\\@\;">' + docDisplay + '</td>';
               } else {
-                // วันที่-เวลา, ประเภท, เลขที่เอกสาร, Lot No., หน่วยนับ, ทะเบียนรถ: จัดตรงกลาง
-                const formatAttr = (cIdx === 0 || cIdx === 2 || cIdx === 3) ? ' mso-number-format:\\"\\\\@\\";' : '';
+                // วันที่-เวลา, ประเภท, Lot No., หน่วยนับ, ทะเบียนรถ: จัดตรงกลาง
+                const formatAttr = (cIdx === 0 || cIdx === 3) ? ' mso-number-format:\\@\;' : '';
                 cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif;' + formatAttr + '">' + escapeHtml(rawStr) + '</td>';
               }
             });
@@ -14645,6 +15242,21 @@ function editProduct(p) {
     function exportCurrentReport(format) {
       const data = getActiveReportData();
       const rpt = STATE.activeReportType;
+
+      if (rpt === 'STOCK_CARD') {
+        if (!data.isReady) {
+          showToast('กรุณาเลือกชื่อลูกค้าและระบุ Lot No. ก่อนส่งออกรายงาน', 'warning');
+          return;
+        }
+        downloadTableFile('Report_STOCK_CARD_' + (data.lotNo || '') + '_' + formatYMDCompact(), data.headers, data.rows, format, {
+          isStockCardReport: true,
+          titleLine1: data.clientName,
+          titleLine2: 'Lot No. ' + data.lotNo + (data.productName ? (' ' + data.productName) : ''),
+          stockCardData: data
+        });
+        return;
+      }
+
       let titleLine2 = '';
 
       if (rpt === 'STOCK_OUT') {
@@ -14653,9 +15265,9 @@ function editProduct(p) {
       } else if (rpt === 'STOCK_ALL') {
         titleLine2 = 'รายงานสินค้าคงเหลือ รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวม: ' + fmtNum(data.totalWeight, 2) + ' กก.';
       } else if (rpt === 'INBOUND') {
-        titleLine2 = 'รายงานฝากเข้า รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวม: ' + fmtNum(data.totalWeight, 2) + ' กก.';
+        titleLine2 = 'รายงานฝากเข้า รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวมเข้า: ' + fmtNum(data.totalWeight, 2) + ' กก.';
       } else if (rpt === 'OUTBOUND') {
-        titleLine2 = 'รายงานเบิกออก รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวม: ' + fmtNum(data.totalWeight, 2) + ' กก.';
+        titleLine2 = 'รายงานเบิกออก รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวมออก: ' + fmtNum(data.totalWeight, 2) + ' กก.';
       } else {
         titleLine2 = data.title + ' รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวม: ' + fmtNum(data.totalWeight, 2) + ' กก.';
       }
@@ -14672,15 +15284,84 @@ function editProduct(p) {
     function printCurrentReport() {
       const data = getActiveReportData();
       const rpt = STATE.activeReportType;
+
+      if (rpt === 'STOCK_CARD') {
+        if (!data.isReady) {
+          showToast('กรุณาเลือกชื่อลูกค้าและระบุ Lot No. ก่อนสั่งพิมพ์รายงาน', 'warning');
+          return;
+        }
+        let rowsHtml = (data.transactions || []).map(tx => {
+          const isIN = tx.type === 'IN';
+          const docColor = isIN ? '#10B981' : '#EF4444';
+          const inDisp = tx.inQty !== null ? ('<span style="color:#10B981; font-weight:bold;">' + fmtNum(tx.inQty) + '</span>') : '';
+          const outDisp = tx.outQty !== null ? ('<span style="color:#EF4444; font-weight:bold;">' + fmtNum(tx.outQty) + '</span>') : '';
+          const wDisp = isIN && tx.weightPerUnit ? fmtNum(tx.weightPerUnit, 2) : '';
+
+          return '<tr>' +
+            '<td style="padding:6px; text-align:center; border:1px solid #757171;">' + escapeHtml(tx.date) + '</td>' +
+            '<td style="padding:6px; text-align:center; border:1px solid #757171; color:' + docColor + '; font-weight:bold;">' + escapeHtml(tx.docNo) + '</td>' +
+            '<td style="padding:6px; text-align:center; border:1px solid #757171;">' + escapeHtml(tx.vehicle || '-') + '</td>' +
+            '<td style="padding:6px; text-align:center; border:1px solid #757171;">' + escapeHtml(wDisp) + '</td>' +
+            '<td style="padding:6px; text-align:center; border:1px solid #757171;">' + inDisp + '</td>' +
+            '<td style="padding:6px; text-align:center; border:1px solid #757171;">' + outDisp + '</td>' +
+            '<td style="padding:6px; text-align:center; border:1px solid #757171; font-weight:bold;">' + fmtNum(tx.remainQty) + '</td>' +
+            '<td style="padding:6px; text-align:center; border:1px solid #757171;">' + fmtNum(tx.remainWeight, 2) + '</td>' +
+            '<td style="padding:6px; text-align:center; border:1px solid #757171;">' + escapeHtml(tx.nextBillingDate || '-') + '</td>' +
+            '<td style="padding:6px; border:1px solid #757171;"></td>' +
+            '</tr>';
+        }).join('');
+
+        rowsHtml += '<tr>' + '<td style="border:1px solid #757171; height:20px;"></td>'.repeat(10) + '</tr>';
+
+        rowsHtml += '<tr>' +
+          '<td colspan="6" style="border:none; text-align:right; font-weight:bold; padding:10px 12px; font-size:14px;">จำนวนคงเหลือ:</td>' +
+          '<td style="border:1.5px solid #757171; text-align:center; font-weight:bold; color:#0284C7; padding:8px; font-size:14px; background:#F0F9FF;">' + fmtNum(data.remainQty) + ' ' + escapeHtml(data.unit) + '</td>' +
+          '<td style="border:1.5px solid #757171; text-align:center; font-weight:bold; color:#0284C7; padding:8px; font-size:14px; background:#F0F9FF;">รวม: ' + fmtNum(data.remainWeight, 2) + ' กก.</td>' +
+          '<td colspan="2" style="border:none;"></td>' +
+          '</tr>';
+
+        const html =
+          '<div style="text-align:center; margin-bottom:12px;">' +
+          '<h2 style="font-size:22px; font-weight:bold; color:#0A3D62; margin:0 0 4px 0; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(data.clientName) + '</h2>' +
+          '<div style="font-size:16px; font-weight:bold; color:#000000; margin:0 0 6px 0; font-family:Sarabun, Arial, sans-serif;">Lot No. ' + escapeHtml(data.lotNo) + (data.productName ? (' ' + escapeHtml(data.productName)) : '') + '</div>' +
+          '<div style="text-align:right; font-size:11pt; color:#333; font-family:Sarabun, Arial, sans-serif;">(วันที่ ' + escapeHtml(data.exportDateStr) + ')</div>' +
+          '</div>' +
+          '<table style="width:100%; border-collapse:collapse; font-size:11pt; font-family:Sarabun, Arial, sans-serif;" border="1">' +
+          '<thead>' +
+          '<tr style="background:#BDD7EE; color:#000000; font-weight:bold;">' +
+          '<th rowspan="2" style="padding:6px; text-align:center; vertical-align:middle; border:1px solid #757171;">วันที่</th>' +
+          '<th rowspan="2" style="padding:6px; text-align:center; vertical-align:middle; border:1px solid #757171;">เลขที่เอกสาร</th>' +
+          '<th rowspan="2" style="padding:6px; text-align:center; vertical-align:middle; border:1px solid #757171;">ทะเบียนรถ</th>' +
+          '<th rowspan="2" style="padding:6px; text-align:center; vertical-align:middle; border:1px solid #757171;">น้ำหนัก/หน่วย<br>(กก.)</th>' +
+          '<th rowspan="2" style="padding:6px; text-align:center; vertical-align:middle; border:1px solid #757171; color:#10B981;">เข้า<br><span style="color:#000000; font-weight:normal;">(หน่วย)</span></th>' +
+          '<th rowspan="2" style="padding:6px; text-align:center; vertical-align:middle; border:1px solid #757171; color:#EF4444;">ออก<br><span style="color:#000000; font-weight:normal;">(หน่วย)</span></th>' +
+          '<th colspan="2" style="padding:6px; text-align:center; vertical-align:middle; border:1px solid #757171;">คงเหลือ</th>' +
+          '<th rowspan="2" style="padding:6px; text-align:center; vertical-align:middle; border:1px solid #757171;">วันครบรอบบิล</th>' +
+          '<th rowspan="2" style="padding:6px; text-align:center; vertical-align:middle; border:1px solid #757171;">หมายเหตุ</th>' +
+          '</tr>' +
+          '<tr style="background:#BDD7EE; color:#000000; font-weight:bold;">' +
+          '<th style="padding:4px; text-align:center; border:1px solid #757171;">(หน่วย)</th>' +
+          '<th style="padding:4px; text-align:center; border:1px solid #757171;">(กก.)</th>' +
+          '</tr>' +
+          '</thead>' +
+          '<tbody>' + rowsHtml + '</tbody></table>';
+
+        STATE.currentPrintDoc = { fileName: 'Report_STOCK_CARD_' + (data.lotNo || '') + '_' + formatYMDCompact(), refNo: 'STOCK_CARD', htmlContent: html };
+        document.getElementById('modalDocPrintTitle').textContent = 'รายงานตัดสต็อก (Stock Card) - Lot No. ' + data.lotNo;
+        document.getElementById('printPreviewArea').innerHTML = html;
+        openModal('modalDocPrint');
+        return;
+      }
+
       let printSubTitle = data.title;
       if (rpt === 'STOCK_OUT') {
         printSubTitle = 'รายงานสินค้าหมด รวม ' + fmtNum(data.rows.length) + ' รายการ';
       } else if (rpt === 'STOCK_ALL') {
         printSubTitle = 'รายงานสินค้าคงเหลือ รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวม: ' + fmtNum(data.totalWeight, 2) + ' กก.';
       } else if (rpt === 'INBOUND') {
-        printSubTitle = 'รายงานฝากเข้า รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวม: ' + fmtNum(data.totalWeight, 2) + ' กก.';
+        printSubTitle = 'รายงานฝากเข้า รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวมเข้า: ' + fmtNum(data.totalWeight, 2) + ' กก.';
       } else if (rpt === 'OUTBOUND') {
-        printSubTitle = 'รายงานเบิกออก รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวม: ' + fmtNum(data.totalWeight, 2) + ' กก.';
+        printSubTitle = 'รายงานเบิกออก รวม ' + fmtNum(data.rows.length) + ' รายการ | จำนวนรวม: ' + fmtNum(data.totalQty) + ' หน่วย | น้ำหนักรวมออก: ' + fmtNum(data.totalWeight, 2) + ' กก.';
       }
 
       const isRightCol = (headerName) => {
