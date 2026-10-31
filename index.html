@@ -1304,7 +1304,7 @@
                 <i class="fa-solid fa-tags"></i> จัดการหมวดหมู่
               </button>
               <button class="btn btn-outline" onclick="exportProductsData('excel')">
-                <i class="fa-solid fa-file-excel"></i> Export Excel
+                <i class="fa-solid fa-file-excel" style="color:#10b981;"></i> Export Excel
               </button>
             </div>
           </div>
@@ -1611,10 +1611,6 @@
               <button class="btn btn-outline" onclick="exportCurrentReport('excel')">
                 <i class="fa-solid fa-file-excel" style="color:#10b981;"></i> Export Excel
               </button>
-              <button class="btn btn-blue" onclick="printCurrentReport()">
-                <i class="fa-solid fa-print"></i> Print Report
-              </button>
-
             </div>
           </div>
 
@@ -1632,7 +1628,7 @@
             <button class="btn btn-outline report-tab-btn" data-rpt="OUTBOUND" onclick="selectReportType('OUTBOUND')">
               📤 รายงานเบิกออก
             </button>
-            <button class="btn btn-outline report-tab-btn" data-rpt="STOCK_CARD" onclick="selectReportType('STOCK_CARD')">
+            <button class="btn btn-outline report-tab-btn" data-rpt="STOCK_CARD" id="btnRptStockCard" onclick="selectReportType('STOCK_CARD')">
               📋 รายงานตัดสต็อก
             </button>
           </div>
@@ -5987,6 +5983,15 @@
       if (dashClientFilterWrap) dashClientFilterWrap.style.display = isClient ? 'none' : 'flex';
       const dashTitleText = document.getElementById('dashTitleText');
       if (dashTitleText) dashTitleText.textContent = 'Dashboard';
+
+      // กำหนดสิทธิ์: สำหรับระดับสิทธิ์ "Client Portal" เอารายงานตัดสต็อกออก
+      const btnStockCard = document.getElementById('btnRptStockCard') || document.querySelector('.report-tab-btn[data-rpt="STOCK_CARD"]');
+      if (btnStockCard) {
+        btnStockCard.style.display = isClient ? 'none' : 'inline-flex';
+      }
+      if (isClient && STATE.activeReportType === 'STOCK_CARD') {
+        STATE.activeReportType = 'STOCK_ALL';
+      }
     }
 
     /**
@@ -13810,6 +13815,10 @@ function editProduct(p) {
      * =========================================================================
      */
     function selectReportType(rptType) {
+      const isClient = STATE.user && STATE.user.role === 'Client Portal';
+      if (isClient && rptType === 'STOCK_CARD') {
+        rptType = 'STOCK_ALL';
+      }
       STATE.activeReportType = rptType;
       document.querySelectorAll('.report-tab-btn').forEach(btn => {
         const active = btn.getAttribute('data-rpt') === rptType;
@@ -13938,6 +13947,11 @@ function editProduct(p) {
       const fLot = (document.getElementById('rptFilterLot').value || '').toLowerCase().trim();
 
       if (rpt === 'STOCK_CARD') {
+        const isClient = STATE.user && STATE.user.role === 'Client Portal';
+        if (isClient) {
+          STATE.activeReportType = 'STOCK_ALL';
+          return getActiveReportData();
+        }
         const clientVal = (document.getElementById('rptFilterClient') ? document.getElementById('rptFilterClient').value : '').trim();
         const lotVal = (document.getElementById('rptFilterLot') ? document.getElementById('rptFilterLot').value : '').trim();
 
@@ -14129,18 +14143,21 @@ function editProduct(p) {
           exportDateStr: formatTodayThai(),
           headers: ['วันที่', 'เลขที่เอกสาร', 'ทะเบียนรถ', 'น้ำหนัก/หน่วย (กก.)', 'เข้า (หน่วย)', 'ออก (หน่วย)', 'คงเหลือ (หน่วย)', 'คงเหลือ (กก.)', 'วันครบรอบบิล', 'หมายเหตุ'],
           transactions: txList,
-          rows: txList.map(tx => [
-            tx.date,
-            tx.docNo,
-            tx.vehicle,
-            tx.type === 'IN' ? (fmtNum(tx.weightPerUnit, 2)) : '',
-            tx.inQty !== null ? fmtNum(tx.inQty) : '',
-            tx.outQty !== null ? fmtNum(tx.outQty) : '',
-            fmtNum(tx.remainQty),
-            fmtNum(tx.remainWeight, 2),
-            tx.nextBillingDate,
-            '' // ช่องหมายเหตุ ไม่ต้องแสดงรายละเอียด
-          ]),
+          rows: txList.map((tx, idx) => {
+            const isLastZero = (idx === txList.length - 1 && (parseFloat(tx.remainQty) || 0) <= 0);
+            return [
+              tx.date,
+              tx.docNo,
+              tx.vehicle,
+              tx.type === 'IN' ? (fmtNum(tx.weightPerUnit, 2)) : '',
+              tx.inQty !== null ? fmtNum(tx.inQty) : '',
+              tx.outQty !== null ? fmtNum(tx.outQty) : '',
+              fmtNum(tx.remainQty),
+              fmtNum(tx.remainWeight, 2),
+              tx.nextBillingDate,
+              isLastZero ? 'หมดสต็อก' : ''
+            ];
+          }),
           remainQty: finalRemainQty,
           remainWeight: finalRemainWeight,
           totalQty: finalRemainQty,
@@ -14341,6 +14358,14 @@ function editProduct(p) {
     }
 
     function renderActiveReport() {
+      const isClient = STATE.user && STATE.user.role === 'Client Portal';
+      if (isClient && STATE.activeReportType === 'STOCK_CARD') {
+        STATE.activeReportType = 'STOCK_ALL';
+      }
+      const btnStockCard = document.getElementById('btnRptStockCard') || document.querySelector('.report-tab-btn[data-rpt="STOCK_CARD"]');
+      if (btnStockCard) {
+        btnStockCard.style.display = isClient ? 'none' : 'inline-flex';
+      }
       const data = getActiveReportData();
 
       // การแสดงผลเฉพาะสำหรับ รายงานตัดสต็อก (STOCK_CARD)
@@ -14410,12 +14435,14 @@ function editProduct(p) {
           return;
         }
 
-        let rowsHtml = data.transactions.map(tx => {
+        let rowsHtml = data.transactions.map((tx, idx) => {
           const isIN = tx.type === 'IN';
           const docColor = isIN ? '#10B981' : '#EF4444';
           const inDisplay = tx.inQty !== null ? ('<span style="color:#10B981; font-weight:700;">' + fmtNum(tx.inQty) + '</span>') : '';
           const outDisplay = tx.outQty !== null ? ('<span style="color:#EF4444; font-weight:700;">' + fmtNum(tx.outQty) + '</span>') : '';
           const wPerUnitDisp = isIN && tx.weightPerUnit ? fmtNum(tx.weightPerUnit, 2) : '';
+          const isLastZero = (idx === data.transactions.length - 1 && (parseFloat(tx.remainQty) || 0) <= 0);
+          const remarkHtml = isLastZero ? '<span style="color:#EF4444; font-weight:700;">หมดสต็อก</span>' : '';
 
           return '<tr style="border-bottom:1px solid #E2E8F0;">' +
             '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1;">' + escapeHtml(tx.date) + '</td>' +
@@ -14424,10 +14451,10 @@ function editProduct(p) {
             '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1;">' + escapeHtml(wPerUnitDisp) + '</td>' +
             '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1;">' + inDisplay + '</td>' +
             '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1;">' + outDisplay + '</td>' +
-            '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1; font-weight:600;">' + fmtNum(tx.remainQty) + '</td>' +
-            '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1;">' + fmtNum(tx.remainWeight, 2) + '</td>' +
+            '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1; color:#0284C7; font-weight:700;">' + fmtNum(tx.remainQty) + '</td>' +
+            '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1; color:#0284C7; font-weight:700;">' + fmtNum(tx.remainWeight, 2) + '</td>' +
             '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1;">' + escapeHtml(tx.nextBillingDate || '-') + '</td>' +
-            '<td style="padding:8px 8px; border:1px solid #CBD5E1;"></td>' +
+            '<td class="text-center" style="padding:8px 8px; border:1px solid #CBD5E1;">' + remarkHtml + '</td>' +
             '</tr>';
         }).join('');
 
@@ -14822,7 +14849,7 @@ function editProduct(p) {
           '</tr>' +
           '</thead>';
 
-        let tbodyRowsHtml = rows.map(r => {
+        let tbodyRowsHtml = rows.map((r, rIdx) => {
           let cellsHtml = '';
           r.forEach((c, cIdx) => {
             const rawStr = String(c === undefined || c === null ? '' : c).trim();
@@ -14837,15 +14864,23 @@ function editProduct(p) {
             } else if (cIdx === 5) {
               const dispNum = formatCleanNumber(rawStr);
               cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:bold; height:24.75pt; font-family:Sarabun, Arial, sans-serif; color:#EF4444;">' + escapeHtml(dispNum) + '</td>';
-            } else if (cIdx === 6) {
+            } else if (cIdx === 6 || cIdx === 7) {
+              // จำนวนคงเหลือ ทั้งหน่วย (cIdx===6) และน้ำหนัก (cIdx===7) ให้เป็นตัวสีฟ้า
               const dispNum = formatCleanNumber(rawStr);
-              cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:bold; height:24.75pt; font-family:Sarabun, Arial, sans-serif; color:#0284C7;">' + escapeHtml(dispNum) + '</td>';
-            } else if (cIdx === 3 || cIdx === 7) {
+              cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:bold; height:24.75pt; font-family:Sarabun, Arial, sans-serif; color:#0284C7;"><font color="#0284C7"><b>' + escapeHtml(dispNum) + '</b></font></td>';
+            } else if (cIdx === 3) {
               const dispNum = formatCleanNumber(rawStr);
               cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(dispNum) + '</td>';
             } else if (cIdx === 9) {
-              // ช่องหมายเหตุ ไม่ต้องแสดงรายละเอียด
-              cellsHtml += '<td style="border:0.5pt solid #AEABAB; text-align:left; vertical-align:middle; padding:4px 8px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif;"></td>';
+              // ช่องหมายเหตุ: ในรายการสุดท้ายที่ยอดคงเหลือเป็น 0 ให้ระบุว่า "หมดสต็อก" ตัวสีแดง
+              const isLastRow = (rIdx === rows.length - 1);
+              const remVal = parseFloat(String(r[6] || '').replace(/,/g, '')) || 0;
+              const isOutOfStock = rawStr === 'หมดสต็อก' || (isLastRow && remVal <= 0);
+              if (isOutOfStock) {
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 8px; font-size:11pt; font-weight:bold; height:24.75pt; font-family:Sarabun, Arial, sans-serif; color:#EF4444;"><font color="#EF4444"><b>หมดสต็อก</b></font></td>';
+              } else {
+                cellsHtml += '<td style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 8px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif;"></td>';
+              }
             } else {
               cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(rawStr) + '</td>';
             }
@@ -15244,6 +15279,11 @@ function editProduct(p) {
       const rpt = STATE.activeReportType;
 
       if (rpt === 'STOCK_CARD') {
+        const isClient = STATE.user && STATE.user.role === 'Client Portal';
+        if (isClient) {
+          showToast('ระดับสิทธิ์ Client Portal ไม่สามารถเข้าถึงรายงานตัดสต็อกได้', 'error');
+          return;
+        }
         if (!data.isReady) {
           showToast('กรุณาเลือกชื่อลูกค้าและระบุ Lot No. ก่อนส่งออกรายงาน', 'warning');
           return;
@@ -15286,16 +15326,23 @@ function editProduct(p) {
       const rpt = STATE.activeReportType;
 
       if (rpt === 'STOCK_CARD') {
+        const isClient = STATE.user && STATE.user.role === 'Client Portal';
+        if (isClient) {
+          showToast('ระดับสิทธิ์ Client Portal ไม่สามารถเข้าถึงรายงานตัดสต็อกได้', 'error');
+          return;
+        }
         if (!data.isReady) {
           showToast('กรุณาเลือกชื่อลูกค้าและระบุ Lot No. ก่อนสั่งพิมพ์รายงาน', 'warning');
           return;
         }
-        let rowsHtml = (data.transactions || []).map(tx => {
+        let rowsHtml = (data.transactions || []).map((tx, idx) => {
           const isIN = tx.type === 'IN';
           const docColor = isIN ? '#10B981' : '#EF4444';
           const inDisp = tx.inQty !== null ? ('<span style="color:#10B981; font-weight:bold;">' + fmtNum(tx.inQty) + '</span>') : '';
           const outDisp = tx.outQty !== null ? ('<span style="color:#EF4444; font-weight:bold;">' + fmtNum(tx.outQty) + '</span>') : '';
           const wDisp = isIN && tx.weightPerUnit ? fmtNum(tx.weightPerUnit, 2) : '';
+          const isLastZero = (idx === (data.transactions || []).length - 1 && (parseFloat(tx.remainQty) || 0) <= 0);
+          const printRemark = isLastZero ? '<span style="color:#EF4444; font-weight:bold;">หมดสต็อก</span>' : '';
 
           return '<tr>' +
             '<td style="padding:6px; text-align:center; border:1px solid #757171;">' + escapeHtml(tx.date) + '</td>' +
@@ -15304,10 +15351,10 @@ function editProduct(p) {
             '<td style="padding:6px; text-align:center; border:1px solid #757171;">' + escapeHtml(wDisp) + '</td>' +
             '<td style="padding:6px; text-align:center; border:1px solid #757171;">' + inDisp + '</td>' +
             '<td style="padding:6px; text-align:center; border:1px solid #757171;">' + outDisp + '</td>' +
-            '<td style="padding:6px; text-align:center; border:1px solid #757171; font-weight:bold;">' + fmtNum(tx.remainQty) + '</td>' +
-            '<td style="padding:6px; text-align:center; border:1px solid #757171;">' + fmtNum(tx.remainWeight, 2) + '</td>' +
+            '<td style="padding:6px; text-align:center; border:1px solid #757171; color:#0284C7; font-weight:bold;">' + fmtNum(tx.remainQty) + '</td>' +
+            '<td style="padding:6px; text-align:center; border:1px solid #757171; color:#0284C7; font-weight:bold;">' + fmtNum(tx.remainWeight, 2) + '</td>' +
             '<td style="padding:6px; text-align:center; border:1px solid #757171;">' + escapeHtml(tx.nextBillingDate || '-') + '</td>' +
-            '<td style="padding:6px; border:1px solid #757171;"></td>' +
+            '<td style="padding:6px; text-align:center; border:1px solid #757171;">' + printRemark + '</td>' +
             '</tr>';
         }).join('');
 
