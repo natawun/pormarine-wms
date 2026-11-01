@@ -16,6 +16,16 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <!-- Chart.js CDN (รองรับตามข้อกำหนด 3.2 แต่หน้า Dashboard ปิดการใช้กราฟทุกชนิดตามข้อกำหนด 3.1/3.2/17) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Instant Theme Mode Initializer (Flicker-free) -->
+  <script>
+    (function() {
+      try {
+        if (localStorage.getItem('POR_THEME_MODE') === 'dark') {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      } catch(e) {}
+    })();
+  </script>
 
   <style>
     :root {
@@ -174,7 +184,8 @@
       background: linear-gradient(180deg, #072A44 0%, #0A3D62 100%);
       color: #fff; display: flex; flex-direction: column;
       position: fixed; top: 0; bottom: 0; left: 0;
-      z-index: 1000; transition: transform 0.28s ease;
+      z-index: 1000;
+      transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
       box-shadow: 4px 0 15px rgba(0,0,0,0.12);
     }
     .sidebar-brand {
@@ -295,6 +306,33 @@
     .main-wrapper {
       flex: 1; margin-left: var(--sidebar-width);
       display: flex; flex-direction: column; min-width: 0;
+      transition: margin-left 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Desktop Collapsed State */
+    @media (min-width: 993px) {
+      #appContainer.sidebar-collapsed .sidebar {
+        transform: translateX(-100%);
+      }
+      #appContainer.sidebar-collapsed .main-wrapper {
+        margin-left: 0;
+      }
+    }
+
+    /* Backdrop for Mobile Drawer */
+    .sidebar-backdrop {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.5);
+      z-index: 999;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      backdrop-filter: blur(2px);
+    }
+    .sidebar-backdrop.active {
+      display: block;
+      opacity: 1;
     }
 
     /* Top Header */
@@ -306,10 +344,488 @@
       box-shadow: var(--shadow-sm); gap: 14px;
     }
     .header-left { display: flex; align-items: center; gap: 12px; flex: 1; max-width: 560px; }
+    .sidebar-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #0A3D62;
+      color: #fff;
+      border: 1px solid #072A44;
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      font-size: 17px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .sidebar-toggle-btn:hover {
+      background: #0284C7;
+      border-color: #0284C7;
+      transform: translateY(-1px);
+    }
+    .desktop-header-title {
+      font-family: 'Prompt', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      color: #0A3D62;
+      display: none;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    #appContainer.sidebar-collapsed .desktop-header-title {
+      display: inline-flex;
+    }
     .mobile-menu-toggle {
-      display: none; background: var(--primary-navy); color: #fff;
-      border: none; width: 40px; height: 40px; border-radius: 8px;
-      font-size: 18px; cursor: pointer;
+      display: none;
+    }
+
+    /* =====================================================================
+       Theme Toggle Button & Pure Black Dark Theme Styling (โหมดมืดแบบสีดำ)
+       ===================================================================== */
+    .theme-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      background: #F8FAFC;
+      color: #0A3D62;
+      border: 1.5px solid #CBD5E1;
+      padding: 6px 13px;
+      border-radius: 99px;
+      font-family: 'Prompt', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.22s ease;
+      min-height: 36px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .theme-toggle-btn:hover {
+      background: #E0F2FE;
+      color: #0284C7;
+      border-color: #38BDF8;
+      transform: translateY(-1px);
+      box-shadow: 0 3px 8px rgba(2,132,199,0.15);
+    }
+    .theme-toggle-btn:active {
+      transform: translateY(0);
+    }
+    .theme-toggle-label {
+      line-height: 1;
+      user-select: none;
+    }
+    @media (max-width: 640px) {
+      .theme-toggle-label { display: none; }
+      .theme-toggle-btn { padding: 6px 10px; min-height: 34px; }
+    }
+
+    /* True Black Dark Mode Theme Variables & Component Rules (โหมดมืดแบบสีดำ) */
+    [data-theme="dark"] {
+      --primary-navy: #38BDF8;
+      --primary-blue: #0284C7;
+      --primary-light: #182230;
+      --golden-orange: #F59E0B;
+      --golden-dark: #D97706;
+      --golden-light: #261A00;
+      --bg-body: #000000;
+      --bg-card: #111111;
+      --text-main: #FFFFFF;
+      --text-muted: #A3A3A3;
+      --border-color: #242424;
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.6);
+      --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.7);
+      --shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.85);
+    }
+
+    [data-theme="dark"] body {
+      background-color: #000000 !important;
+      color: #FFFFFF !important;
+    }
+
+    [data-theme="dark"] .main-wrapper,
+    [data-theme="dark"] .page-content {
+      background-color: #000000 !important;
+    }
+
+    /* Sidebar in True Black Dark Mode */
+    [data-theme="dark"] .sidebar {
+      background: #080808 !important;
+      border-right: 1px solid #1E1E1E !important;
+      box-shadow: 4px 0 20px rgba(0,0,0,0.85) !important;
+    }
+    [data-theme="dark"] .sidebar-brand {
+      background: #000000 !important;
+      border-bottom: 1px solid #1E1E1E !important;
+    }
+    [data-theme="dark"] .sidebar-footer {
+      background: #000000 !important;
+      border-top: 1px solid #1E1E1E !important;
+    }
+    [data-theme="dark"] .sidebar-menu .nav-btn {
+      color: #D4D4D4;
+    }
+    [data-theme="dark"] .sidebar-menu .nav-btn:hover {
+      background: #181818;
+      color: #FFFFFF;
+    }
+    [data-theme="dark"] .sidebar-menu .nav-btn.active {
+      background: linear-gradient(90deg, #0284C7 0%, #0369A1 100%);
+      color: #FFFFFF;
+    }
+
+    /* Top Header True Black Dark Mode */
+    [data-theme="dark"] .top-header {
+      background: #0D0D0D !important;
+      border-bottom: 1px solid #1E1E1E !important;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.6) !important;
+    }
+    [data-theme="dark"] .sidebar-toggle-btn {
+      background: #141414 !important;
+      border-color: #2B2B2B !important;
+      color: #38BDF8 !important;
+    }
+    [data-theme="dark"] .sidebar-toggle-btn:hover {
+      background: #222222 !important;
+      border-color: #38BDF8 !important;
+    }
+    [data-theme="dark"] .desktop-header-title {
+      color: #FFFFFF !important;
+    }
+    [data-theme="dark"] .theme-toggle-btn {
+      background: #141414 !important;
+      color: #F59E0B !important;
+      border-color: #2B2B2B !important;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.5) !important;
+    }
+    [data-theme="dark"] .theme-toggle-btn:hover {
+      background: #222222 !important;
+      color: #FDE68A !important;
+      border-color: #F59E0B !important;
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.3) !important;
+    }
+    [data-theme="dark"] .user-chip {
+      background: #141414 !important;
+      border-color: #2B2B2B !important;
+    }
+    [data-theme="dark"] .user-meta .u-name {
+      color: #FFFFFF !important;
+    }
+    [data-theme="dark"] .notif-bell-btn {
+      background: #141414 !important;
+      border-color: #2B2B2B !important;
+      color: #E5E5E5 !important;
+    }
+    [data-theme="dark"] .global-search-wrap input {
+      background: #141414 !important;
+      border-color: #2B2B2B !important;
+      color: #FFFFFF !important;
+    }
+    [data-theme="dark"] .global-search-wrap input:focus {
+      background: #1E1E1E !important;
+      border-color: #38BDF8 !important;
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25) !important;
+    }
+    [data-theme="dark"] #globalSearchDropdown {
+      background: #141414 !important;
+      border-color: #2B2B2B !important;
+      color: #FFFFFF !important;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.85) !important;
+    }
+    [data-theme="dark"] .global-search-item {
+      border-bottom-color: #1F1F1F !important;
+      color: #FFFFFF !important;
+    }
+    [data-theme="dark"] .global-search-item:hover {
+      background: #222222 !important;
+    }
+
+    /* Cards & KPI Grid True Black Dark Mode */
+    [data-theme="dark"] .card-box {
+      background: #111111 !important;
+      border-color: #242424 !important;
+      color: #FFFFFF !important;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5) !important;
+    }
+    [data-theme="dark"] .card-box-header {
+      border-bottom-color: #222222 !important;
+    }
+    [data-theme="dark"] .card-box-title {
+      color: #38BDF8 !important;
+    }
+    [data-theme="dark"] .section-title {
+      color: #FFFFFF !important;
+    }
+    [data-theme="dark"] .kpi-card {
+      background: #111111 !important;
+      border-color: #242424 !important;
+      color: #FFFFFF !important;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.4) !important;
+    }
+    [data-theme="dark"] .kpi-card:hover {
+      border-color: #383838 !important;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.7) !important;
+    }
+    [data-theme="dark"] .kpi-label {
+      color: #A3A3A3 !important;
+    }
+    [data-theme="dark"] .kpi-main-num {
+      color: #FFFFFF !important;
+    }
+    [data-theme="dark"] .kpi-unit-text {
+      color: #A3A3A3 !important;
+    }
+    [data-theme="dark"] .filter-bar {
+      background: #0A0A0A !important;
+      border-color: #242424 !important;
+    }
+    [data-theme="dark"] .filter-group label {
+      color: #A3A3A3 !important;
+    }
+
+    /* Form Controls & Inputs True Black Dark Mode */
+    [data-theme="dark"] .form-control,
+    [data-theme="dark"] .form-select,
+    [data-theme="dark"] input[type="text"],
+    [data-theme="dark"] input[type="number"],
+    [data-theme="dark"] input[type="date"],
+    [data-theme="dark"] input[type="password"],
+    [data-theme="dark"] select,
+    [data-theme="dark"] textarea {
+      background-color: #0A0A0A !important;
+      color: #FFFFFF !important;
+      border-color: #282828 !important;
+    }
+    [data-theme="dark"] .form-control:focus,
+    [data-theme="dark"] .form-select:focus,
+    [data-theme="dark"] input:focus,
+    [data-theme="dark"] select:focus,
+    [data-theme="dark"] textarea:focus {
+      border-color: #38BDF8 !important;
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25) !important;
+      background-color: #141414 !important;
+    }
+    [data-theme="dark"] select option {
+      background-color: #0A0A0A !important;
+      color: #FFFFFF !important;
+    }
+    [data-theme="dark"] .btn-outline {
+      background: #141414 !important;
+      color: #E5E5E5 !important;
+      border-color: #282828 !important;
+    }
+    [data-theme="dark"] .btn-outline:hover:not(:disabled) {
+      background: #262626 !important;
+      color: #FFFFFF !important;
+    }
+
+    /* Tables True Black Dark Mode */
+    [data-theme="dark"] .table-responsive {
+      border-color: #242424 !important;
+    }
+    [data-theme="dark"] table.data-table {
+      background: #111111 !important;
+      color: #FFFFFF !important;
+    }
+    [data-theme="dark"] table.data-table th {
+      background: #050505 !important;
+      color: #FFFFFF !important;
+      border-bottom: 2px solid #282828 !important;
+    }
+    [data-theme="dark"] table.data-table td {
+      border-bottom: 1px solid #1E1E1E !important;
+      color: #F5F5F5 !important;
+    }
+    [data-theme="dark"] table.data-table tbody tr:hover {
+      background: #1C1C1C !important;
+    }
+    [data-theme="dark"] table.data-table tbody tr:nth-child(even) {
+      background: rgba(255, 255, 255, 0.015) !important;
+    }
+
+    /* Modals True Black Dark Mode */
+    [data-theme="dark"] .modal-dialog {
+      background: #111111 !important;
+      border-color: #262626 !important;
+      color: #FFFFFF !important;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.9) !important;
+    }
+    [data-theme="dark"] .modal-header {
+      background: #0A0A0A !important;
+      border-bottom-color: #222222 !important;
+    }
+    [data-theme="dark"] .modal-header h3 {
+      color: #38BDF8 !important;
+    }
+    [data-theme="dark"] .modal-body {
+      background: #111111 !important;
+      color: #FFFFFF !important;
+    }
+    [data-theme="dark"] .modal-footer {
+      background: #0A0A0A !important;
+      border-top-color: #222222 !important;
+    }
+
+    /* Notifications & Toasts True Black Dark Mode */
+    [data-theme="dark"] #notifModalList > div {
+      background: #0A0A0A !important;
+      border-color: #242424 !important;
+      color: #FFFFFF !important;
+    }
+    [data-theme="dark"] #notifModalList > div h4 {
+      color: #38BDF8 !important;
+    }
+    [data-theme="dark"] #notifModalList > div p {
+      color: #D4D4D4 !important;
+    }
+    [data-theme="dark"] .toast-item {
+      background: #141414 !important;
+      color: #FFFFFF !important;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8) !important;
+      border: 1px solid #282828 !important;
+    }
+
+    /* Steppers & Pagination True Black Dark Mode */
+    [data-theme="dark"] .wf-circle {
+      background: #141414 !important;
+      border-color: #3D3D3D !important;
+      color: #A3A3A3 !important;
+    }
+    [data-theme="dark"] .wf-label {
+      color: #FFFFFF !important;
+    }
+    [data-theme="dark"] .wf-sub {
+      color: #A3A3A3 !important;
+    }
+    [data-theme="dark"] .pagination-bar {
+      color: #A3A3A3 !important;
+    }
+    [data-theme="dark"] .mobile-bottom-nav {
+      background: #0A0A0A !important;
+      border-top-color: #222222 !important;
+    }
+
+    /* Persistent Alert Bar True Black Dark Mode */
+    [data-theme="dark"] .global-alert-strip {
+      background: linear-gradient(90deg, #0A0A0A 0%, #171717 100%) !important;
+      border-bottom: 2px solid #F59E0B !important;
+    }
+    [data-theme="dark"] .alert-pill.warn { background: #261A00 !important; color: #FBBF24 !important; border-color: #78350F !important; }
+    [data-theme="dark"] .alert-pill.danger { background: #2A0808 !important; color: #FCA5A5 !important; border-color: #7F1D1D !important; }
+    [data-theme="dark"] .alert-pill.success { background: #022010 !important; color: #86EFAC !important; border-color: #14532D !important; }
+    [data-theme="dark"] .alert-pill.info { background: #051A2E !important; color: #7DD3FC !important; border-color: #0369A1 !important; }
+
+    /* SweetAlert2 Popups in True Black Dark Mode */
+    [data-theme="dark"] .swal2-popup {
+      background: #111111 !important;
+      color: #FFFFFF !important;
+      border: 1px solid #282828 !important;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.9) !important;
+    }
+    [data-theme="dark"] .swal2-title {
+      color: #FFFFFF !important;
+    }
+    [data-theme="dark"] .swal2-html-container {
+      color: #D4D4D4 !important;
+    }
+
+    /* Dynamic Style Overrides for Inline Colors in True Black Dark Mode */
+    [data-theme="dark"] #dashTitleText {
+      color: #FFFFFF !important;
+    }
+    [data-theme="dark"] #dashSubTitle {
+      color: #A3A3A3 !important;
+    }
+    [data-theme="dark"] h1, [data-theme="dark"] h2, [data-theme="dark"] h3, [data-theme="dark"] h4 {
+      color: #FFFFFF !important;
+    }
+    [data-theme="dark"] [style*="color:#0A3D62"],
+    [data-theme="dark"] [style*="color: #0A3D62"],
+    [data-theme="dark"] [style*="color:var(--primary-navy)"] {
+      color: #38BDF8 !important;
+    }
+    [data-theme="dark"] [style*="color:#0F172A"],
+    [data-theme="dark"] [style*="color: #0F172A"],
+    [data-theme="dark"] [style*="color:var(--text-main)"] {
+      color: #FFFFFF !important;
+    }
+    [data-theme="dark"] [style*="color:#64748B"],
+    [data-theme="dark"] [style*="color: #64748B"],
+    [data-theme="dark"] [style*="color:var(--text-muted)"] {
+      color: #A3A3A3 !important;
+    }
+    [data-theme="dark"] [style*="background:#FFFFFF"],
+    [data-theme="dark"] [style*="background: #FFFFFF"],
+    [data-theme="dark"] [style*="background:#fff"],
+    [data-theme="dark"] [style*="background: #fff"],
+    [data-theme="dark"] [style*="background-color:#fff"],
+    [data-theme="dark"] [style*="background-color: #fff"] {
+      background-color: #111111 !important;
+    }
+    [data-theme="dark"] [style*="background:#F8FAFC"],
+    [data-theme="dark"] [style*="background: #F8FAFC"],
+    [data-theme="dark"] [style*="background:#F1F5F9"],
+    [data-theme="dark"] [style*="background: #F1F5F9"] {
+      background-color: #0A0A0A !important;
+    }
+    [data-theme="dark"] [style*="border: 1px solid #E2E8F0"],
+    [data-theme="dark"] [style*="border:1px solid #E2E8F0"],
+    [data-theme="dark"] [style*="border: 1px solid #CBD5E1"],
+    [data-theme="dark"] [style*="border:1px solid #CBD5E1"] {
+      border-color: #242424 !important;
+    }
+
+    /* Receipt Slips Dark Mode Screen Handling */
+    [data-theme="dark"] .receipt-slip-original {
+      background: #111111 !important;
+      color: #FFFFFF !important;
+      border-color: #242424 !important;
+    }
+    [data-theme="dark"] .receipt-slip {
+      background: #111111 !important;
+      color: #FFFFFF !important;
+    }
+    [data-theme="dark"] .receipt-slip table th {
+      background: #0A0A0A !important;
+      color: #FFFFFF !important;
+      border-color: #242424 !important;
+    }
+    [data-theme="dark"] .receipt-slip table td {
+      border-color: #1F1F1F !important;
+      color: #FFFFFF !important;
+    }
+
+    /* Login Screen in True Black Dark Mode */
+    [data-theme="dark"] .login-card {
+      background: #111111 !important;
+      color: #FFFFFF !important;
+      border-color: #242424 !important;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.85) !important;
+    }
+    [data-theme="dark"] .role-pill-btn {
+      background: #0A0A0A !important;
+      color: #38BDF8 !important;
+      border-color: #242424 !important;
+    }
+    [data-theme="dark"] .role-pill-btn:hover {
+      background: #1A1A1A !important;
+      border-color: #38BDF8 !important;
+    }
+
+    /* Print Guarantee: Always Light on Physical Paper */
+    @media print {
+      [data-theme="dark"] body,
+      [data-theme="dark"] .receipt-slip,
+      [data-theme="dark"] .receipt-slip-original,
+      [data-theme="dark"] table,
+      [data-theme="dark"] th,
+      [data-theme="dark"] td {
+        background: #FFFFFF !important;
+        color: #000000 !important;
+        border-color: #CBD5E1 !important;
+      }
     }
     /* Global Search Box */
     .global-search-wrap {
@@ -794,7 +1310,7 @@
       .sidebar { transform: translateX(-100%); }
       .sidebar.open { transform: translateX(0); }
       .main-wrapper { margin-left: 0; padding-bottom: 65px; }
-      .mobile-menu-toggle { display: inline-flex; align-items: center; justify-content: center; }
+      .sidebar-toggle-btn { display: inline-flex; align-items: center; justify-content: center; }
       .mobile-bottom-nav { display: block; }
       .page-content { padding: 14px; }
     }
@@ -991,6 +1507,9 @@
        2. โครงสร้างหลักของระบบ (MAIN APPLICATION CONTAINER)
        ===================================================================== -->
   <div id="appContainer">
+    <!-- Mobile Sidebar Backdrop Overlay -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebarMenu()"></div>
+
     <!-- Sidebar Navigation -->
     <aside class="sidebar" id="appSidebar">
       <div class="sidebar-brand">
@@ -1052,12 +1571,21 @@
       <!-- Top Header -->
       <header class="top-header">
         <div class="header-left">
-          <button class="mobile-menu-toggle" onclick="toggleMobileSidebar()">
-            <i class="fa-solid fa-bars"></i>
+          <button type="button" class="sidebar-toggle-btn" id="sidebarToggleBtn" onclick="toggleSidebarMenu()" title="หุบ/กางเมนูสไลด์ด้านข้าง">
+            <i class="fa-solid fa-bars" id="sidebarToggleIcon"></i>
           </button>
+          <span id="desktopHeaderTitle" class="desktop-header-title">
+            <i class="fa-solid fa-warehouse" style="color:#0284C7;"></i> บริษัท พรมารีน จำกัด
+          </span>
         </div>
 
         <div class="header-right">
+          <!-- ปุ่มสลับโหมดมืด/โหมดสว่าง (Dark / Light Theme Toggle) -->
+          <button type="button" class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleThemeMode()" title="สลับโหมดมืด / โหมดสว่าง (Dark / Light Theme)">
+            <i class="fa-solid fa-moon" id="themeToggleIcon" style="color:#0284C7; font-size:15px;"></i>
+            <span class="theme-toggle-label hide-xs" id="themeToggleLabel">โหมดมืด</span>
+          </button>
+
           <button class="btn btn-outline btn-sm" onclick="triggerFullRefresh()" title="ซิงค์ข้อมูลล่าสุด">
             <i class="fa-solid fa-arrows-rotate"></i> <span class="hide-xs">รีเฟรช</span>
           </button>
@@ -1778,6 +2306,13 @@
                       <label style="font-weight:600; font-size:13px;">อุณหภูมิห้องเย็นมาตรฐาน</label>
                       <input type="text" id="cfgColdTemp" class="form-control" value="-18°C">
                     </div>
+                  </div>
+                  <div>
+                    <label style="font-weight:600; font-size:13px;"><i class="fa-solid fa-circle-half-stroke" style="color:var(--golden-orange);"></i> โหมดการแสดงผลของระบบ (Theme Mode)</label>
+                    <select id="cfgThemeMode" class="form-select" onchange="applyThemeMode(this.value)">
+                      <option value="light">☀️ โหมดสว่าง (Light Theme)</option>
+                      <option value="dark">🖤 โหมดมืดสีดำ (True Black Theme)</option>
+                    </select>
                   </div>
                   <button type="submit" class="btn btn-primary" style="margin-top:8px;">
                     <i class="fa-solid fa-floppy-disk"></i> บันทึกการตั้งค่าระบบ
@@ -5977,6 +6512,13 @@
     function applyRolePermissionsUI() {
       const u = STATE.user;
       if (!u) return;
+
+      try {
+        if (window.innerWidth > 992 && localStorage.getItem('POR_SIDEBAR_COLLAPSED') === '1') {
+          const appCont = document.getElementById('appContainer');
+          if (appCont) appCont.classList.add('sidebar-collapsed');
+        }
+      } catch (e) {}
       const uNameEl = document.getElementById('headerUserName');
       if (uNameEl) uNameEl.textContent = u.fullName || u.username || 'ผู้ใช้งาน';
       const uAvatarEl = document.getElementById('headerUserAvatar');
@@ -6793,11 +7335,96 @@
       document.querySelectorAll('.sidebar .nav-btn, .mobile-bottom-nav .m-nav-item').forEach(btn => {
         btn.classList.toggle('active', btn.getAttribute('data-target') === secId);
       });
-      document.getElementById('appSidebar').classList.remove('open');
+      const sidebar = document.getElementById('appSidebar');
+      if (sidebar) sidebar.classList.remove('open');
+      const backdrop = document.getElementById('sidebarBackdrop');
+      if (backdrop) backdrop.classList.remove('active');
+    }
+
+    function toggleSidebarMenu() {
+      const isMobile = window.innerWidth <= 992;
+      const sidebar = document.getElementById('appSidebar');
+      const appContainer = document.getElementById('appContainer');
+      const backdrop = document.getElementById('sidebarBackdrop');
+
+      if (isMobile) {
+        if (!sidebar) return;
+        const isOpen = sidebar.classList.toggle('open');
+        if (backdrop) {
+          backdrop.classList.toggle('active', isOpen);
+        }
+      } else {
+        if (!appContainer) return;
+        const isCollapsed = appContainer.classList.toggle('sidebar-collapsed');
+        try {
+          localStorage.setItem('POR_SIDEBAR_COLLAPSED', isCollapsed ? '1' : '0');
+        } catch (e) {}
+      }
     }
 
     function toggleMobileSidebar() {
-      document.getElementById('appSidebar').classList.toggle('open');
+      toggleSidebarMenu();
+    }
+
+    /**
+     * Dark / Light Theme Toggle Functions
+     */
+    function toggleThemeMode() {
+      const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      applyThemeMode(newTheme);
+      showToast(newTheme === 'dark' ? 'เปิดใช้งานโหมดมืดสีดำ (True Black Theme) เรียบร้อย' : 'เปิดใช้งานโหมดสว่าง (Light Theme) เรียบร้อย', 'info');
+    }
+
+    function applyThemeMode(theme) {
+      if (theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        document.body.classList.add('dark-theme');
+        try {
+          localStorage.setItem('POR_THEME_MODE', 'dark');
+        } catch (e) {}
+        updateThemeToggleUI('dark');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        document.body.classList.remove('dark-theme');
+        try {
+          localStorage.setItem('POR_THEME_MODE', 'light');
+        } catch (e) {}
+        updateThemeToggleUI('light');
+      }
+    }
+
+    function updateThemeToggleUI(theme) {
+      const icon = document.getElementById('themeToggleIcon');
+      const label = document.getElementById('themeToggleLabel');
+      const btn = document.getElementById('themeToggleBtn');
+      const cfgSelect = document.getElementById('cfgThemeMode');
+
+      if (theme === 'dark') {
+        if (icon) {
+          icon.className = 'fa-solid fa-sun';
+          icon.style.color = '#F59E0B';
+        }
+        if (label) label.textContent = 'โหมดสว่าง';
+        if (btn) btn.setAttribute('title', 'สลับเป็นโหมดสว่าง (Light Theme)');
+        if (cfgSelect) cfgSelect.value = 'dark';
+      } else {
+        if (icon) {
+          icon.className = 'fa-solid fa-moon';
+          icon.style.color = '#0284C7';
+        }
+        if (label) label.textContent = 'โหมดมืด';
+        if (btn) btn.setAttribute('title', 'สลับเป็นโหมดมืด (Dark Theme)');
+        if (cfgSelect) cfgSelect.value = 'light';
+      }
+    }
+
+    function initThemeMode() {
+      let savedTheme = 'light';
+      try {
+        savedTheme = localStorage.getItem('POR_THEME_MODE') || 'light';
+      } catch (e) {}
+      applyThemeMode(savedTheme);
     }
 
     function openModal(id) {
@@ -15710,6 +16337,10 @@ function editProduct(p) {
       document.getElementById('cfgColdTemp').value = coldTemp;
       const lblEl = document.getElementById('lblColdTemp');
       if (lblEl) lblEl.textContent = coldTemp;
+      const themeSelect = document.getElementById('cfgThemeMode');
+      if (themeSelect) {
+        themeSelect.value = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+      }
       document.getElementById('lastBackupStatusBox').textContent = m.LAST_BACKUP_INFO || 'ยังไม่มีประวัติการสำรองข้อมูล';
     }
 
@@ -15726,6 +16357,10 @@ function editProduct(p) {
           LOW_STOCK_THRESHOLD: document.getElementById('cfgLowStock').value,
           COLD_ROOM_TEMP: document.getElementById('cfgColdTemp').value.trim()
         });
+        const themeVal = document.getElementById('cfgThemeMode') ? document.getElementById('cfgThemeMode').value : null;
+        if (themeVal) {
+          applyThemeMode(themeVal);
+        }
         if (res && res.success) {
           STATE.settings = res.settings;
           renderSettingsView();
@@ -16486,6 +17121,16 @@ function editProduct(p) {
       });
     }
 
+    // Restore sidebar preference on load
+    try {
+      if (window.innerWidth > 992 && localStorage.getItem('POR_SIDEBAR_COLLAPSED') === '1') {
+        const appCont = document.getElementById('appContainer');
+        if (appCont) appCont.classList.add('sidebar-collapsed');
+      }
+    } catch (e) {}
+
+    // Initialize Theme Mode
+    initThemeMode();
   </script>
 </body>
 </html>
