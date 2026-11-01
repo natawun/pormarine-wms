@@ -3394,6 +3394,22 @@
             <input type="text" id="editLotDescription" class="form-control" placeholder="ระบุขนาด เกรด อุณหภูมิ สีเทป หรือรายละเอียดสินค้า">
           </div>
 
+          <!-- แถวเวลาเข้า และ เวลาออก (แยกเป็น 2 ช่อง ต่อจากช่องรายละเอียดสินค้า) -->
+          <div style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:12px; margin-bottom:12px;">
+            <div>
+              <label style="font-weight:600; font-size:13px; color:var(--primary-navy); margin-bottom:4px; display:block;">
+                <i class="fa-solid fa-clock" style="color:var(--primary-blue);"></i> เวลาเข้า
+              </label>
+              <input type="text" id="editLotTimeIn" class="form-control" placeholder="เช่น 08:30 หรือ 08:30:00">
+            </div>
+            <div>
+              <label style="font-weight:600; font-size:13px; color:var(--primary-navy); margin-bottom:4px; display:block;">
+                <i class="fa-solid fa-clock-rotate-left" style="color:#EF4444;"></i> เวลาออก
+              </label>
+              <input type="text" id="editLotTimeOut" class="form-control" placeholder="เช่น 16:45 หรือ 16:45:00">
+            </div>
+          </div>
+
           <!-- รูปภาพสินค้า -->
           <div>
             <label style="font-weight:600; font-size:13px; color:var(--primary-navy); margin-bottom:4px; display:block;">รูปภาพสินค้า (อัปโหลดไฟล์ใหม่ หรือระบุ URL)</label>
@@ -3853,6 +3869,8 @@
           billing_status: String(st.BillingStatus || 'Active').trim(),
           room_zone: String(st.RoomZone || 'Room A-01').trim(),
           vehicle_info: String(st.VehicleInfo || '').trim(),
+          time_in: String(st.TimeIn || '').trim(),
+          time_out: String(st.TimeOut || '').trim(),
           status: String(st.Status || 'In Stock').trim(),
           out_of_stock_date: String(st.OutOfStockDate || '').trim(),
           updated_at: String(st.UpdatedAt || nowStr).trim()
@@ -4073,28 +4091,7 @@
           if ((!uRes.data || uRes.data.length === 0) && !initialSeedDone) {
             initialSeedDone = true;
             try {
-              // กรณีแก้ไขข้อมูลลูกค้า ให้ส่งคำสั่ง Cascade Update ไปยังตารางที่เกี่ยวข้องบน Supabase ทันที
-            if (fnName === 'saveClient' && args[1]) {
-              const cl = args[1];
-              const newName = String(cl.clientName || '').trim();
-              const targetId = String(cl.clientId || '').trim();
-              if (newName && targetId) {
-                try {
-                  await Promise.allSettled([
-                    sb.from('wms_clients').update({ client_name: newName, client_code: cl.clientCode || undefined }).eq('client_id', targetId),
-                    sb.from('wms_stock').update({ client_name: newName }).eq('client_id', targetId),
-                    sb.from('wms_products').update({ client_name: newName }).eq('client_id', targetId),
-                    sb.from('wms_receivings').update({ client_name: newName }).eq('client_id', targetId),
-                    sb.from('wms_receiving_items').update({ client_name: newName }).eq('client_id', targetId),
-                    sb.from('wms_requisitions').update({ client_name: newName }).eq('client_id', targetId),
-                    sb.from('wms_requisition_items').update({ client_name: newName }).eq('client_id', targetId),
-                    sb.from('wms_movements').update({ client_name: newName }).eq('client_id', targetId),
-                    sb.from('wms_users').update({ client_name: newName }).eq('client_id', targetId)
-                  ]);
-                } catch (e) {}
-              }
-            }
-            await pushAllToSupabase(LocalPreviewEngine.getDb());
+              await pushAllToSupabase(LocalPreviewEngine.getDb());
               return true;
             } catch (seedErr) {
               console.warn('Auto-seed warning:', seedErr);
@@ -4200,6 +4197,8 @@
                 BillingStatus: r.billing_status || 'Active',
                 RoomZone: r.room_zone || 'Room A-01',
                 VehicleInfo: r.vehicle_info || '',
+                TimeIn: r.time_in || '',
+                TimeOut: r.time_out || '',
                 Status: r.status || 'In Stock',
                 OutOfStockDate: r.out_of_stock_date || '',
                 UpdatedAt: r.updated_at || ''
@@ -4364,7 +4363,7 @@
           realtimeChannel = sb.channel('por-marine-wms-realtime')
             .on('postgres_changes', { event: '*', schema: 'public' }, async function() {
               if (!STATE.auth || !STATE.user || STATE.isSubmitting) return;
-              const activeEditModal = document.querySelector('#modalEditReceiving.show, #modalEditRequisition.show, #modalProduct.show, #modalReceiving.show, #modalRequisition.show');
+              const activeEditModal = document.querySelector('#modalEditLotDetail.show, #modalEditReceiving.show, #modalEditRequisition.show, #modalProduct.show, #modalReceiving.show, #modalRequisition.show');
               if (activeEditModal) return;
               const ok = await pullFromSupabase(true);
               if (ok) {
@@ -4484,6 +4483,46 @@
             if (catId) await sb.from('wms_categories').delete().eq('category_id', catId);
           } catch (e) {}
           return res;
+        }
+
+        // กรณีแก้ไขข้อมูลลูกค้า ให้ส่งคำสั่ง Cascade Update ไปยังตารางที่เกี่ยวข้องบน Supabase ทันที
+        if (fnName === 'saveClient' && isSchemaReady && sb && args[1]) {
+          const cl = args[1];
+          const newName = String(cl.clientName || '').trim();
+          const targetId = String(cl.clientId || '').trim();
+          if (newName && targetId) {
+            try {
+              await Promise.allSettled([
+                sb.from('wms_clients').update({ client_name: newName, client_code: cl.clientCode || undefined }).eq('client_id', targetId),
+                sb.from('wms_stock').update({ client_name: newName }).eq('client_id', targetId),
+                sb.from('wms_products').update({ client_name: newName }).eq('client_id', targetId),
+                sb.from('wms_receivings').update({ client_name: newName }).eq('client_id', targetId),
+                sb.from('wms_receiving_items').update({ client_name: newName }).eq('client_id', targetId),
+                sb.from('wms_requisitions').update({ client_name: newName }).eq('client_id', targetId),
+                sb.from('wms_requisition_items').update({ client_name: newName }).eq('client_id', targetId),
+                sb.from('wms_movements').update({ client_name: newName }).eq('client_id', targetId),
+                sb.from('wms_users').update({ client_name: newName }).eq('client_id', targetId)
+              ]);
+            } catch (e) {}
+          }
+        }
+
+        // กรณีแก้ไขรายละเอียดสินค้า Lot No. และมีการเปลี่ยนเลข Lot ให้ Cascade Delete เลข Lot เก่าบน Supabase ก่อน Upsert เลขใหม่
+        if (fnName === 'saveLotDetailMaster' && isSchemaReady && sb && args[1]) {
+          const p = args[1];
+          const oldL = String(p.oldLotNo || '').trim();
+          const newL = String(p.lotNo || '').trim();
+          if (oldL && newL && oldL.toLowerCase() !== newL.toLowerCase()) {
+            try {
+              await Promise.allSettled([
+                sb.from('wms_stock').delete().eq('lot_no', oldL),
+                sb.from('wms_products').delete().eq('lot_no', oldL),
+                sb.from('wms_receiving_items').delete().eq('lot_no', oldL),
+                sb.from('wms_requisition_items').delete().eq('lot_no', oldL),
+                sb.from('wms_movements').delete().eq('lot_no', oldL)
+              ]);
+            } catch (e) {}
+          }
         }
 
         // กรณีเปลี่ยนเลขที่ใบรับฝาก (DEP -> IN) หรือใบเบิก (REQ -> OUT) ให้ลบแถวเลขที่เก่าใน Supabase ก่อน Upsert เลขที่ใหม่
@@ -5032,13 +5071,15 @@
 
       const storedDb = loadDbFromStorage();
       const db = storedDb ? Object.assign({}, defaultDb, storedDb) : Object.assign({}, defaultDb);
-      // เริ่มต้นทดลองระบบ: ลบข้อมูล สินค้า ลูกค้า สต็อก และรายงานต่างๆ คงไว้เฉพาะ 4 User และ Categories
-      db.clients = [];
-      db.products = [];
-      db.stock = [];
-      db.receivings = [];
-      db.requisitions = [];
-      db.movements = [];
+      if (!storedDb) {
+        // เริ่มต้นทดลองระบบ: หากยังไม่มีฐานข้อมูลที่บันทึกไว้ ให้ล้างข้อมูลสินค้า ลูกค้า สต็อก และรายงาน คงไว้เฉพาะ 4 User และ Categories
+        db.clients = [];
+        db.products = [];
+        db.stock = [];
+        db.receivings = [];
+        db.requisitions = [];
+        db.movements = [];
+      }
       db.users = [
         { userId: 'USR-001', username: 'admin', pass: 'admin123', fullName: 'ผู้ดูแลระบบ (System Admin)', role: 'Admin', clientId: '', clientName: 'บริษัท พรมารีน จำกัด', email: 'admin@pormarine.co.th', phone: '081-000-0001', status: 'Active', lastLogin: '' },
         { userId: 'USR-002', username: 'manager', pass: 'manager123', fullName: 'ผู้จัดการคลัง (Manager)', role: 'Manager', clientId: '', clientName: 'บริษัท พรมารีน จำกัด', email: 'manager@pormarine.co.th', phone: '081-000-0002', status: 'Active', lastLogin: '' },
@@ -6327,7 +6368,7 @@
             return { success: true, message: 'นำเข้าข้อมูลสินค้าสำเร็จ', products: db.products };
           }
           if (fn === 'saveLotDetailMaster') {
-            const p = args[1];
+            const p = args[1] || {};
             const oldLot = String(p.oldLotNo || p.lotNo || '').trim().toLowerCase();
             const newLot = String(p.lotNo || '').trim();
 
@@ -6348,16 +6389,23 @@
 
             // 1. ซิงค์ใน db.stock
             let matchedStock = db.stock.find(s => (p.stockId && s.StockID === p.stockId) || (oldLot && String(s.LotNo || '').trim().toLowerCase() === oldLot));
+            if (!matchedStock && newLot) {
+              matchedStock = db.stock.find(s => String(s.LotNo || '').trim().toLowerCase() === newLot.toLowerCase());
+            }
             if (matchedStock) {
               matchedStock.LotNo = newLot;
               if (p.receivingNo) matchedStock.ReceivingNo = p.receivingNo;
               if (p.clientId) matchedStock.ClientID = p.clientId;
               if (p.clientName) matchedStock.ClientName = p.clientName;
               if (p.productName) matchedStock.ProductName = p.productName;
+              if (p.productCode) matchedStock.ProductCode = p.productCode;
               if (p.categoryName) matchedStock.CategoryName = p.categoryName;
               if (p.description !== undefined) matchedStock.Description = p.description;
+              if (p.timeIn !== undefined) matchedStock.TimeIn = p.timeIn;
+              if (p.timeOut !== undefined) matchedStock.TimeOut = p.timeOut;
               if (p.unit) matchedStock.Unit = p.unit;
               matchedStock.WeightPerUnit = wUnit;
+              matchedStock.isWeighed = (wUnit === 'น้ำหนักชั่ง');
               matchedStock.RemainQty = rQty;
               matchedStock.RemainWeight = rWeight;
               matchedStock.InitialQty = iQty;
@@ -6366,22 +6414,83 @@
               if (p.nextBillingDate) matchedStock.NextBillingDate = p.nextBillingDate;
               if (p.billingStatus) matchedStock.BillingStatus = p.billingStatus;
               if (p.roomZone) matchedStock.RoomZone = p.roomZone;
-              if (p.vehicleInfo) matchedStock.VehicleInfo = p.vehicleInfo;
+              if (p.vehicleInfo !== undefined) matchedStock.VehicleInfo = p.vehicleInfo;
+              if (p.imageBase64 || p.imageUrl) matchedStock.ImageURL = p.imageBase64 || p.imageUrl;
               matchedStock.Status = rQty > 0 ? 'In Stock' : 'Out of Stock';
+              if (rQty <= 0 && !matchedStock.OutOfStockDate) {
+                matchedStock.OutOfStockDate = formatTodayThai();
+              } else if (rQty > 0) {
+                matchedStock.OutOfStockDate = '';
+              }
+            } else {
+              matchedStock = {
+                StockID: p.stockId || ('STK-' + Date.now().toString(36).toUpperCase()),
+                LotNo: newLot,
+                ReceivingNo: p.receivingNo || '',
+                ClientID: p.clientId || '',
+                ClientName: p.clientName || '',
+                ProductID: p.productId || '',
+                ProductCode: p.productCode || '',
+                ProductName: p.productName,
+                CategoryName: p.categoryName || 'อาหารทะเลแช่แข็ง',
+                Description: p.description || '',
+                Unit: p.unit || 'กล่อง',
+                WeightPerUnit: wUnit,
+                isWeighed: (wUnit === 'น้ำหนักชั่ง'),
+                RemainQty: rQty,
+                RemainWeight: rWeight,
+                InitialQty: iQty,
+                InitialWeight: iWeight,
+                ReceiveDate: p.receiveDate || formatTodayThai(),
+                NextBillingDate: p.nextBillingDate || '',
+                RoomZone: p.roomZone || 'Room A-01',
+                VehicleInfo: p.vehicleInfo || '',
+                TimeIn: p.timeIn || '',
+                TimeOut: p.timeOut || '',
+                ImageURL: p.imageBase64 || p.imageUrl || '',
+                Status: rQty > 0 ? 'In Stock' : 'Out of Stock'
+              };
+              db.stock.push(matchedStock);
             }
 
             // 2. ซิงค์ใน db.products
-            let matchedProd = db.products.find(pr => (p.productId && pr.ProductID === p.productId) || (oldLot && String(pr.LotNo || '').trim().toLowerCase() === oldLot));
+            let matchedProd = db.products.find(pr => (p.productId && pr.ProductID === p.productId) || (oldLot && String(pr.LotNo || '').trim().toLowerCase() === oldLot) || (newLot && String(pr.LotNo || '').trim().toLowerCase() === newLot.toLowerCase()));
+            if (!matchedProd && p.productCode) {
+              matchedProd = db.products.find(pr => String(pr.ProductCode || '').trim().toUpperCase() === p.productCode.toUpperCase());
+            }
             if (matchedProd) {
               matchedProd.LotNo = newLot;
               if (p.productName) matchedProd.ProductName = p.productName;
+              if (p.productCode) matchedProd.ProductCode = p.productCode;
               if (p.description !== undefined) matchedProd.Description = p.description;
+              if (p.timeIn !== undefined) matchedProd.TimeIn = p.timeIn;
+              if (p.timeOut !== undefined) matchedProd.TimeOut = p.timeOut;
               if (p.categoryName) matchedProd.CategoryName = p.categoryName;
               if (p.unit) matchedProd.Unit = p.unit;
               matchedProd.WeightPerUnit = wUnit;
+              matchedProd.isWeighed = (wUnit === 'น้ำหนักชั่ง');
               if (p.clientId) matchedProd.ClientID = p.clientId;
               if (p.clientName) matchedProd.ClientName = p.clientName;
+              if (p.receiveDate) matchedProd.LastReceiveDate = p.receiveDate;
               if (p.imageBase64 || p.imageUrl) matchedProd.ImageURL = p.imageBase64 || p.imageUrl;
+            } else {
+              matchedProd = {
+                ProductID: p.productId || ('PRD-' + Date.now().toString(36).toUpperCase()),
+                ProductCode: p.productCode || '',
+                LotNo: newLot,
+                ProductName: p.productName,
+                Description: p.description || '',
+                CategoryName: p.categoryName || 'อาหารทะเลแช่แข็ง',
+                Unit: p.unit || 'กล่อง',
+                WeightPerUnit: wUnit,
+                isWeighed: (wUnit === 'น้ำหนักชั่ง'),
+                ClientID: p.clientId || '',
+                ClientName: p.clientName || '',
+                ImageURL: p.imageBase64 || p.imageUrl || '',
+                LastReceiveDate: p.receiveDate || formatTodayThai(),
+                Status: 'Active'
+              };
+              db.products.push(matchedProd);
             }
 
             // 3. ซิงค์ใน db.clients (รอบบิล & อัตรา)
@@ -6391,35 +6500,126 @@
               if (p.storageRatePerKgDay) matchedClient.StorageRatePerKgDay = parseFloat(p.storageRatePerKgDay);
             }
 
-            // 4. ซิงค์ใน db.receivings, db.requisitions, db.movements
-            if (oldLot && oldLot !== newLot.toLowerCase()) {
-              db.receivings.forEach(rc => {
+            // 4. ซิงค์ใบรับฝากสินค้า (db.receivings และ items ทั้งหมด ไม่ว่าจะเปลี่ยน LotNo หรือไม่ก็ตาม)
+            (db.receivings || []).forEach(rc => {
+              let rcvHasMatch = false;
+              if (Array.isArray(rc.items)) {
+                rc.items.forEach(it => {
+                  const itL = String(it.LotNo || it.lotNo || '').trim().toLowerCase();
+                  if ((oldLot && itL === oldLot) || (newLot && itL === newLot.toLowerCase()) || (p.receivingNo && rc.ReceivingNo === p.receivingNo)) {
+                    rcvHasMatch = true;
+                    it.LotNo = newLot;
+                    if (p.productName) { it.ProductName = p.productName; it.productName = p.productName; }
+                    if (p.productCode) { it.ProductCode = p.productCode; it.productCode = p.productCode; }
+                    if (p.categoryName) { it.CategoryName = p.categoryName; it.categoryName = p.categoryName; }
+                    if (p.description !== undefined) { it.Description = p.description; it.description = p.description; }
+                    if (p.unit) { it.Unit = p.unit; it.unit = p.unit; }
+                    if (p.weightPerUnit !== undefined) { it.WeightPerUnit = wUnit; it.weightPerUnit = wUnit; }
+                    it.isWeighed = (wUnit === 'น้ำหนักชั่ง');
+                    if (p.initialQty !== undefined) { it.Qty = iQty; it.qty = iQty; }
+                    if (p.initialWeight !== undefined) { it.TotalWeight = iWeight; it.totalWeight = iWeight; }
+                  }
+                });
+              }
+              if (rcvHasMatch || (p.receivingNo && rc.ReceivingNo === p.receivingNo)) {
+                if (p.receivingNo) rc.ReceivingNo = p.receivingNo;
+                if (p.clientId) rc.ClientID = p.clientId;
+                if (p.clientName) rc.ClientName = p.clientName;
+                if (p.vehicleInfo !== undefined) rc.VehicleInfo = p.vehicleInfo;
+                if (p.timeIn !== undefined) rc.TimeIn = p.timeIn;
+                if (p.timeOut !== undefined) rc.TimeOut = p.timeOut;
+                const baseDate = p.receiveDate || (rc.DateTimeIn ? rc.DateTimeIn.split(' ')[0] : (rc.Date || formatTodayThai()));
+                if (p.receiveDate) {
+                  rc.ReceiveDate = p.receiveDate;
+                  rc.Date = p.receiveDate;
+                }
+                if (p.timeIn !== undefined && p.timeIn !== '') {
+                  rc.DateTimeIn = (baseDate + ' ' + p.timeIn).trim();
+                }
+                if (p.timeOut !== undefined) {
+                  if (p.timeOut !== '') {
+                    rc.DateTimeOut = (baseDate + ' ' + p.timeOut).trim();
+                  } else {
+                    rc.DateTimeOut = '';
+                  }
+                }
+                let sumQ = 0, sumW = 0, hasW = false;
                 if (Array.isArray(rc.items)) {
                   rc.items.forEach(it => {
-                    if (String(it.LotNo || it.lotNo || '').trim().toLowerCase() === oldLot) {
-                      it.LotNo = newLot;
-                      if (p.productName) it.ProductName = p.productName;
-                    }
+                    sumQ += (parseFloat(it.Qty !== undefined ? it.Qty : it.qty) || 0);
+                    const itW = it.TotalWeight !== undefined ? it.TotalWeight : it.totalWeight;
+                    if (typeof itW === 'string' && itW.indexOf('ชั่ง') !== -1) hasW = true;
+                    else sumW += (parseFloat(itW) || 0);
                   });
                 }
-              });
-              db.requisitions.forEach(rq => {
-                if (Array.isArray(rq.items)) {
-                  rq.items.forEach(it => {
-                    if (String(it.LotNo || it.lotNo || '').trim().toLowerCase() === oldLot) {
-                      it.LotNo = newLot;
-                      if (p.productName) it.ProductName = p.productName;
-                    }
-                  });
+                rc.TotalQty = sumQ;
+                rc.TotalWeight = hasW && sumW <= 0 ? 'น้ำหนักชั่ง' : parseFloat(sumW.toFixed(2));
+              }
+            });
+
+            // 5. ซิงค์ใบเบิกสินค้า (db.requisitions และ items ทั้งหมด)
+            (db.requisitions || []).forEach(rq => {
+              let reqHasMatch = false;
+              if (Array.isArray(rq.items)) {
+                rq.items.forEach(it => {
+                  const itL = String(it.LotNo || it.lotNo || '').trim().toLowerCase();
+                  if ((oldLot && itL === oldLot) || (newLot && itL === newLot.toLowerCase()) || (p.outboundDocNo && rq.RequisitionNo === p.outboundDocNo)) {
+                    reqHasMatch = true;
+                    it.LotNo = newLot;
+                    if (p.productName) { it.ProductName = p.productName; it.productName = p.productName; }
+                    if (p.productCode) { it.ProductCode = p.productCode; it.productCode = p.productCode; }
+                    if (p.categoryName) { it.CategoryName = p.categoryName; it.categoryName = p.categoryName; }
+                    if (p.description !== undefined) { it.Description = p.description; it.description = p.description; }
+                    if (p.unit) { it.Unit = p.unit; it.unit = p.unit; }
+                    if (p.weightPerUnit !== undefined) { it.WeightPerUnit = wUnit; it.weightPerUnit = wUnit; }
+                    it.isWeighed = (wUnit === 'น้ำหนักชั่ง');
+                  }
+                });
+              }
+              if (reqHasMatch || (p.outboundDocNo && rq.RequisitionNo === p.outboundDocNo)) {
+                if (p.clientId) rq.ClientID = p.clientId;
+                if (p.clientName) rq.ClientName = p.clientName;
+                if (p.vehicleInfo !== undefined) rq.VehicleInfo = p.vehicleInfo;
+                if (p.timeOut !== undefined) rq.TimeOut = p.timeOut;
+                if (p.timeIn !== undefined) rq.TimeIn = p.timeIn;
+                const reqBaseDate = rq.DateTimeOut ? rq.DateTimeOut.split(' ')[0] : (rq.DateTimeIn ? rq.DateTimeIn.split(' ')[0] : formatTodayThai());
+                if (p.timeOut !== undefined) {
+                  if (p.timeOut !== '') {
+                    rq.DateTimeOut = (reqBaseDate + ' ' + p.timeOut).trim();
+                  } else {
+                    rq.DateTimeOut = '';
+                  }
                 }
-              });
-              db.movements.forEach(m => {
-                if (String(m.LotNo || '').trim().toLowerCase() === oldLot) {
-                  m.LotNo = newLot;
-                  if (p.productName) m.ProductName = p.productName;
+                if (p.timeIn !== undefined && p.timeIn !== '') {
+                  rq.DateTimeIn = (reqBaseDate + ' ' + p.timeIn).trim();
                 }
-              });
-            }
+              }
+            });
+
+            // 6. ซิงค์ประวัติการเคลื่อนไหวสต็อก (db.movements)
+            (db.movements || []).forEach(m => {
+              const mL = String(m.LotNo || '').trim().toLowerCase();
+              if ((oldLot && mL === oldLot) || (newLot && mL === newLot.toLowerCase())) {
+                m.LotNo = newLot;
+                if (p.productName) m.ProductName = p.productName;
+                if (p.productCode) m.ProductCode = p.productCode;
+                if (p.clientId) m.ClientID = p.clientId;
+                if (p.clientName) m.ClientName = p.clientName;
+                if (p.unit) m.Unit = p.unit;
+                if (p.weightPerUnit !== undefined) m.WeightPerUnit = wUnit;
+                if (p.vehicleInfo !== undefined) m.VehicleInfo = p.vehicleInfo;
+
+                const isIN = String(m.MovementType || '').toUpperCase().indexOf('IN') !== -1;
+                if (isIN) {
+                  if (p.initialQty !== undefined) m.QtyChange = iQty;
+                  if (p.initialWeight !== undefined) m.WeightChange = (typeof iWeight === 'number' ? iWeight : parseFloat(iWeight) || 0);
+                  if (p.receivingNo) m.RefDocNo = p.receivingNo;
+                  if (p.receiveDate) {
+                    m.Timestamp = (p.receiveDate + ' ' + (p.timeIn || '08:30')).trim();
+                  }
+                }
+              }
+            });
 
             saveDbToStorage();
             return {
@@ -8675,6 +8875,8 @@
           })(),
           ImageURL: imgUrl,
           ReceiveDate: s.ReceiveDate || '',
+          TimeIn: s.TimeIn || '',
+          TimeOut: s.TimeOut || '',
           OutOfStockDate: s.OutOfStockDate || '',
           NextBillingDate: s.NextBillingDate || '',
           RoomZone: s.RoomZone || 'Room A-01',
@@ -8740,6 +8942,8 @@
             ClientName: p.ClientName || '',
             ImageURL: p.ImageURL || '',
             ReceiveDate: p.LastReceiveDate || '',
+            TimeIn: p.TimeIn || '',
+            TimeOut: p.TimeOut || '',
             OutOfStockDate: p.OutOfStockDate || '',
             NextBillingDate: '',
             Status: 'OutOfStock'
@@ -10837,7 +11041,7 @@ function editProduct(p) {
         }
         return '<tr>' +
           '<td>' + rcvNoDisplay + '</td>' +
-          '<td>เข้า: ' + escapeHtml(r.DateTimeIn) + '<br><small style="color:var(--text-muted);">ออก: ' + escapeHtml(r.DateTimeOut || '-') + '</small></td>' +
+          '<td>เข้า: ' + escapeHtml(r.DateTimeIn) + '<br><small style="color:var(--text-muted);">ออก: ' + escapeHtml(r.DateTimeOut || (r.TimeOut ? ((r.DateTimeIn ? r.DateTimeIn.split(" ")[0] : (r.Date || "")) + " " + r.TimeOut) : "-")) + '</small></td>' +
           '<td><strong>' + escapeHtml(r.ClientName) + '</strong></td>' +
           '<td>' + itemsHtml + '</td>' +
           '<td class="text-right">' + qtyHtml + '</td>' +
@@ -13048,7 +13252,7 @@ function editProduct(p) {
         }
         return '<tr>' +
           '<td>' + reqNoDisplay + '</td>' +
-          '<td>เข้า: ' + escapeHtml(r.DateTimeIn) + '<br><small style="color:var(--text-muted);">ออก: ' + escapeHtml(r.DateTimeOut || '-') + '</small></td>' +
+          '<td>เข้า: ' + escapeHtml(r.DateTimeIn) + '<br><small style="color:var(--text-muted);">ออก: ' + escapeHtml(r.DateTimeOut || (r.TimeOut ? ((r.DateTimeIn ? r.DateTimeIn.split(" ")[0] : (r.Date || "")) + " " + r.TimeOut) : "-")) + '</small></td>' +
           '<td><strong>' + escapeHtml(r.ClientName) + '</strong></td>' +
           '<td>' + itemsHtml + '</td>' +
           '<td class="text-right">' + qtyHtml + '</td>' +
@@ -16686,6 +16890,19 @@ function editProduct(p) {
         const outDoc = getOutboundDocNoForLot(item.LotNo) || '-';
         const docNum = (inDoc && inDoc !== '-') ? inDoc : (outDoc && outDoc !== '-' ? outDoc : '-');
 
+        const rcvObj = (inDoc && inDoc !== '-') ? (STATE.receivings || []).find(r => r.ReceivingNo === inDoc) : (STATE.receivings || []).find(r => Array.isArray(r.items) && r.items.some(it => String(it.LotNo || it.lotNo || '').trim().toLowerCase() === String(item.LotNo || '').trim().toLowerCase()));
+        const reqObj = (outDoc && outDoc !== '-') ? (STATE.requisitions || []).find(rq => rq.RequisitionNo === outDoc) : (STATE.requisitions || []).find(rq => Array.isArray(rq.items) && rq.items.some(it => String(it.LotNo || it.lotNo || '').trim().toLowerCase() === String(item.LotNo || '').trim().toLowerCase()));
+
+        const dispTimeIn = item.TimeIn || stockObj.TimeIn || (rcvObj && (rcvObj.TimeIn || (rcvObj.DateTimeIn && rcvObj.DateTimeIn.indexOf(' ') !== -1 ? rcvObj.DateTimeIn.split(' ')[1] : ''))) || '';
+        const dispTimeOut = item.TimeOut || stockObj.TimeOut || (reqObj && (reqObj.TimeOut || (reqObj.DateTimeOut && reqObj.DateTimeOut.indexOf(' ') !== -1 ? reqObj.DateTimeOut.split(' ')[1] : ''))) || (rcvObj && (rcvObj.TimeOut || (rcvObj.DateTimeOut && rcvObj.DateTimeOut.indexOf(' ') !== -1 ? rcvObj.DateTimeOut.split(' ')[1] : ''))) || '';
+
+        const timeBadgesHtml = (dispTimeIn || dispTimeOut)
+          ? '<div style="font-size:11px; margin-top:3px; display:flex; gap:6px; flex-wrap:wrap;">' +
+              (dispTimeIn ? '<span style="color:var(--primary-blue); font-weight:600;"><i class="fa-solid fa-clock"></i> เข้า: ' + escapeHtml(dispTimeIn) + '</span>' : '') +
+              (dispTimeOut ? '<span style="color:#EF4444; font-weight:600;"><i class="fa-solid fa-clock-rotate-left"></i> ออก: ' + escapeHtml(dispTimeOut) + '</span>' : '') +
+            '</div>'
+          : '';
+
         const clientObj = (STATE.clients || []).find(c => 
           (item.ClientID && (c.ClientID === item.ClientID || c.ClientCode === item.ClientID)) ||
           (item.ClientName && (c.ClientName === item.ClientName || (c.ContactPerson && c.ContactPerson === item.ClientName) || c.ClientName.indexOf(item.ClientName) !== -1 || item.ClientName.indexOf(c.ClientName) !== -1))
@@ -16717,7 +16934,7 @@ function editProduct(p) {
 
         return '<tr>' +
           '<td class="text-center"><strong style="color:#0A3D62; font-size:14px;">' + escapeHtml(item.LotNo) + '</strong></td>' +
-          '<td><strong>' + escapeHtml(docNum) + '</strong></td>' +
+          '<td><strong>' + escapeHtml(docNum) + '</strong>' + timeBadgesHtml + '</td>' +
           '<td><strong>' + escapeHtml(item.ProductName) + '</strong><br><small style="color:var(--text-muted);">' + escapeHtml(item.Description || '-') + '</small></td>' +
           '<td><strong>' + escapeHtml(item.ClientName || '-') + '</strong><br><small style="color:#64748B;">' + escapeHtml(item.ClientID || clientObj.ClientCode || '-') + '</small></td>' +
           '<td class="text-center"><strong>' + escapeHtml(item.Unit || 'กล่อง') + '</strong></td>' +
@@ -16803,6 +17020,48 @@ function editProduct(p) {
       document.getElementById('editLotVehicle').value = stockObj.VehicleInfo || '';
 
       document.getElementById('editLotDescription').value = item.Description || stockObj.Description || prodObj.Description || '';
+
+      // เติมข้อมูลช่อง "เวลาเข้า" และ "เวลาออก"
+      let lotTimeIn = item.TimeIn || stockObj.TimeIn || prodObj.TimeIn || '';
+      let lotTimeOut = item.TimeOut || stockObj.TimeOut || prodObj.TimeOut || '';
+
+      const inDoc = stockObj.ReceivingNo || item.ReceivingNo;
+      const rcv = (STATE.receivings || []).find(r => (inDoc && r.ReceivingNo === inDoc) || (Array.isArray(r.items) && r.items.some(it => String(it.LotNo || it.lotNo || '').trim().toLowerCase() === String(item.LotNo || '').trim().toLowerCase())));
+
+      const outDoc = getOutboundDocNoForLot(item.LotNo);
+      const req = (STATE.requisitions || []).find(rq => (outDoc && rq.RequisitionNo === outDoc) || (Array.isArray(rq.items) && rq.items.some(it => String(it.LotNo || it.lotNo || '').trim().toLowerCase() === String(item.LotNo || '').trim().toLowerCase())));
+
+      if (!lotTimeIn) {
+        if (rcv) {
+          if (rcv.TimeIn) lotTimeIn = rcv.TimeIn;
+          else if (rcv.DateTimeIn) {
+            const p = String(rcv.DateTimeIn).trim().split(' ');
+            lotTimeIn = p.length > 1 ? p[1] : (p[0].indexOf(':') !== -1 ? p[0] : '');
+          }
+        }
+      }
+
+      if (!lotTimeOut) {
+        if (req) {
+          if (req.TimeOut) lotTimeOut = req.TimeOut;
+          else if (req.DateTimeOut) {
+            const p = String(req.DateTimeOut).trim().split(' ');
+            lotTimeOut = p.length > 1 ? p[1] : (p[0].indexOf(':') !== -1 ? p[0] : '');
+          } else if (req.TimeIn) {
+            lotTimeOut = req.TimeIn;
+          }
+        }
+        if (!lotTimeOut && rcv) {
+          if (rcv.TimeOut) lotTimeOut = rcv.TimeOut;
+          else if (rcv.DateTimeOut) {
+            const p = String(rcv.DateTimeOut).trim().split(' ');
+            lotTimeOut = p.length > 1 ? p[1] : (p[0].indexOf(':') !== -1 ? p[0] : '');
+          }
+        }
+      }
+
+      document.getElementById('editLotTimeIn').value = lotTimeIn || '';
+      document.getElementById('editLotTimeOut').value = lotTimeOut || '';
 
       const imgUrl = item.ImageURL || prodObj.ImageURL || '';
       document.getElementById('editLotImageUrlInput').value = imgUrl;
@@ -16980,6 +17239,8 @@ function editProduct(p) {
         roomZone: document.getElementById('editLotRoomZone').value.trim(),
         vehicleInfo: document.getElementById('editLotVehicle').value.trim(),
         description: document.getElementById('editLotDescription').value.trim(),
+        timeIn: (document.getElementById('editLotTimeIn') ? document.getElementById('editLotTimeIn').value : '').trim(),
+        timeOut: (document.getElementById('editLotTimeOut') ? document.getElementById('editLotTimeOut').value : '').trim(),
         imageUrl: document.getElementById('editLotImageUrlInput').value.trim(),
         imageBase64: document.getElementById('editLotImageBase64').value
       };
@@ -16996,19 +17257,26 @@ function editProduct(p) {
           if (res.requisitions) STATE.requisitions = res.requisitions;
           if (res.movements) STATE.movements = res.movements;
 
-          // Local memory sync
-          const oldL = payload.oldLotNo.toLowerCase();
+          // Local memory sync across all collections
+          const oldL = String(payload.oldLotNo || '').trim().toLowerCase();
+          const newL = String(payload.lotNo || '').trim();
+
+          // Sync STATE.stock
           STATE.stock.forEach(s => {
-            if (s.StockID === payload.stockId || (oldL && String(s.LotNo || '').toLowerCase() === oldL)) {
-              s.LotNo = payload.lotNo;
+            if (s.StockID === payload.stockId || (oldL && String(s.LotNo || '').trim().toLowerCase() === oldL) || (newL && String(s.LotNo || '').trim().toLowerCase() === newL.toLowerCase())) {
+              s.LotNo = newL;
               if (payload.receivingNo) s.ReceivingNo = payload.receivingNo;
               if (payload.clientId) s.ClientID = payload.clientId;
               if (payload.clientName) s.ClientName = payload.clientName;
               s.ProductName = payload.productName;
+              if (payload.productCode) s.ProductCode = payload.productCode;
               s.CategoryName = payload.categoryName;
               s.Description = payload.description;
+              if (payload.timeIn !== undefined) s.TimeIn = payload.timeIn;
+              if (payload.timeOut !== undefined) s.TimeOut = payload.timeOut;
               s.Unit = payload.unit;
               s.WeightPerUnit = payload.weightPerUnit;
+              s.isWeighed = (payload.weightPerUnit === 'น้ำหนักชั่ง');
               s.RemainQty = payload.remainQty;
               s.RemainWeight = payload.remainWeight;
               s.InitialQty = payload.initialQty;
@@ -17017,24 +17285,37 @@ function editProduct(p) {
               s.NextBillingDate = payload.nextBillingDate;
               s.RoomZone = payload.roomZone;
               s.VehicleInfo = payload.vehicleInfo;
+              if (payload.imageBase64 || payload.imageUrl) s.ImageURL = payload.imageBase64 || payload.imageUrl;
               s.Status = payload.remainQty > 0 ? 'In Stock' : 'Out of Stock';
+              if (payload.remainQty <= 0 && !s.OutOfStockDate) {
+                s.OutOfStockDate = formatTodayThai();
+              } else if (payload.remainQty > 0) {
+                s.OutOfStockDate = '';
+              }
             }
           });
 
+          // Sync STATE.products
           STATE.products.forEach(p => {
-            if (p.ProductID === payload.productId || (oldL && String(p.LotNo || '').toLowerCase() === oldL)) {
-              p.LotNo = payload.lotNo;
+            if (p.ProductID === payload.productId || (oldL && String(p.LotNo || '').trim().toLowerCase() === oldL) || (newL && String(p.LotNo || '').trim().toLowerCase() === newL.toLowerCase())) {
+              p.LotNo = newL;
               p.ProductName = payload.productName;
+              if (payload.productCode) p.ProductCode = payload.productCode;
               p.Description = payload.description;
+              if (payload.timeIn !== undefined) p.TimeIn = payload.timeIn;
+              if (payload.timeOut !== undefined) p.TimeOut = payload.timeOut;
               p.CategoryName = payload.categoryName;
               p.Unit = payload.unit;
               p.WeightPerUnit = payload.weightPerUnit;
+              p.isWeighed = (payload.weightPerUnit === 'น้ำหนักชั่ง');
               p.ClientID = payload.clientId;
               p.ClientName = payload.clientName;
+              if (payload.receiveDate) p.LastReceiveDate = payload.receiveDate;
               if (payload.imageBase64 || payload.imageUrl) p.ImageURL = payload.imageBase64 || payload.imageUrl;
             }
           });
 
+          // Sync STATE.clients
           STATE.clients.forEach(c => {
             if (c.ClientID === payload.clientId || c.ClientName === payload.clientName) {
               if (payload.billingCycleDays) c.BillingCycleDays = parseInt(payload.billingCycleDays, 10);
@@ -17042,15 +17323,132 @@ function editProduct(p) {
             }
           });
 
+          // Sync STATE.receivings & items
+          (STATE.receivings || []).forEach(rc => {
+            let matched = false;
+            if (Array.isArray(rc.items)) {
+              rc.items.forEach(it => {
+                const itL = String(it.LotNo || it.lotNo || '').trim().toLowerCase();
+                if ((oldL && itL === oldL) || (newL && itL === newL.toLowerCase()) || (payload.receivingNo && rc.ReceivingNo === payload.receivingNo)) {
+                  matched = true;
+                  it.LotNo = newL;
+                  it.ProductName = payload.productName;
+                  if (payload.productCode) it.ProductCode = payload.productCode;
+                  if (payload.description !== undefined) it.Description = payload.description;
+                  if (payload.categoryName) it.CategoryName = payload.categoryName;
+                  if (payload.unit) it.Unit = payload.unit;
+                  if (payload.weightPerUnit !== undefined) it.WeightPerUnit = payload.weightPerUnit;
+                  it.isWeighed = (payload.weightPerUnit === 'น้ำหนักชั่ง');
+                  if (payload.initialQty !== undefined) it.Qty = payload.initialQty;
+                  if (payload.initialWeight !== undefined) it.TotalWeight = payload.initialWeight;
+                }
+              });
+            }
+            if (matched || (payload.receivingNo && rc.ReceivingNo === payload.receivingNo)) {
+              if (payload.clientId) rc.ClientID = payload.clientId;
+              if (payload.clientName) rc.ClientName = payload.clientName;
+              if (payload.vehicleInfo !== undefined) rc.VehicleInfo = payload.vehicleInfo;
+              if (payload.timeIn !== undefined) rc.TimeIn = payload.timeIn;
+              if (payload.timeOut !== undefined) rc.TimeOut = payload.timeOut;
+              const baseDate = payload.receiveDate || (rc.DateTimeIn ? rc.DateTimeIn.split(' ')[0] : (rc.Date || formatTodayThai()));
+              if (payload.receiveDate) {
+                rc.ReceiveDate = payload.receiveDate;
+                rc.Date = payload.receiveDate;
+              }
+              if (payload.timeIn !== undefined && payload.timeIn !== '') {
+                rc.DateTimeIn = (baseDate + ' ' + payload.timeIn).trim();
+              }
+              if (payload.timeOut !== undefined) {
+                if (payload.timeOut !== '') {
+                  rc.DateTimeOut = (baseDate + ' ' + payload.timeOut).trim();
+                } else {
+                  rc.DateTimeOut = '';
+                }
+              }
+              let sumQ = 0, sumW = 0, hasW = false;
+              if (Array.isArray(rc.items)) {
+                rc.items.forEach(it => {
+                  sumQ += (parseFloat(it.Qty !== undefined ? it.Qty : it.qty) || 0);
+                  const itW = it.TotalWeight !== undefined ? it.TotalWeight : it.totalWeight;
+                  if (typeof itW === 'string' && itW.indexOf('ชั่ง') !== -1) hasW = true;
+                  else sumW += (parseFloat(itW) || 0);
+                });
+              }
+              rc.TotalQty = sumQ;
+              rc.TotalWeight = hasW && sumW <= 0 ? 'น้ำหนักชั่ง' : parseFloat(sumW.toFixed(2));
+            }
+          });
+
+          // Sync STATE.requisitions & items
+          (STATE.requisitions || []).forEach(rq => {
+            let matched = false;
+            if (Array.isArray(rq.items)) {
+              rq.items.forEach(it => {
+                const itL = String(it.LotNo || it.lotNo || '').trim().toLowerCase();
+                if ((oldL && itL === oldL) || (newL && itL === newL.toLowerCase()) || (payload.outboundDocNo && rq.RequisitionNo === payload.outboundDocNo)) {
+                  matched = true;
+                  it.LotNo = newL;
+                  it.ProductName = payload.productName;
+                  if (payload.productCode) it.ProductCode = payload.productCode;
+                  if (payload.description !== undefined) it.Description = payload.description;
+                  if (payload.categoryName) it.CategoryName = payload.categoryName;
+                  if (payload.unit) it.Unit = payload.unit;
+                  if (payload.weightPerUnit !== undefined) it.WeightPerUnit = payload.weightPerUnit;
+                  it.isWeighed = (payload.weightPerUnit === 'น้ำหนักชั่ง');
+                }
+              });
+            }
+            if (matched || (payload.outboundDocNo && rq.RequisitionNo === payload.outboundDocNo)) {
+              if (payload.clientId) rq.ClientID = payload.clientId;
+              if (payload.clientName) rq.ClientName = payload.clientName;
+              if (payload.vehicleInfo !== undefined) rq.VehicleInfo = payload.vehicleInfo;
+              if (payload.timeOut !== undefined) rq.TimeOut = payload.timeOut;
+              if (payload.timeIn !== undefined) rq.TimeIn = payload.timeIn;
+              const reqBaseDate = rq.DateTimeOut ? rq.DateTimeOut.split(' ')[0] : (rq.DateTimeIn ? rq.DateTimeIn.split(' ')[0] : formatTodayThai());
+              if (payload.timeOut !== undefined) {
+                if (payload.timeOut !== '') {
+                  rq.DateTimeOut = (reqBaseDate + ' ' + payload.timeOut).trim();
+                } else {
+                  rq.DateTimeOut = '';
+                }
+              }
+              if (payload.timeIn !== undefined && payload.timeIn !== '') {
+                rq.DateTimeIn = (reqBaseDate + ' ' + payload.timeIn).trim();
+              }
+            }
+          });
+
+          // Sync STATE.movements
+          (STATE.movements || []).forEach(m => {
+            const mL = String(m.LotNo || '').trim().toLowerCase();
+            if ((oldL && mL === oldL) || (newL && mL === newL.toLowerCase())) {
+              m.LotNo = newL;
+              m.ProductName = payload.productName;
+              if (payload.productCode) m.ProductCode = payload.productCode;
+              if (payload.clientId) m.ClientID = payload.clientId;
+              if (payload.clientName) m.ClientName = payload.clientName;
+              if (payload.unit) m.Unit = payload.unit;
+              if (payload.weightPerUnit !== undefined) m.WeightPerUnit = payload.weightPerUnit;
+              if (payload.vehicleInfo !== undefined) m.VehicleInfo = payload.vehicleInfo;
+              const isIN = String(m.MovementType || '').toUpperCase().indexOf('IN') !== -1;
+              if (isIN) {
+                if (payload.initialQty !== undefined) m.QtyChange = payload.initialQty;
+                if (payload.initialWeight !== undefined) m.WeightChange = (typeof payload.initialWeight === 'number' ? payload.initialWeight : parseFloat(payload.initialWeight) || 0);
+                if (payload.receivingNo) m.RefDocNo = payload.receivingNo;
+                if (payload.receiveDate) {
+                  m.Timestamp = (payload.receiveDate + ' ' + (payload.timeIn || '08:30')).trim();
+                }
+              }
+            }
+          });
+
           closeModal('modalEditLotDetail');
-          renderProductDetailsTable();
-          renderProductsTable();
-          renderDashboardView();
-          renderClientsAndBillingView();
+          reconcileWarehouseState(STATE.products, STATE.stock, STATE.receivings, STATE.requisitions, STATE.movements, STATE.clients);
+          renderAllViews();
 
           Swal.fire({
             title: 'บันทึกสำเร็จ!',
-            html: 'แก้ไขรายละเอียดสินค้า Lot No. <strong>' + escapeHtml(payload.lotNo) + '</strong> เรียบร้อยแล้ว<br><span style="color:#0284C7; font-size:12.5px;">ข้อมูลได้รับการซิงค์ไปยังสต็อก ทะเบียนสินค้า และประวัติการเคลื่อนไหวแล้ว</span>',
+            html: 'แก้ไขรายละเอียดสินค้า Lot No. <strong>' + escapeHtml(payload.lotNo) + '</strong> เรียบร้อยแล้ว<br><span style="color:#0284C7; font-size:12.5px;">ข้อมูลได้รับการซิงค์และอัปเดตไปยังแดชบอร์ด สต็อกสินค้า ใบรับฝาก-ใบเบิก และรายงานต่างๆ ครบถ้วนแล้ว</span>',
             icon: 'success',
             confirmButtonColor: '#0A3D62'
           });
