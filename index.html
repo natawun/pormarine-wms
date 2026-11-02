@@ -7,7 +7,7 @@
   <!-- Google Fonts: Sarabun & Prompt -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Prompt:wght@400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <!-- Font Awesome 6 Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <!-- SweetAlert2 CDN -->
@@ -22,6 +22,8 @@
       try {
         if (localStorage.getItem('POR_THEME_MODE') === 'dark') {
           document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+          document.documentElement.removeAttribute('data-theme');
         }
       } catch(e) {}
     })();
@@ -421,6 +423,9 @@
       .theme-toggle-label { display: none; }
       .theme-toggle-btn { padding: 6px 10px; min-height: 34px; }
     }
+
+
+
 
     /* True Black Dark Mode Theme Variables & Component Rules (โหมดมืดแบบสีดำ) */
     [data-theme="dark"] {
@@ -1834,6 +1839,9 @@
               <button class="btn btn-outline" onclick="exportProductsData('excel')">
                 <i class="fa-solid fa-file-excel" style="color:#10b981;"></i> Export Excel
               </button>
+              <button class="btn btn-outline btn-export-sheets" id="btnExportProductsSheets" onclick="exportProductsData('googlesheets')" title="ส่งออกสต็อกสินค้าไปยัง Google Sheets">
+                <i class="fa-solid fa-table" style="color:#0F9D58;"></i> Google Sheets
+              </button>
             </div>
           </div>
 
@@ -1923,6 +1931,9 @@
             <div style="display:flex; flex-wrap:wrap; gap:8px;">
               <button class="btn btn-outline btn-sm" onclick="exportLotDetailsData('excel')">
                 <i class="fa-solid fa-file-excel" style="color:#10B981;"></i> Export Excel
+              </button>
+              <button class="btn btn-outline btn-sm btn-export-sheets" id="btnExportLotDetailsSheets" onclick="exportLotDetailsData('googlesheets')" title="ส่งออกรายละเอียดสินค้าไปยัง Google Sheets">
+                <i class="fa-solid fa-table" style="color:#0F9D58;"></i> Google Sheets
               </button>
             </div>
           </div>
@@ -2139,6 +2150,9 @@
               <button class="btn btn-outline" onclick="exportCurrentReport('excel')">
                 <i class="fa-solid fa-file-excel" style="color:#10b981;"></i> Export Excel
               </button>
+              <button class="btn btn-outline btn-export-sheets" id="btnExportReportSheets" onclick="exportCurrentReport('googlesheets')" title="ส่งออกรายงานที่เลือกไปยัง Google Sheets">
+                <i class="fa-solid fa-table" style="color:#0F9D58;"></i> Google Sheets
+              </button>
             </div>
           </div>
 
@@ -2311,7 +2325,7 @@
                     <label style="font-weight:600; font-size:13px;"><i class="fa-solid fa-circle-half-stroke" style="color:var(--golden-orange);"></i> โหมดการแสดงผลของระบบ (Theme Mode)</label>
                     <select id="cfgThemeMode" class="form-select" onchange="applyThemeMode(this.value)">
                       <option value="light">☀️ โหมดสว่าง (Light Theme)</option>
-                      <option value="dark">🖤 โหมดมืดสีดำ (True Black Theme)</option>
+                      <option value="dark">🖤 โหมดมืดสีดำ (Dark Theme)</option>
                     </select>
                   </div>
                   <button type="submit" class="btn btn-primary" style="margin-top:8px;">
@@ -5090,6 +5104,7 @@
 
       function buildBundle(u) {
         cleanupExpiredOutOfStockProductCodes(db.products, db.stock, db.movements, db.requisitions);
+        reconcileWarehouseState(db.products, db.stock, db.receivings, db.requisitions, db.movements, db.clients);
         saveDbToStorage();
         return {
           dashboard: {},
@@ -5545,9 +5560,11 @@
                     VehicleInfo: rcv.VehicleInfo,
                     Status: 'In Stock'
                   });
+                  const itLotClean = String(it.LotNo || '').trim();
+                  const rcvCleanDoc = String(rcv.ReceivingNo || '').replace(/[^A-Za-z0-9]/g, '');
                   db.movements.unshift({
-                    MovementID: 'MOV-' + Date.now(),
-                    Timestamp: formatNowThai(),
+                    MovementID: 'MOV-IN-' + rcvCleanDoc + '-' + (itLotClean ? itLotClean.replace(/[^A-Za-z0-9]/g, '') : ('ITEM-' + (idx + 1))),
+                    Timestamp: rcv.DateTimeIn || formatNowThai(),
                     MovementType: 'IN',
                     RefDocNo: rcv.ReceivingNo,
                     LotNo: it.LotNo,
@@ -6783,6 +6800,13 @@
       if (isClient && STATE.activeReportType === 'STOCK_CARD') {
         STATE.activeReportType = 'STOCK_ALL';
       }
+
+      // กำหนดสิทธิ์การส่งออกไปยัง Google Sheets: เฉพาะระดับสิทธิ์ 1.admin 2.manager 3.office
+      const canExportSheets = (isAdmin || isManager || isOffice);
+      const sheetsButtons = document.querySelectorAll('.btn-export-sheets, #btnExportProductsSheets, #btnExportLotDetailsSheets, #btnExportReportSheets');
+      sheetsButtons.forEach(btn => {
+        btn.style.display = canExportSheets ? 'inline-flex' : 'none';
+      });
     }
 
     /**
@@ -7050,11 +7074,129 @@
           }
         });
 
-        // 2. ซิงค์ rawMoves:
-        //    - จัดเรียงตามวันที่-เวลา (ปัจจุบันไปอดีต)
-        //    - ลบแถวซ้ำซ้อนของ (RefDocNo + LotNo) โดยเก็บเฉพาะแถวล่าสุดไว้
-        //    - คำนวณยอดคงเหลือหลังทำรายการ (BalanceQty, BalanceWeight) ตามลำดับเวลาจริง (เก่าสุด -> ใหม่สุด)
-        if (Array.isArray(rawMoves) && rawMoves.length > 0) {
+        // 2. ซิงค์ rawMoves (ประวัติการเคลื่อนไหวสต๊อก):
+        //    2.1 Self-Healing: ตรวจสอบและสร้างรายการเคลื่อนไหว (rawMoves) ให้ครบถ้วน 100%
+        //        สำหรับทุก Lot ในทุกใบรับฝากสินค้าที่อนุมัติแล้ว (rawRcvs)
+        //        และทุก Lot ในทุกใบเบิกสินค้าที่อนุมัติแล้ว (rawReqs)
+        if (!Array.isArray(rawMoves)) {
+          rawMoves = [];
+        }
+
+        // 2.1.1 ตรวจสอบว่าใน rawMoves มีรายการ IN สำหรับทุก Lot ใน lotInMap หรือไม่ (เช่น IN-690002 ที่มีทั้ง L0002 และ L0003)
+        Object.keys(lotInMap).forEach(lKey => {
+          const inInfo = lotInMap[lKey];
+          if (!inInfo || !inInfo.receivingNo || !inInfo.lotNo) return;
+          const rcvDocUpper = String(inInfo.receivingNo).trim().toUpperCase();
+          const lotUpper = String(inInfo.lotNo).trim().toUpperCase();
+
+          const existingIn = rawMoves.find(m => {
+            const mDoc = String(m.RefDocNo || '').trim().toUpperCase();
+            const mLot = String(m.LotNo || '').trim().toUpperCase();
+            const mType = String(m.MovementType || '').toUpperCase();
+            return mType.indexOf('IN') !== -1 && mDoc === rcvDocUpper && mLot === lotUpper;
+          });
+
+          if (!existingIn) {
+            const dt = inInfo.dateTimeIn || (inInfo.receiveDate ? inInfo.receiveDate + ' 08:30:00' : '') || formatNowThai();
+            const isAmended = String(inInfo.status || '').indexOf('ปรับปรุง') !== -1;
+            rawMoves.push({
+              MovementID: 'MOV-IN-' + inInfo.receivingNo.replace(/[^A-Za-z0-9]/g, '') + '-' + inInfo.lotNo.replace(/[^A-Za-z0-9]/g, ''),
+              Timestamp: dt,
+              MovementType: isAmended ? 'IN (ปรับปรุงรายการ)' : 'IN',
+              RefDocNo: inInfo.receivingNo,
+              LotNo: inInfo.lotNo,
+              ClientID: inInfo.clientId || '',
+              ClientName: inInfo.clientName || '',
+              ProductID: inInfo.productId || '',
+              ProductCode: inInfo.productCode || '',
+              ProductName: inInfo.productName || '',
+              Unit: inInfo.unit || 'กล่อง',
+              WeightPerUnit: inInfo.weightPerUnit,
+              QtyChange: inInfo.qty,
+              WeightChange: inInfo.weight,
+              BalanceQty: inInfo.qty,
+              BalanceWeight: inInfo.weight,
+              VehicleInfo: inInfo.vehicleInfo || '',
+              RecordedBy: 'ระบบอัตโนมัติ',
+              ApprovedBy: 'ผู้จัดการคลัง',
+              Notes: isAmended ? 'ปรับปรุงรายการรับฝาก' : 'รับเข้าสต็อกสำเร็จ'
+            });
+          } else {
+            // ซิงค์ข้อมูลให้เป็นปัจจุบัน
+            if (inInfo.productName) existingIn.ProductName = inInfo.productName;
+            if (inInfo.productCode) existingIn.ProductCode = inInfo.productCode;
+            if (inInfo.unit) existingIn.Unit = inInfo.unit;
+            if (inInfo.weightPerUnit) existingIn.WeightPerUnit = inInfo.weightPerUnit;
+            if (inInfo.clientName) existingIn.ClientName = inInfo.clientName;
+            if (inInfo.clientId) existingIn.ClientID = inInfo.clientId;
+            if (inInfo.vehicleInfo) existingIn.VehicleInfo = inInfo.vehicleInfo;
+            if (inInfo.dateTimeIn && (!existingIn.Timestamp || existingIn.Timestamp.indexOf(':') === -1)) {
+              existingIn.Timestamp = inInfo.dateTimeIn;
+            }
+          }
+        });
+
+        // 2.1.2 ตรวจสอบว่าใน rawMoves มีรายการ OUT สำหรับทุก Lot ใน lotOutMap หรือไม่
+        Object.keys(lotOutMap).forEach(lKey => {
+          const outInfo = lotOutMap[lKey];
+          if (!outInfo || !Array.isArray(outInfo.docs)) return;
+          outInfo.docs.forEach(docObj => {
+            const req = docObj.req;
+            const it = docObj.item;
+            const reqDocUpper = String(req.RequisitionNo || '').trim().toUpperCase();
+            const lotUpper = String(it.LotNo || it.lotNo || lKey).trim().toUpperCase();
+
+            const existingOut = rawMoves.find(m => {
+              const mDoc = String(m.RefDocNo || '').trim().toUpperCase();
+              const mLot = String(m.LotNo || '').trim().toUpperCase();
+              const mType = String(m.MovementType || '').toUpperCase();
+              return mType.indexOf('OUT') !== -1 && mDoc === reqDocUpper && mLot === lotUpper;
+            });
+
+            if (!existingOut) {
+              const dt = req.DateTimeOut || req.DateTimeIn || (req.Date ? req.Date + ' 16:30:00' : '') || formatNowThai();
+              const isAmended = String(req.Status || '').indexOf('ปรับปรุง') !== -1;
+              const q = Math.abs(parseFloat(docObj.qty) || 0);
+              const w = Math.abs(parseFloat(docObj.weight) || 0);
+              rawMoves.push({
+                MovementID: 'MOV-OUT-' + req.RequisitionNo.replace(/[^A-Za-z0-9]/g, '') + '-' + lotUpper.replace(/[^A-Za-z0-9]/g, ''),
+                Timestamp: dt,
+                MovementType: isAmended ? 'OUT (ปรับปรุงรายการ)' : 'OUT',
+                RefDocNo: req.RequisitionNo,
+                LotNo: it.LotNo || it.lotNo || lotUpper,
+                ClientID: req.ClientID || '',
+                ClientName: req.ClientName || '',
+                ProductID: it.ProductID || it.productId || '',
+                ProductCode: it.ProductCode || it.productCode || '',
+                ProductName: it.ProductName || it.productName || '',
+                Unit: it.Unit || it.unit || 'กล่อง',
+                WeightPerUnit: docObj.weightPerUnit,
+                QtyChange: -q,
+                WeightChange: -w,
+                BalanceQty: 0,
+                BalanceWeight: 0,
+                VehicleInfo: req.VehicleInfo || '',
+                RecordedBy: req.RequisitionerName || 'ระบบอัตโนมัติ',
+                ApprovedBy: req.ApproverName || 'ผู้จัดการคลัง',
+                Notes: isAmended ? 'ปรับปรุงรายการเบิกจ่าย' : 'เบิกสินค้าสำเร็จ'
+              });
+            } else {
+              if (it.ProductName) existingOut.ProductName = it.ProductName;
+              if (it.ProductCode) existingOut.ProductCode = it.ProductCode;
+              if (it.Unit) existingOut.Unit = it.Unit;
+              if (docObj.weightPerUnit) existingOut.WeightPerUnit = docObj.weightPerUnit;
+              if (req.ClientName) existingOut.ClientName = req.ClientName;
+              if (req.ClientID) existingOut.ClientID = req.ClientID;
+              if (req.VehicleInfo) existingOut.VehicleInfo = req.VehicleInfo;
+              if ((req.DateTimeOut || req.DateTimeIn) && (!existingOut.Timestamp || existingOut.Timestamp.indexOf(':') === -1)) {
+                existingOut.Timestamp = req.DateTimeOut || req.DateTimeIn;
+              }
+            }
+          });
+        });
+
+        // 2.2 จัดเรียงและกรองรายการซ้ำซ้อน โดยเก็บแถวล่าสุดของแต่ละ (RefDocNo + LotNo + MovementType) ไว้
+        if (rawMoves.length > 0) {
           rawMoves.sort((a, b) => {
             const tA = parseThaiDateTimeToObj(a.Timestamp)?.getTime() || 0;
             const tB = parseThaiDateTimeToObj(b.Timestamp)?.getTime() || 0;
@@ -7069,8 +7211,9 @@
             const m = rawMoves[i];
             const refDoc = String(m.RefDocNo || '').trim().toUpperCase();
             const lotStr = String(m.LotNo || '').trim().toUpperCase();
+            const mType = String(m.MovementType || '').toUpperCase().indexOf('IN') !== -1 ? 'IN' : 'OUT';
             if (refDoc && lotStr && lotStr.indexOf(',') === -1) {
-              const key = refDoc + '|' + lotStr;
+              const key = refDoc + '|' + lotStr + '|' + mType;
               if (seenDocLot.has(key)) {
                 continue;
               }
@@ -7079,7 +7222,7 @@
             dedupedNewestFirst.push(m);
           }
 
-          // คำนวณยอดตามลำดับเวลาจริง (เก่าสุด -> ใหม่สุด)
+          // 2.3 คำนวณยอดตามลำดับเวลาจริง (เก่าสุด -> ใหม่สุด)
           const chronological = dedupedNewestFirst.slice().sort((a, b) => {
             const tA = parseThaiDateTimeToObj(a.Timestamp)?.getTime() || 0;
             const tB = parseThaiDateTimeToObj(b.Timestamp)?.getTime() || 0;
@@ -7102,10 +7245,14 @@
               m.QtyChange = inInfo.qty;
               m.WeightChange = inInfo.weight;
               if (inInfo.productName) m.ProductName = inInfo.productName;
+              if (inInfo.productCode) m.ProductCode = inInfo.productCode;
               if (inInfo.unit) m.Unit = inInfo.unit;
               if (inInfo.clientName) m.ClientName = inInfo.clientName;
               if (inInfo.clientId) m.ClientID = inInfo.clientId;
               if (inInfo.vehicleInfo) m.VehicleInfo = inInfo.vehicleInfo;
+              if (inInfo.dateTimeIn && (!m.Timestamp || m.Timestamp.indexOf(':') === -1)) {
+                m.Timestamp = inInfo.dateTimeIn;
+              }
             } else if (!isIn && lotOutMap[lotKey] && refDoc) {
               const matchedOut = lotOutMap[lotKey].docs.find(d => String(d.req.RequisitionNo || '').trim().toUpperCase() === refDoc.toUpperCase());
               if (matchedOut) {
@@ -7115,10 +7262,14 @@
                 m.QtyChange = -Math.abs(matchedOut.qty);
                 m.WeightChange = -Math.abs(matchedOut.weight);
                 if (matchedOut.item.ProductName) m.ProductName = matchedOut.item.ProductName;
+                if (matchedOut.item.ProductCode) m.ProductCode = matchedOut.item.ProductCode;
                 if (matchedOut.item.Unit) m.Unit = matchedOut.item.Unit;
                 if (matchedOut.req.ClientName) m.ClientName = matchedOut.req.ClientName;
                 if (matchedOut.req.ClientID) m.ClientID = matchedOut.req.ClientID;
                 if (matchedOut.req.VehicleInfo) m.VehicleInfo = matchedOut.req.VehicleInfo;
+                if ((matchedOut.req.DateTimeOut || matchedOut.req.DateTimeIn) && (!m.Timestamp || m.Timestamp.indexOf(':') === -1)) {
+                  m.Timestamp = matchedOut.req.DateTimeOut || matchedOut.req.DateTimeIn;
+                }
               }
             }
 
@@ -7573,7 +7724,7 @@
       const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
       const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
       applyThemeMode(newTheme);
-      showToast(newTheme === 'dark' ? 'เปิดใช้งานโหมดมืดสีดำ (True Black Theme) เรียบร้อย' : 'เปิดใช้งานโหมดสว่าง (Light Theme) เรียบร้อย', 'info');
+      showToast(newTheme === 'dark' ? 'เปิดใช้งานโหมดมืดสีดำ (Dark Theme) เรียบร้อย' : 'เปิดใช้งานโหมดสว่าง (Light Theme) เรียบร้อย', 'info');
     }
 
     function applyThemeMode(theme) {
@@ -7623,6 +7774,9 @@
       let savedTheme = 'light';
       try {
         savedTheme = localStorage.getItem('POR_THEME_MODE') || 'light';
+        if (savedTheme !== 'dark' && savedTheme !== 'light') {
+          savedTheme = 'light';
+        }
       } catch (e) {}
       applyThemeMode(savedTheme);
     }
@@ -7639,6 +7793,7 @@
      * Render All Views & Populate Select Dropdowns
      */
     function renderAllViews() {
+      applyRolePermissionsUI();
       populateClientDropdowns();
       populateCategoryDropdowns();
       renderGlobalNotifications();
@@ -8243,17 +8398,18 @@
 
         if (!isAmended && m.RefDocNo) {
           const docUpper = String(m.RefDocNo).trim().toUpperCase();
+          const lotUpper = String(m.LotNo || '').trim().toUpperCase();
           const hasAmendedSibling = (STATE.movements || []).some(other =>
             other !== m &&
             String(other.RefDocNo || '').trim().toUpperCase() === docUpper &&
+            (!lotUpper || lotUpper === '-' || String(other.LotNo || '').trim().toUpperCase() === lotUpper) &&
             (String(other.MovementType || '').indexOf('ปรับปรุง') !== -1 || String(other.Notes || '').indexOf('ปรับปรุงรายการ') !== -1)
           );
           const docInSystem = (STATE.requisitions || []).find(r => String(r.RequisitionNo || '').trim().toUpperCase() === docUpper) ||
                               (STATE.receivings || []).find(r => String(r.ReceivingNo || '').trim().toUpperCase() === docUpper);
-          const isDocStatusAmended = docInSystem && String(docInSystem.Status || '').indexOf('ปรับปรุง') !== -1;
-          const isDocStatusCancelled = docInSystem && String(docInSystem.Status || '').indexOf('ยกเลิก') !== -1;
+          const isDocStatusCancelled = docInSystem && (String(docInSystem.Status || '').indexOf('ยกเลิก') !== -1 || docInSystem.isCancelled === true);
 
-          if (hasAmendedSibling || isDocStatusAmended || isDocStatusCancelled) {
+          if (hasAmendedSibling || isDocStatusCancelled) {
             return; // ไม่ต้องเอารายการยกเลิกมารวม
           }
         }
@@ -8532,17 +8688,19 @@
         let isOriginalAmended = false;
         if (!isAmended && m.RefDocNo) {
           const docUpper = String(m.RefDocNo).trim().toUpperCase();
+          const lotUpper = String(m.LotNo || '').trim().toUpperCase();
           const hasAmendedSibling = (STATE.movements || []).some(other =>
             other !== m &&
             String(other.RefDocNo || '').trim().toUpperCase() === docUpper &&
+            (!lotUpper || lotUpper === '-' || String(other.LotNo || '').trim().toUpperCase() === lotUpper) &&
             (String(other.MovementType || '').indexOf('ปรับปรุง') !== -1 || String(other.Notes || '').indexOf('ปรับปรุงรายการ') !== -1)
           );
           const docInSystem = (STATE.requisitions || []).find(r => String(r.RequisitionNo || '').trim().toUpperCase() === docUpper) ||
                               (STATE.receivings || []).find(r => String(r.ReceivingNo || '').trim().toUpperCase() === docUpper);
-          const isDocStatusAmended = docInSystem && String(docInSystem.Status || '').indexOf('ปรับปรุง') !== -1;
+          const isDocStatusCancelled = docInSystem && (String(docInSystem.Status || '').indexOf('ยกเลิก') !== -1 || docInSystem.isCancelled === true);
           const isExplicitCancelled = String(m.MovementType || '').indexOf('ยกเลิก') !== -1 || String(m.Notes || '').indexOf('ยกเลิก') !== -1 || m.IsCancelled === true;
 
-          if (hasAmendedSibling || isDocStatusAmended || isExplicitCancelled) {
+          if (hasAmendedSibling || isDocStatusCancelled || isExplicitCancelled) {
             isOriginalAmended = true;
           }
         }
@@ -10021,6 +10179,14 @@ function editProduct(p) {
     }
 
     function exportProductsData(format) {
+      if (format === 'googlesheets') {
+        const u = STATE.user;
+        const r = u ? String(u.role || '').trim().toLowerCase() : '';
+        if (r !== 'admin' && r !== 'manager' && r !== 'office') {
+          showToast('สิทธิ์ไม่เพียงพอ: เฉพาะระดับสิทธิ์ Admin, Manager และ Office เท่านั้นที่สามารถส่งออกไปยัง Google Sheets ได้', 'error');
+          return;
+        }
+      }
       const cli = document.getElementById('prodFilterClient') ? document.getElementById('prodFilterClient').value : '';
       const isClient = STATE.user && STATE.user.role === 'Client Portal';
       const list = getFilteredProducts();
@@ -14898,9 +15064,11 @@ function editProduct(p) {
           const isAmended = String(m.MovementType || '').indexOf('ปรับปรุง') !== -1 || String(m.Notes || '').indexOf('ปรับปรุงรายการ') !== -1;
           if (!isAmended && m.RefDocNo) {
             const docUpper = String(m.RefDocNo).trim().toUpperCase();
+            const lotUpper = String(m.LotNo || '').trim().toUpperCase();
             const hasAmendedSibling = (STATE.movements || []).some(other =>
               other !== m &&
               String(other.RefDocNo || '').trim().toUpperCase() === docUpper &&
+              (!lotUpper || lotUpper === '-' || String(other.LotNo || '').trim().toUpperCase() === lotUpper) &&
               (String(other.MovementType || '').indexOf('ปรับปรุง') !== -1 || String(other.Notes || '').indexOf('ปรับปรุงรายการ') !== -1)
             );
             if (hasAmendedSibling) return false;
@@ -14952,9 +15120,11 @@ function editProduct(p) {
           const isAmended = String(m.MovementType || '').indexOf('ปรับปรุง') !== -1 || String(m.Notes || '').indexOf('ปรับปรุงรายการ') !== -1;
           if (!isAmended && m.RefDocNo) {
             const docUpper = String(m.RefDocNo).trim().toUpperCase();
+            const lotUpper = String(m.LotNo || '').trim().toUpperCase();
             const hasAmendedSibling = (STATE.movements || []).some(other =>
               other !== m &&
               String(other.RefDocNo || '').trim().toUpperCase() === docUpper &&
+              (!lotUpper || lotUpper === '-' || String(other.LotNo || '').trim().toUpperCase() === lotUpper) &&
               (String(other.MovementType || '').indexOf('ปรับปรุง') !== -1 || String(other.Notes || '').indexOf('ปรับปรุงรายการ') !== -1)
             );
             if (hasAmendedSibling) return false;
@@ -15105,16 +15275,18 @@ function editProduct(p) {
 
             if (!isAmended && m.RefDocNo) {
               const docUpper = String(m.RefDocNo).trim().toUpperCase();
+              const lotUpper = String(m.LotNo || '').trim().toUpperCase();
               const hasAmendedSibling = (STATE.movements || []).some(other =>
                 other !== m &&
                 String(other.RefDocNo || '').trim().toUpperCase() === docUpper &&
+                (!lotUpper || lotUpper === '-' || String(other.LotNo || '').trim().toUpperCase() === lotUpper) &&
                 (String(other.MovementType || '').indexOf('ปรับปรุง') !== -1 || String(other.Notes || '').indexOf('ปรับปรุงรายการ') !== -1)
               );
               const docInSystem = (STATE.requisitions || []).find(r => String(r.RequisitionNo || '').trim().toUpperCase() === docUpper) ||
                                   (STATE.receivings || []).find(r => String(r.ReceivingNo || '').trim().toUpperCase() === docUpper);
-              const isDocStatusAmended = docInSystem && String(docInSystem.Status || '').indexOf('ปรับปรุง') !== -1;
+              const isDocStatusCancelled = docInSystem && (String(docInSystem.Status || '').indexOf('ยกเลิก') !== -1 || docInSystem.isCancelled === true);
 
-              if (hasAmendedSibling || isDocStatusAmended) {
+              if (hasAmendedSibling || isDocStatusCancelled) {
                 return false; // เอารายการเดิมที่ถูกยกเลิกออก ไม่ต้องแสดงและไม่ต้องเอามาคำนวณยอดรวม
               }
             }
@@ -15166,17 +15338,19 @@ function editProduct(p) {
               refDocStr = m.RefDocNo + ' (รายการปรับปรุง)';
             } else if (m.RefDocNo) {
               const docUpper = String(m.RefDocNo).trim().toUpperCase();
+              const lotUpper = String(m.LotNo || '').trim().toUpperCase();
               const hasAmendedSibling = (STATE.movements || []).some(other =>
                 other !== m &&
                 String(other.RefDocNo || '').trim().toUpperCase() === docUpper &&
+                (!lotUpper || lotUpper === '-' || String(other.LotNo || '').trim().toUpperCase() === lotUpper) &&
                 (String(other.MovementType || '').indexOf('ปรับปรุง') !== -1 || String(other.Notes || '').indexOf('ปรับปรุงรายการ') !== -1)
               );
               const docInSystem = (STATE.requisitions || []).find(r => String(r.RequisitionNo || '').trim().toUpperCase() === docUpper) ||
                                   (STATE.receivings || []).find(r => String(r.ReceivingNo || '').trim().toUpperCase() === docUpper);
-              const isDocStatusAmended = docInSystem && String(docInSystem.Status || '').indexOf('ปรับปรุง') !== -1;
+              const isDocStatusCancelled = docInSystem && (String(docInSystem.Status || '').indexOf('ยกเลิก') !== -1 || docInSystem.isCancelled === true);
               const isExplicitCancelled = String(m.MovementType || '').indexOf('ยกเลิก') !== -1 || String(m.Notes || '').indexOf('ยกเลิก') !== -1 || m.IsCancelled === true;
 
-              if (hasAmendedSibling || isDocStatusAmended || isExplicitCancelled) {
+              if (hasAmendedSibling || isDocStatusCancelled || isExplicitCancelled) {
                 refDocStr = m.RefDocNo + ' (ยกเลิกรายการ)';
               }
             }
@@ -15508,6 +15682,211 @@ function editProduct(p) {
       return { line1: line1, line2: subtitle };
     }
 
+        /**
+     * =========================================================================
+     * ระบบส่งออกข้อมูลไปยัง Google Sheets (รองรับส่งออกเฉพาะหัวตาราง+ข้อมูล & อัปเดตต่อท้ายชีทเดิม)
+     * =========================================================================
+     */
+    function cleanCellForSheet(v) {
+      if (v === undefined || v === null) return '';
+      let s = String(v).replace(/\t/g, ' ').replace(/\r?\n/g, ' ').trim();
+      return s;
+    }
+
+    function exportToGoogleSheetsHandler(fileBaseName, titles, headers, rows, options) {
+      // ตรวจสอบสิทธิ์การส่งออก Google Sheets: เฉพาะ 1.admin 2.manager 3.office
+      const u = STATE.user;
+      const r = u ? String(u.role || '').trim().toLowerCase() : '';
+      const canExportSheets = (r === 'admin' || r === 'manager' || r === 'office');
+      if (!canExportSheets) {
+        showToast('สิทธิ์ไม่เพียงพอ: เฉพาะระดับสิทธิ์ Admin, Manager และ Office เท่านั้นที่สามารถส่งออกไปยัง Google Sheets ได้', 'error');
+        return;
+      }
+
+      // 1. สร้างข้อมูลเฉพาะหัวตาราง + แถวข้อมูล (ไม่มีหัวเรื่องชื่อบริษัท เพื่อให้ตรงตามที่ต้องการ 100%)
+      const headerRowTsv = headers.map(cleanCellForSheet).join('\t');
+      const dataRowsTsv = rows.map(r => r.map(cleanCellForSheet).join('\t')).join('\n');
+      const tsvWithHeaders = headerRowTsv + '\n' + dataRowsTsv;
+      const tsvDataOnly = dataRowsTsv;
+
+      // ดึงลิงก์ Google Sheet เดิมที่บันทึกไว้ในเบราว์เซอร์ (ถ้ามี)
+      let savedSheetUrl = '';
+      try {
+        savedSheetUrl = localStorage.getItem('POR_TARGET_GOOGLE_SHEET_URL') || '';
+      } catch (e) {}
+
+      // กรณีรันบน Google Apps Script จริง และมีฟังก์ชันเชื่อมต่อ Google Drive
+      if (typeof google !== 'undefined' && google.script && google.script.run && typeof google.script.run.appendDataToGoogleSheet === 'function') {
+        showLoader('กำลังเชื่อมต่อ Google Sheets...');
+        google.script.run
+          .withSuccessHandler(function(res) {
+            hideLoader();
+            if (res && res.url) {
+              Swal.fire({
+                title: '<i class="fa-solid fa-table" style="color:#0F9D58;"></i> อัปเดต Google Sheet สำเร็จ!',
+                html: 'บันทึกข้อมูลต่อท้ายใน Google Sheet เรียบร้อยแล้ว<br><br>' +
+                      '<a href="' + res.url + '" target="_blank" class="btn btn-primary" style="background:#0F9D58; border-color:#0F9D58;">' +
+                      '<i class="fa-solid fa-arrow-up-right-from-square"></i> เปิดดู Google Sheet ทันที</a>',
+                icon: 'success',
+                confirmButtonColor: '#0A3D62'
+              });
+            } else {
+              showToast('อัปเดต Google Sheet เรียบร้อยแล้ว', 'success');
+            }
+          })
+          .withFailureHandler(function(err) {
+            hideLoader();
+            showGoogleSheetsExportDialog(fileBaseName, tsvWithHeaders, tsvDataOnly, headers, rows, options, savedSheetUrl);
+          })
+          .appendDataToGoogleSheet(STATE.auth, {
+            title: fileBaseName,
+            headers: headers,
+            rows: rows,
+            sheetUrl: savedSheetUrl
+          });
+        return;
+      }
+
+      // ในสภาพแวดล้อมทั่วไป / Web Browser: แสดงไดอะล็อกตัวเลือกครบวงจร
+      showGoogleSheetsExportDialog(fileBaseName, tsvWithHeaders, tsvDataOnly, headers, rows, options, savedSheetUrl);
+    }
+
+    function showGoogleSheetsExportDialog(fileBaseName, tsvWithHeaders, tsvDataOnly, headers, rows, options, savedSheetUrl) {
+      // คัดลอกข้อมูลเฉพาะแถวข้อมูลเป็นค่าเริ่มต้น (สำหรับวางต่อท้ายชีทเดิมได้ทันที)
+      copyTextToClipboardSafe(tsvDataOnly);
+
+      const hasUrl = savedSheetUrl && savedSheetUrl.indexOf('http') === 0;
+
+      const htmlContent =
+        '<div style="text-align:left; font-size:13px; line-height:1.6; color:var(--text-main);">' +
+          '<div style="background:rgba(15, 157, 88, 0.08); border:1.5px solid #0F9D58; border-radius:10px; padding:12px 14px; margin-bottom:14px;">' +
+            '<div style="font-weight:700; color:#0F9D58; font-size:14px; margin-bottom:4px;">' +
+              '<i class="fa-solid fa-circle-check"></i> คัดลอกข้อมูลตาราง (' + rows.length + ' แถว) แล้ว!' +
+            '</div>' +
+            '<div style="color:var(--text-muted); font-size:12.5px;">' +
+              'รูปแบบข้อมูล: <strong>ส่งออกเฉพาะหัวคอลัมน์และแถวข้อมูล</strong> ไม่มีแถวหัวกระดาษรบกวน' +
+            '</div>' +
+          '</div>' +
+
+          '<!-- ช่องระบุลิงก์ Google Sheet เดิมของคุณ -->' +
+          '<div style="margin-bottom:14px;">' +
+            '<label style="font-weight:600; font-size:12.5px; display:block; margin-bottom:4px; color:var(--text-main);">' +
+              '<i class="fa-solid fa-link" style="color:#0F9D58;"></i> ลิงก์ Google Sheet เดิมของคุณ (ใส่ครั้งเดียว ระบบจะจำไว้):' +
+            '</label>' +
+            '<input type="text" id="targetSheetUrlInput" class="form-control" style="font-size:12.5px;" placeholder="วางลิงก์ Google Sheet ของคุณ เช่น https://docs.google.com/spreadsheets/d/.../edit" value="' + escapeHtml(savedSheetUrl) + '">' +
+          '</div>' +
+
+          '<!-- ตัวเลือกการนำเข้า -->' +
+          '<div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">' +
+            (hasUrl
+              ? '<button type="button" class="btn btn-primary" onclick="window.openTargetExistingSheet()" style="background:#0F9D58; border-color:#0F9D58; width:100%; justify-content:center; padding:10px; font-size:13.5px;">' +
+                  '<i class="fa-solid fa-arrow-up-right-from-square"></i> 1. เปิด Google Sheet เดิมของคุณ (วางต่อท้ายแถวเดิม)' +
+                '</button>'
+              : '') +
+
+            '<button type="button" class="btn btn-outline" onclick="window.copySheetDataOnly()" style="width:100%; justify-content:center; padding:8px 12px; font-size:13px;">' +
+              '<i class="fa-solid fa-copy" style="color:#0F9D58;"></i> คัดลอกเฉพาะข้อมูลแถว (ไม่เอาหัวตาราง) เพื่อวางต่อท้าย' +
+            '</button>' +
+
+            '<button type="button" class="btn btn-outline" onclick="window.copySheetWithHeaders()" style="width:100%; justify-content:center; padding:8px 12px; font-size:13px;">' +
+              '<i class="fa-solid fa-table-cells" style="color:#0284C7;"></i> คัดลอกทั้งหัวตารางและข้อมูล (สำหรับชีทใหม่)' +
+            '</button>' +
+
+            '<button type="button" class="btn btn-outline" onclick="window.openNewGoogleSheet()" style="width:100%; justify-content:center; padding:8px 12px; font-size:13px;">' +
+              '<i class="fa-solid fa-plus" style="color:#0F9D58;"></i> เปิดสร้าง Google Sheet ใหม่ (sheets.new)' +
+            '</button>' +
+          '</div>' +
+
+          '<div style="background:var(--bg-body); border:1px solid var(--border-color); border-radius:8px; padding:10px 12px; font-size:12px; color:var(--text-muted);">' +
+            '<strong>💡 วิธีวางข้อมูลต่อจากชีทเดิม:</strong><br>' +
+            '1. เปิด Google Sheet เดิมของคุณ<br>' +
+            '2. คลิกที่ <strong>เซลล์แรกใต้แถวเดิม</strong> ที่ว่างอยู่<br>' +
+            '3. กด <strong>Ctrl + V</strong> (หรือ <strong>Cmd + V</strong> บน Mac) ข้อมูลจะถูกต่อท้ายทันทีโดยไม่ทับหัวตาราง' +
+          '</div>' +
+        '</div>';
+
+      // Attach global helper handlers for the modal buttons
+      window.copySheetDataOnly = function() {
+        saveTargetSheetUrlFromInput();
+        copyTextToClipboardSafe(tsvDataOnly);
+        showToast('คัดลอกเฉพาะแถวข้อมูล (' + rows.length + ' แถว) เรียบร้อย! กด Ctrl+V ต่อท้ายชีทเดิมได้เลย', 'success');
+      };
+
+      window.copySheetWithHeaders = function() {
+        saveTargetSheetUrlFromInput();
+        copyTextToClipboardSafe(tsvWithHeaders);
+        showToast('คัดลอกหัวตารางและแถวข้อมูล (' + rows.length + ' แถว) เรียบร้อย! กด Ctrl+V ได้เลย', 'success');
+      };
+
+      window.openTargetExistingSheet = function() {
+        const url = saveTargetSheetUrlFromInput();
+        copyTextToClipboardSafe(tsvDataOnly);
+        if (url && url.indexOf('http') === 0) {
+          window.open(url, '_blank');
+          showToast('คัดลอกข้อมูลแล้ว & กำลังเปิดชีทเดิมของคุณ ให้คลิกแถวว่างแล้วกด Ctrl+V', 'success');
+        } else {
+          showToast('กรุณาระบุลิงก์ Google Sheet เดิมของคุณในช่องด้านบนก่อน', 'warning');
+        }
+      };
+
+      window.openNewGoogleSheet = function() {
+        saveTargetSheetUrlFromInput();
+        copyTextToClipboardSafe(tsvWithHeaders);
+        window.open('https://sheets.new', '_blank');
+        showToast('คัดลอกพร้อมหัวตารางแล้ว! คลิกช่อง A1 บนชีทใหม่แล้วกด Ctrl+V', 'success');
+      };
+
+      function saveTargetSheetUrlFromInput() {
+        const inputEl = document.getElementById('targetSheetUrlInput');
+        const url = (inputEl ? inputEl.value : '').trim();
+        if (url) {
+          try {
+            localStorage.setItem('POR_TARGET_GOOGLE_SHEET_URL', url);
+          } catch(e) {}
+        }
+        return url;
+      }
+
+      Swal.fire({
+        title: '<i class="fa-solid fa-table" style="color:#0F9D58;"></i> ส่งออกไปยัง Google Sheets',
+        html: htmlContent,
+        showCancelButton: false,
+        showDenyButton: true,
+        confirmButtonText: '<i class="fa-solid fa-arrow-up-right-from-square"></i> ' + (hasUrl ? 'เปิดชีทเดิมของคุณทันที' : 'เปิด Google Sheets (แผ่นใหม่)'),
+        confirmButtonColor: '#0F9D58',
+        denyButtonText: '<i class="fa-solid fa-file-csv"></i> ดาวน์โหลด CSV ตารางนี้',
+        denyButtonColor: '#0284C7'
+      }).then((result) => {
+        saveTargetSheetUrlFromInput();
+        if (result.isConfirmed) {
+          if (hasUrl) {
+            window.openTargetExistingSheet();
+          } else {
+            window.openNewGoogleSheet();
+          }
+        } else if (result.isDenied) {
+          downloadTableFile(fileBaseName, headers, rows, 'csv', Object.assign({}, options, { cleanTableOnly: true }));
+        }
+      });
+    }
+
+    function copyTextToClipboardSafe(text) {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).catch(() => {});
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+        }
+      } catch (e) {}
+    }
+
     function downloadTableFile(fileBaseName, headers, rows, format, options = {}) {
       const titles = getExcelHeaderTitles(options && options.selectedClient);
       if (options && options.titleLine1) titles.line1 = options.titleLine1;
@@ -15553,14 +15932,20 @@ function editProduct(p) {
         return s;
       }
 
+      if (format === 'googlesheets') {
+        exportToGoogleSheetsHandler(fileBaseName, titles, headers, rows, options);
+        return;
+      }
+
       if (format === 'csv') {
-        const csvLines = [
-          '"' + titles.line1.replace(/"/g, '""') + '"',
-          '"' + titles.line2.replace(/"/g, '""') + '"'
-        ];
-        if (isStock || isLotDetails || isStockRemainingReport || isMovementReport) {
-          const emptyCols = new Array(Math.max(headers.length - 1, 0)).fill('""').join(',');
-          csvLines.push(emptyCols + ',"(วันที่ ' + exportDateStr + ')"');
+        const csvLines = [];
+        if (!options.cleanTableOnly) {
+          csvLines.push('"' + titles.line1.replace(/"/g, '""') + '"');
+          csvLines.push('"' + titles.line2.replace(/"/g, '""') + '"');
+          if (isStock || isLotDetails || isStockRemainingReport || isMovementReport) {
+            const emptyCols = new Array(Math.max(headers.length - 1, 0)).fill('""').join(',');
+            csvLines.push(emptyCols + ',"(วันที่ ' + exportDateStr + ')"');
+          }
         }
         csvLines.push(headers.map(h => '"' + h.replace(/"/g, '""') + '"').join(','));
         rows.forEach(r => {
@@ -16155,6 +16540,14 @@ function editProduct(p) {
     }
 
     function exportCurrentReport(format) {
+      if (format === 'googlesheets') {
+        const u = STATE.user;
+        const r = u ? String(u.role || '').trim().toLowerCase() : '';
+        if (r !== 'admin' && r !== 'manager' && r !== 'office') {
+          showToast('สิทธิ์ไม่เพียงพอ: เฉพาะระดับสิทธิ์ Admin, Manager และ Office เท่านั้นที่สามารถส่งออกไปยัง Google Sheets ได้', 'error');
+          return;
+        }
+      }
       const data = getActiveReportData();
       const rpt = STATE.activeReportType;
 
@@ -17462,6 +17855,14 @@ function editProduct(p) {
     }
 
     function exportLotDetailsData(format) {
+      if (format === 'googlesheets') {
+        const u = STATE.user;
+        const r = u ? String(u.role || '').trim().toLowerCase() : '';
+        if (r !== 'admin' && r !== 'manager' && r !== 'office') {
+          showToast('สิทธิ์ไม่เพียงพอ: เฉพาะระดับสิทธิ์ Admin, Manager และ Office เท่านั้นที่สามารถส่งออกไปยัง Google Sheets ได้', 'error');
+          return;
+        }
+      }
       const list = getFilteredLotDetails();
       // ข้อ 1: รายการสินค้าและรายละเอียด ตอนสั่ง Export Excel ไม่ต้องแสดง รหัสลูกค้า, รายละเอียด
       const headers = [
