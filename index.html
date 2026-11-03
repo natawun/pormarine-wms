@@ -16,16 +16,19 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <!-- Chart.js CDN (รองรับตามข้อกำหนด 3.2 แต่หน้า Dashboard ปิดการใช้กราฟทุกชนิดตามข้อกำหนด 3.1/3.2/17) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- Instant Theme Mode Initializer (Flicker-free) -->
+  <!-- Instant Theme Mode Initializer (Flicker-free Light Crystal Default) -->
   <script>
     (function() {
       try {
-        if (localStorage.getItem('POR_THEME_MODE') === 'dark') {
+        const saved = localStorage.getItem('POR_THEME_MODE');
+        if (saved === 'dark') {
           document.documentElement.setAttribute('data-theme', 'dark');
         } else {
-          document.documentElement.removeAttribute('data-theme');
+          document.documentElement.setAttribute('data-theme', 'light');
         }
-      } catch(e) {}
+      } catch(e) {
+        document.documentElement.setAttribute('data-theme', 'light');
+      }
     })();
   </script>
 
@@ -58,14 +61,24 @@
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Sarabun', sans-serif;
-      background-color: var(--bg-body);
-      color: var(--text-main);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', 'Sarabun', sans-serif;
+      background-color: #0F172A;
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.18) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(168, 85, 247, 0.18) 0px, transparent 50%),
+        radial-gradient(at 50% 100%, rgba(236, 72, 153, 0.14) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(2, 132, 199, 0.14) 0px, transparent 50%);
+      background-attachment: fixed;
+      color: #F8FAFC;
       font-size: 14.5px;
       line-height: 1.5;
       overflow-x: hidden;
+      min-height: 100vh;
     }
-    h1, h2, h3, h4, h5, h6, .font-heading { font-family: 'Prompt', sans-serif; }
+    h1, h2, h3, h4, h5, h6, .font-heading {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Prompt', sans-serif;
+      letter-spacing: -0.015em;
+    }
 
     /* Loading Screen & Spinner */
     #globalLoader {
@@ -427,170 +440,627 @@
 
 
 
-    /* True Black Dark Mode Theme Variables & Component Rules (โหมดมืดแบบสีดำ) */
-    [data-theme="dark"] {
+    /* =====================================================================
+       Authentic Futuristic "Glassmorphism" Frosted Glass UI Theme
+       - Core Aesthetic: Translucent frosted glass floating above vibrant neon ambient light orbs
+       - Deep Slate Backdrop (#0f172a), Vibrant Cyan (#38bdf8), Violet (#a855f7), Magenta (#ec4899)
+       - Heavy backdrop-filter: blur(20px), specular glass edge highlight (1px solid rgba(255,255,255,0.2))
+       ===================================================================== */
+
+    /* Ambient Glowing Neon Light Orbs */
+    .glass-ambient-orbs {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+      opacity: 0.95;
+      transition: opacity 0.5s ease;
+    }
+    .ambient-orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(85px);
+      will-change: transform;
+    }
+    .orb-cyan {
+      width: 580px; height: 580px;
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.40) 0%, rgba(56, 189, 248, 0.08) 60%, transparent 80%);
+      top: -120px; left: 10%;
+      animation: floatOrb1 20s ease-in-out infinite alternate;
+    }
+    .orb-violet {
+      width: 680px; height: 680px;
+      background: radial-gradient(circle, rgba(168, 85, 247, 0.36) 0%, rgba(168, 85, 247, 0.06) 60%, transparent 80%);
+      top: 18%; right: -120px;
+      animation: floatOrb2 25s ease-in-out infinite alternate;
+    }
+    .orb-magenta {
+      width: 540px; height: 540px;
+      background: radial-gradient(circle, rgba(236, 72, 153, 0.32) 0%, rgba(236, 72, 153, 0.05) 60%, transparent 80%);
+      bottom: -100px; left: 30%;
+      animation: floatOrb3 22s ease-in-out infinite alternate;
+    }
+    .orb-blue {
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(2, 132, 199, 0.35) 0%, rgba(2, 132, 199, 0.06) 60%, transparent 80%);
+      bottom: 12%; left: -80px;
+      animation: floatOrb4 24s ease-in-out infinite alternate;
+    }
+    @keyframes floatOrb1 {
+      0% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(65px, 45px) scale(1.08); }
+      100% { transform: translate(-35px, 65px) scale(0.94); }
+    }
+    @keyframes floatOrb2 {
+      0% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(-55px, -45px) scale(1.06); }
+      100% { transform: translate(45px, 55px) scale(0.92); }
+    }
+    @keyframes floatOrb3 {
+      0% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(-65px, -55px) scale(1.1); }
+      100% { transform: translate(55px, 25px) scale(0.95); }
+    }
+    @keyframes floatOrb4 {
+      0% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(45px, -55px) scale(1.06); }
+      100% { transform: translate(-25px, 45px) scale(0.92); }
+    }
+
+    /* =====================================================================
+       Item Rows in Receiving & Requisition Modals (แจ้งฝาก & แจ้งเบิก)
+       - High Contrast Typography, Frosted Dark Surface in Dark Mode
+       - Clear Readable Inputs, Labels, Placeholders & Unit Controls
+       ===================================================================== */
+    .rcv-item-row,
+    .req-item-row,
+    .edit-rcv-item-row,
+    .edit-req-item-row {
+      padding: 14px;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      transition: all 0.22s ease;
+      position: relative;
+    }
+
+    /* โหมดมืดนีออน (Deep Slate Dark Glass): กรอบรายการสินค้าสีเข้มโปร่งแสง ตัวหนังสือและช่องกรอกคมชัด 100% */
+    [data-theme="dark"] .rcv-item-row,
+    [data-theme="dark"] .req-item-row,
+    [data-theme="dark"] .edit-rcv-item-row,
+    [data-theme="dark"] .edit-req-item-row,
+    :root:not([data-theme="light"]) .rcv-item-row,
+    :root:not([data-theme="light"]) .req-item-row,
+    :root:not([data-theme="light"]) .edit-rcv-item-row,
+    :root:not([data-theme="light"]) .edit-req-item-row {
+      background: rgba(15, 23, 42, 0.78) !important;
+      backdrop-filter: blur(16px) !important;
+      -webkit-backdrop-filter: blur(16px) !important;
+      border: 1px solid rgba(255, 255, 255, 0.22) !important;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.40), inset 0 1px 1px rgba(255, 255, 255, 0.15) !important;
+      color: #F8FAFC !important;
+    }
+
+    /* หัวข้อและ Label ทุกตัวในกรอบรายการสินค้า (ชื่อสินค้า, หมวดหมู่, รายละเอียด, หน่วยนับ, จำนวน, น้ำหนัก) */
+    [data-theme="dark"] .rcv-item-row label,
+    [data-theme="dark"] .req-item-row label,
+    [data-theme="dark"] .edit-rcv-item-row label,
+    [data-theme="dark"] .edit-req-item-row label,
+    [data-theme="dark"] .rcv-item-row label span,
+    [data-theme="dark"] .req-item-row label span,
+    [data-theme="dark"] .edit-rcv-item-row label span,
+    [data-theme="dark"] .edit-req-item-row label span,
+    :root:not([data-theme="light"]) .rcv-item-row label,
+    :root:not([data-theme="light"]) .req-item-row label,
+    :root:not([data-theme="light"]) .edit-rcv-item-row label,
+    :root:not([data-theme="light"]) .edit-req-item-row label,
+    :root:not([data-theme="light"]) .rcv-item-row label span,
+    :root:not([data-theme="light"]) .req-item-row label span,
+    :root:not([data-theme="light"]) .edit-rcv-item-row label span,
+    :root:not([data-theme="light"]) .edit-req-item-row label span {
+      color: #E2E8F0 !important;
+      font-weight: 600 !important;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.40);
+    }
+
+    /* ช่องกรอกข้อมูลและ Select Dropdown ในกรอบรายการสินค้า */
+    [data-theme="dark"] .rcv-item-row .form-control,
+    [data-theme="dark"] .rcv-item-row .form-select,
+    [data-theme="dark"] .req-item-row .form-control,
+    [data-theme="dark"] .req-item-row .form-select,
+    [data-theme="dark"] .edit-rcv-item-row .form-control,
+    [data-theme="dark"] .edit-rcv-item-row .form-select,
+    [data-theme="dark"] .edit-req-item-row .form-control,
+    [data-theme="dark"] .edit-req-item-row .form-select,
+    :root:not([data-theme="light"]) .rcv-item-row .form-control,
+    :root:not([data-theme="light"]) .rcv-item-row .form-select,
+    :root:not([data-theme="light"]) .req-item-row .form-control,
+    :root:not([data-theme="light"]) .req-item-row .form-select,
+    :root:not([data-theme="light"]) .edit-rcv-item-row .form-control,
+    :root:not([data-theme="light"]) .edit-rcv-item-row .form-select,
+    :root:not([data-theme="light"]) .edit-req-item-row .form-control,
+    :root:not([data-theme="light"]) .edit-req-item-row .form-select {
+      background-color: rgba(255, 255, 255, 0.09) !important;
+      color: #FFFFFF !important;
+      border: 1px solid rgba(255, 255, 255, 0.24) !important;
+      border-radius: 8px !important;
+      font-size: 13.5px !important;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.20) !important;
+    }
+
+    /* เมื่อคลิกหรือโฟกัสที่ช่องกรอก */
+    [data-theme="dark"] .rcv-item-row .form-control:focus,
+    [data-theme="dark"] .rcv-item-row .form-select:focus,
+    [data-theme="dark"] .req-item-row .form-control:focus,
+    [data-theme="dark"] .req-item-row .form-select:focus,
+    [data-theme="dark"] .edit-rcv-item-row .form-control:focus,
+    [data-theme="dark"] .edit-rcv-item-row .form-select:focus,
+    [data-theme="dark"] .edit-req-item-row .form-control:focus,
+    [data-theme="dark"] .edit-req-item-row .form-select:focus,
+    :root:not([data-theme="light"]) .rcv-item-row .form-control:focus,
+    :root:not([data-theme="light"]) .rcv-item-row .form-select:focus,
+    :root:not([data-theme="light"]) .req-item-row .form-control:focus,
+    :root:not([data-theme="light"]) .req-item-row .form-select:focus,
+    :root:not([data-theme="light"]) .edit-rcv-item-row .form-control:focus,
+    :root:not([data-theme="light"]) .edit-rcv-item-row .form-select:focus,
+    :root:not([data-theme="light"]) .edit-req-item-row .form-control:focus,
+    :root:not([data-theme="light"]) .edit-req-item-row .form-select:focus {
+      background-color: rgba(255, 255, 255, 0.15) !important;
+      border-color: #38BDF8 !important;
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25), 0 0 14px rgba(56, 189, 248, 0.35) !important;
+      color: #FFFFFF !important;
+    }
+
+    /* ช่อง Readonly ในกรอบรายการสินค้า (เช่น ช่องคำนวณน้ำหนักรวม หรือรายละเอียดที่ดึงจากสต็อก) */
+    [data-theme="dark"] .rcv-item-row input[readonly],
+    [data-theme="dark"] .req-item-row input[readonly],
+    [data-theme="dark"] .edit-rcv-item-row input[readonly],
+    [data-theme="dark"] .edit-req-item-row input[readonly],
+    :root:not([data-theme="light"]) .rcv-item-row input[readonly],
+    :root:not([data-theme="light"]) .req-item-row input[readonly],
+    :root:not([data-theme="light"]) .edit-rcv-item-row input[readonly],
+    :root:not([data-theme="light"]) .edit-req-item-row input[readonly] {
+      background-color: rgba(255, 255, 255, 0.05) !important;
+      color: #38BDF8 !important;
+      border: 1px solid rgba(255, 255, 255, 0.18) !important;
+      font-weight: 600 !important;
+    }
+
+    /* ตัวหนังสือตัวอย่างในช่องกรอก (Placeholder) */
+    [data-theme="dark"] .rcv-item-row input::placeholder,
+    [data-theme="dark"] .req-item-row input::placeholder,
+    [data-theme="dark"] .edit-rcv-item-row input::placeholder,
+    [data-theme="dark"] .edit-req-item-row input::placeholder,
+    :root:not([data-theme="light"]) .rcv-item-row input::placeholder,
+    :root:not([data-theme="light"]) .req-item-row input::placeholder,
+    :root:not([data-theme="light"]) .edit-rcv-item-row input::placeholder,
+    :root:not([data-theme="light"]) .edit-req-item-row input::placeholder {
+      color: #94A3B8 !important;
+      opacity: 1 !important;
+    }
+
+    /* ป้ายเลขลำดับแถว (Row Badge) */
+    [data-theme="dark"] .rcv-row-badge,
+    [data-theme="dark"] .req-row-badge,
+    [data-theme="dark"] .edit-rcv-row-badge,
+    [data-theme="dark"] .edit-req-row-badge,
+    :root:not([data-theme="light"]) .rcv-row-badge,
+    :root:not([data-theme="light"]) .req-row-badge,
+    :root:not([data-theme="light"]) .edit-rcv-row-badge,
+    :root:not([data-theme="light"]) .edit-req-row-badge {
+      background: #0284C7 !important;
+      color: #FFFFFF !important;
+      box-shadow: 0 0 8px rgba(2, 132, 199, 0.5) !important;
+    }
+
+    /* ปุ่มเสริม "น้ำหนักชั่ง" ในแถวสินค้า */
+    [data-theme="dark"] .rcv-item-row button[onclick*="Weighed"],
+    [data-theme="dark"] .req-item-row button[onclick*="Weighed"],
+    [data-theme="dark"] .edit-rcv-item-row button[onclick*="Weighed"],
+    [data-theme="dark"] .edit-req-item-row button[onclick*="Weighed"],
+    :root:not([data-theme="light"]) .rcv-item-row button[onclick*="Weighed"],
+    :root:not([data-theme="light"]) .req-item-row button[onclick*="Weighed"],
+    :root:not([data-theme="light"]) .edit-rcv-item-row button[onclick*="Weighed"],
+    :root:not([data-theme="light"]) .edit-req-item-row button[onclick*="Weighed"] {
+      border: 1px solid #38BDF8 !important;
+      color: #38BDF8 !important;
+      background: rgba(56, 189, 248, 0.15) !important;
+      font-weight: 600 !important;
+      transition: all 0.2s ease !important;
+    }
+    [data-theme="dark"] .rcv-item-row button[onclick*="Weighed"]:hover,
+    [data-theme="dark"] .req-item-row button[onclick*="Weighed"]:hover,
+    [data-theme="dark"] .edit-rcv-item-row button[onclick*="Weighed"]:hover,
+    [data-theme="dark"] .edit-req-item-row button[onclick*="Weighed"]:hover,
+    :root:not([data-theme="light"]) .rcv-item-row button[onclick*="Weighed"]:hover,
+    :root:not([data-theme="light"]) .req-item-row button[onclick*="Weighed"]:hover,
+    :root:not([data-theme="light"]) .edit-rcv-item-row button[onclick*="Weighed"]:hover,
+    :root:not([data-theme="light"]) .edit-req-item-row button[onclick*="Weighed"]:hover {
+      background: rgba(56, 189, 248, 0.28) !important;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.40) !important;
+    }
+
+    /* ตัวเลือกใน Dropdown (select option) ให้พื้นหลังมืด ตัวหนังสือขาวชัดเจน */
+    [data-theme="dark"] .rcv-item-row select option,
+    [data-theme="dark"] .req-item-row select option,
+    [data-theme="dark"] .edit-rcv-item-row select option,
+    [data-theme="dark"] .edit-req-item-row select option,
+    :root:not([data-theme="light"]) .rcv-item-row select option,
+    :root:not([data-theme="light"]) .req-item-row select option,
+    :root:not([data-theme="light"]) .edit-rcv-item-row select option,
+    :root:not([data-theme="light"]) .edit-req-item-row select option {
+      background-color: #0F172A !important;
+      color: #FFFFFF !important;
+    }
+
+    /* แถบสรุปผลรวมท้ายรายการสินค้า (จำนวนรวมทั้งหมด และ น้ำหนักรวมทั้งหมด) */
+    [data-theme="dark"] #modalReceiving [style*="border-top:1px solid"],
+    [data-theme="dark"] #modalRequisition [style*="border-top:1px solid"],
+    [data-theme="dark"] #modalEditReceiving [style*="border-top:1px solid"],
+    [data-theme="dark"] #modalEditRequisition [style*="border-top:1px solid"],
+    :root:not([data-theme="light"]) #modalReceiving [style*="border-top:1px solid"],
+    :root:not([data-theme="light"]) #modalRequisition [style*="border-top:1px solid"],
+    :root:not([data-theme="light"]) #modalEditReceiving [style*="border-top:1px solid"],
+    :root:not([data-theme="light"]) #modalEditRequisition [style*="border-top:1px solid"] {
+      border-top-color: rgba(255, 255, 255, 0.16) !important;
+      color: #F8FAFC !important;
+    }
+
+    /* =====================================================================
+       โหมดสว่างคริสตัล: การแสดงผลกรอบรายการสินค้าในโหมดสว่าง
+       ===================================================================== */
+    [data-theme="light"] .rcv-item-row,
+    [data-theme="light"] .req-item-row,
+    [data-theme="light"] .edit-rcv-item-row,
+    [data-theme="light"] .edit-req-item-row {
+      background: #FFFFFF !important;
+      border: 1px solid #CBD5E1 !important;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+      color: #0F172A !important;
+    }
+    [data-theme="light"] .rcv-item-row label,
+    [data-theme="light"] .req-item-row label,
+    [data-theme="light"] .edit-rcv-item-row label,
+    [data-theme="light"] .edit-req-item-row label {
+      color: #1E293B !important;
+      font-weight: 600 !important;
+    }
+    [data-theme="light"] .rcv-item-row .form-control,
+    [data-theme="light"] .rcv-item-row .form-select,
+    [data-theme="light"] .req-item-row .form-control,
+    [data-theme="light"] .req-item-row .form-select,
+    [data-theme="light"] .edit-rcv-item-row .form-control,
+    [data-theme="light"] .edit-rcv-item-row .form-select,
+    [data-theme="light"] .edit-req-item-row .form-control,
+    [data-theme="light"] .edit-req-item-row .form-select {
+      background-color: #FFFFFF !important;
+      color: #0F172A !important;
+      border: 1px solid #CBD5E1 !important;
+    }
+    [data-theme="light"] .rcv-item-row input[readonly],
+    [data-theme="light"] .req-item-row input[readonly],
+    [data-theme="light"] .edit-rcv-item-row input[readonly],
+    [data-theme="light"] .edit-req-item-row input[readonly] {
+      background-color: #F8FAFC !important;
+      color: #0284C7 !important;
+      border-color: #CBD5E1 !important;
+      font-weight: 600 !important;
+    }
+
+    /* Common Glassmorphism Structure & Translucent Floating Layout */
+    #appContainer,
+    .main-wrapper,
+    .page-content {
+      background: transparent !important;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* =====================================================================
+       Dark Theme (Deep Slate Backdrop with Radiant Neon Orbs - Default Style)
+       ===================================================================== */
+    [data-theme="dark"],
+    :root:not([data-theme="light"]) {
       --primary-navy: #38BDF8;
       --primary-blue: #0284C7;
-      --primary-light: #182230;
+      --primary-light: rgba(56, 189, 248, 0.15);
       --golden-orange: #F59E0B;
       --golden-dark: #D97706;
-      --golden-light: #261A00;
-      --bg-body: #000000;
-      --bg-card: #111111;
-      --text-main: #FFFFFF;
-      --text-muted: #A3A3A3;
-      --border-color: #242424;
-      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.6);
-      --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.7);
-      --shadow-lg: 0 12px 30px rgba(0, 0, 0, 0.85);
+      --golden-light: rgba(245, 158, 11, 0.15);
+      --bg-body: #0F172A;
+      --bg-card: rgba(255, 255, 255, 0.08);
+      --text-main: #F8FAFC;
+      --text-muted: #94A3B8;
+      --border-color: rgba(255, 255, 255, 0.20);
+      --shadow-sm: 0 4px 15px rgba(0,0,0,0.25);
+      --shadow-md: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+      --shadow-lg: 0 16px 48px 0 rgba(0, 0, 0, 0.50);
     }
 
-    [data-theme="dark"] body {
-      background-color: #000000 !important;
+    [data-theme="dark"] body,
+    :root:not([data-theme="light"]) body {
+      background-color: #0F172A !important;
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.18) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(168, 85, 247, 0.18) 0px, transparent 50%),
+        radial-gradient(at 50% 100%, rgba(236, 72, 153, 0.14) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(2, 132, 199, 0.14) 0px, transparent 50%) !important;
+      background-attachment: fixed !important;
+      color: #F8FAFC !important;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', 'Sarabun', sans-serif !important;
+    }
+
+    /* Sidebar in Authentic Frosted Glass */
+    [data-theme="dark"] .sidebar,
+    :root:not([data-theme="light"]) .sidebar {
+      background: rgba(15, 23, 42, 0.75) !important;
+      backdrop-filter: blur(20px) !important;
+      -webkit-backdrop-filter: blur(20px) !important;
+      border-right: 1px solid rgba(255, 255, 255, 0.16) !important;
+      box-shadow: 4px 0 30px rgba(0, 0, 0, 0.40) !important;
+    }
+    [data-theme="dark"] .sidebar-brand,
+    :root:not([data-theme="light"]) .sidebar-brand {
+      background: rgba(255, 255, 255, 0.04) !important;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.14) !important;
+    }
+    [data-theme="dark"] .sidebar-footer,
+    :root:not([data-theme="light"]) .sidebar-footer {
+      background: rgba(255, 255, 255, 0.04) !important;
+      border-top: 1px solid rgba(255, 255, 255, 0.14) !important;
+    }
+    [data-theme="dark"] .sidebar-menu .nav-btn,
+    :root:not([data-theme="light"]) .sidebar-menu .nav-btn {
+      color: #CBD5E1 !important;
+      border: 1px solid transparent !important;
+      transition: all 0.22s ease !important;
+    }
+    [data-theme="dark"] .sidebar-menu .nav-btn:hover,
+    :root:not([data-theme="light"]) .sidebar-menu .nav-btn:hover {
+      background: rgba(255, 255, 255, 0.09) !important;
       color: #FFFFFF !important;
+      border: 1px solid rgba(255, 255, 255, 0.20) !important;
+      backdrop-filter: blur(10px) !important;
+      -webkit-backdrop-filter: blur(10px) !important;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25) !important;
+    }
+    [data-theme="dark"] .sidebar-menu .nav-btn.active,
+    :root:not([data-theme="light"]) .sidebar-menu .nav-btn.active {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.32) 0%, rgba(168, 85, 247, 0.32) 100%) !important;
+      color: #FFFFFF !important;
+      border: 1px solid rgba(56, 189, 248, 0.60) !important;
+      box-shadow: 0 4px 18px rgba(56, 189, 248, 0.30), inset 0 1px 1px rgba(255, 255, 255, 0.40) !important;
+      backdrop-filter: blur(10px) !important;
+      -webkit-backdrop-filter: blur(10px) !important;
     }
 
-    [data-theme="dark"] .main-wrapper,
-    [data-theme="dark"] .page-content {
-      background-color: #000000 !important;
+    /* Top Header in Frosted Glass */
+    [data-theme="dark"] .top-header,
+    :root:not([data-theme="light"]) .top-header {
+      background: rgba(15, 23, 42, 0.72) !important;
+      backdrop-filter: blur(20px) !important;
+      -webkit-backdrop-filter: blur(20px) !important;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.16) !important;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25) !important;
     }
-
-    /* Sidebar in True Black Dark Mode */
-    [data-theme="dark"] .sidebar {
-      background: #080808 !important;
-      border-right: 1px solid #1E1E1E !important;
-      box-shadow: 4px 0 20px rgba(0,0,0,0.85) !important;
-    }
-    [data-theme="dark"] .sidebar-brand {
-      background: #000000 !important;
-      border-bottom: 1px solid #1E1E1E !important;
-    }
-    [data-theme="dark"] .sidebar-footer {
-      background: #000000 !important;
-      border-top: 1px solid #1E1E1E !important;
-    }
-    [data-theme="dark"] .sidebar-menu .nav-btn {
-      color: #D4D4D4;
-    }
-    [data-theme="dark"] .sidebar-menu .nav-btn:hover {
-      background: #181818;
-      color: #FFFFFF;
-    }
-    [data-theme="dark"] .sidebar-menu .nav-btn.active {
-      background: linear-gradient(90deg, #0284C7 0%, #0369A1 100%);
-      color: #FFFFFF;
-    }
-
-    /* Top Header True Black Dark Mode */
-    [data-theme="dark"] .top-header {
-      background: #0D0D0D !important;
-      border-bottom: 1px solid #1E1E1E !important;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.6) !important;
-    }
-    [data-theme="dark"] .sidebar-toggle-btn {
-      background: #141414 !important;
-      border-color: #2B2B2B !important;
+    [data-theme="dark"] .sidebar-toggle-btn,
+    :root:not([data-theme="light"]) .sidebar-toggle-btn {
+      background: rgba(255, 255, 255, 0.08) !important;
+      border: 1px solid rgba(255, 255, 255, 0.20) !important;
       color: #38BDF8 !important;
+      backdrop-filter: blur(10px) !important;
+      -webkit-backdrop-filter: blur(10px) !important;
     }
-    [data-theme="dark"] .sidebar-toggle-btn:hover {
-      background: #222222 !important;
+    [data-theme="dark"] .sidebar-toggle-btn:hover,
+    :root:not([data-theme="light"]) .sidebar-toggle-btn:hover {
+      background: rgba(56, 189, 248, 0.20) !important;
       border-color: #38BDF8 !important;
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.35) !important;
     }
-    [data-theme="dark"] .desktop-header-title {
+    [data-theme="dark"] .desktop-header-title,
+    :root:not([data-theme="light"]) .desktop-header-title {
       color: #FFFFFF !important;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Prompt', sans-serif !important;
     }
-    [data-theme="dark"] .theme-toggle-btn {
-      background: #141414 !important;
+    [data-theme="dark"] .theme-toggle-btn,
+    :root:not([data-theme="light"]) .theme-toggle-btn {
+      background: rgba(255, 255, 255, 0.08) !important;
       color: #F59E0B !important;
-      border-color: #2B2B2B !important;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.5) !important;
+      border: 1px solid rgba(255, 255, 255, 0.20) !important;
+      backdrop-filter: blur(10px) !important;
+      -webkit-backdrop-filter: blur(10px) !important;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25) !important;
     }
-    [data-theme="dark"] .theme-toggle-btn:hover {
-      background: #222222 !important;
-      color: #FDE68A !important;
+    [data-theme="dark"] .theme-toggle-btn:hover,
+    :root:not([data-theme="light"]) .theme-toggle-btn:hover {
+      background: rgba(245, 158, 11, 0.18) !important;
       border-color: #F59E0B !important;
-      box-shadow: 0 0 12px rgba(245, 158, 11, 0.3) !important;
+      box-shadow: 0 0 14px rgba(245, 158, 11, 0.40) !important;
     }
-    [data-theme="dark"] .user-chip {
-      background: #141414 !important;
-      border-color: #2B2B2B !important;
+    [data-theme="dark"] .user-chip,
+    :root:not([data-theme="light"]) .user-chip {
+      background: rgba(255, 255, 255, 0.08) !important;
+      border: 1px solid rgba(255, 255, 255, 0.20) !important;
+      backdrop-filter: blur(10px) !important;
+      -webkit-backdrop-filter: blur(10px) !important;
     }
-    [data-theme="dark"] .user-meta .u-name {
+    [data-theme="dark"] .user-meta .u-name,
+    :root:not([data-theme="light"]) .user-meta .u-name {
       color: #FFFFFF !important;
     }
-    [data-theme="dark"] .notif-bell-btn {
-      background: #141414 !important;
-      border-color: #2B2B2B !important;
-      color: #E5E5E5 !important;
+    [data-theme="dark"] .notif-bell-btn,
+    :root:not([data-theme="light"]) .notif-bell-btn {
+      background: rgba(255, 255, 255, 0.08) !important;
+      border: 1px solid rgba(255, 255, 255, 0.20) !important;
+      color: #E2E8F0 !important;
+      backdrop-filter: blur(10px) !important;
+      -webkit-backdrop-filter: blur(10px) !important;
     }
-    [data-theme="dark"] .global-search-wrap input {
-      background: #141414 !important;
-      border-color: #2B2B2B !important;
-      color: #FFFFFF !important;
-    }
-    [data-theme="dark"] .global-search-wrap input:focus {
-      background: #1E1E1E !important;
+    [data-theme="dark"] .notif-bell-btn:hover,
+    :root:not([data-theme="light"]) .notif-bell-btn:hover {
+      background: rgba(56, 189, 248, 0.15) !important;
       border-color: #38BDF8 !important;
-      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25) !important;
-    }
-    [data-theme="dark"] #globalSearchDropdown {
-      background: #141414 !important;
-      border-color: #2B2B2B !important;
-      color: #FFFFFF !important;
-      box-shadow: 0 15px 35px rgba(0,0,0,0.85) !important;
-    }
-    [data-theme="dark"] .global-search-item {
-      border-bottom-color: #1F1F1F !important;
-      color: #FFFFFF !important;
-    }
-    [data-theme="dark"] .global-search-item:hover {
-      background: #222222 !important;
-    }
-
-    /* Cards & KPI Grid True Black Dark Mode */
-    [data-theme="dark"] .card-box {
-      background: #111111 !important;
-      border-color: #242424 !important;
-      color: #FFFFFF !important;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.5) !important;
-    }
-    [data-theme="dark"] .card-box-header {
-      border-bottom-color: #222222 !important;
-    }
-    [data-theme="dark"] .card-box-title {
       color: #38BDF8 !important;
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.35) !important;
     }
-    [data-theme="dark"] .section-title {
+    [data-theme="dark"] .global-search-wrap input,
+    :root:not([data-theme="light"]) .global-search-wrap input {
+      background: rgba(255, 255, 255, 0.08) !important;
+      border: 1px solid rgba(255, 255, 255, 0.20) !important;
+      color: #FFFFFF !important;
+      backdrop-filter: blur(12px) !important;
+      -webkit-backdrop-filter: blur(12px) !important;
+    }
+    [data-theme="dark"] .global-search-wrap input:focus,
+    :root:not([data-theme="light"]) .global-search-wrap input:focus {
+      background: rgba(255, 255, 255, 0.14) !important;
+      border-color: #38BDF8 !important;
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25), 0 0 15px rgba(56, 189, 248, 0.30) !important;
+    }
+    [data-theme="dark"] #globalSearchDropdown,
+    :root:not([data-theme="light"]) #globalSearchDropdown {
+      background: rgba(15, 23, 42, 0.88) !important;
+      backdrop-filter: blur(20px) !important;
+      -webkit-backdrop-filter: blur(20px) !important;
+      border: 1px solid rgba(255, 255, 255, 0.22) !important;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.60) !important;
       color: #FFFFFF !important;
     }
-    [data-theme="dark"] .kpi-card {
-      background: #111111 !important;
-      border-color: #242424 !important;
-      color: #FFFFFF !important;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.4) !important;
+    [data-theme="dark"] .global-search-item,
+    :root:not([data-theme="light"]) .global-search-item {
+      border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+      color: #F1F5F9 !important;
     }
-    [data-theme="dark"] .kpi-card:hover {
-      border-color: #383838 !important;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.7) !important;
-    }
-    [data-theme="dark"] .kpi-label {
-      color: #A3A3A3 !important;
-    }
-    [data-theme="dark"] .kpi-main-num {
-      color: #FFFFFF !important;
-    }
-    [data-theme="dark"] .kpi-unit-text {
-      color: #A3A3A3 !important;
-    }
-    [data-theme="dark"] .filter-bar {
-      background: #0A0A0A !important;
-      border-color: #242424 !important;
-    }
-    [data-theme="dark"] .filter-group label {
-      color: #A3A3A3 !important;
+    [data-theme="dark"] .global-search-item:hover,
+    :root:not([data-theme="light"]) .global-search-item:hover {
+      background: rgba(56, 189, 248, 0.15) !important;
     }
 
-    /* Form Controls & Inputs True Black Dark Mode */
+    /* Cards & KPI Grid in Authentic Frosted Glass with Colored Top Borders */
+    [data-theme="dark"] .card-box,
+    :root:not([data-theme="light"]) .card-box {
+      background: rgba(255, 255, 255, 0.08) !important;
+      backdrop-filter: blur(20px) !important;
+      -webkit-backdrop-filter: blur(20px) !important;
+      border: 1px solid rgba(255, 255, 255, 0.20) !important;
+      border-top-width: 4px !important;
+      border-top-style: solid !important;
+      border-top-color: #38BDF8 !important;
+      border-radius: 16px !important;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37), inset 0 1px 1px 0 rgba(255, 255, 255, 0.25) !important;
+      color: #F8FAFC !important;
+      transition: all 0.25s ease !important;
+      position: relative;
+      overflow: hidden;
+    }
+    [data-theme="dark"] .card-box.blue-strip,
+    :root:not([data-theme="light"]) .card-box.blue-strip {
+      border-top-color: #38BDF8 !important;
+    }
+    [data-theme="dark"] .card-box.orange-strip,
+    :root:not([data-theme="light"]) .card-box.orange-strip {
+      border-top-color: #F59E0B !important;
+    }
+    [data-theme="dark"] .card-box.green-strip,
+    :root:not([data-theme="light"]) .card-box.green-strip {
+      border-top-color: #10B981 !important;
+    }
+    [data-theme="dark"] .card-box.red-strip,
+    :root:not([data-theme="light"]) .card-box.red-strip {
+      border-top-color: #EF4444 !important;
+    }
+    [data-theme="dark"] .card-box.navy-strip,
+    :root:not([data-theme="light"]) .card-box.navy-strip {
+      border-top-color: #0284C7 !important;
+    }
+    [data-theme="dark"] .card-box:hover,
+    :root:not([data-theme="light"]) .card-box:hover {
+      border-color: rgba(255, 255, 255, 0.30) !important;
+      box-shadow: 0 12px 36px 0 rgba(0, 0, 0, 0.42), inset 0 1px 2px 0 rgba(255, 255, 255, 0.35) !important;
+    }
+    [data-theme="dark"] .card-box-header,
+    :root:not([data-theme="light"]) .card-box-header {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+    }
+    [data-theme="dark"] .card-box-title,
+    :root:not([data-theme="light"]) .card-box-title {
+      color: #38BDF8 !important;
+      text-shadow: 0 0 14px rgba(56, 189, 248, 0.40);
+    }
+    [data-theme="dark"] .section-title,
+    :root:not([data-theme="light"]) .section-title {
+      color: #FFFFFF !important;
+      text-shadow: 0 0 12px rgba(255, 255, 255, 0.25);
+    }
+    [data-theme="dark"] .kpi-card,
+    :root:not([data-theme="light"]) .kpi-card {
+      background: rgba(255, 255, 255, 0.08) !important;
+      backdrop-filter: blur(20px) !important;
+      -webkit-backdrop-filter: blur(20px) !important;
+      border: 1px solid rgba(255, 255, 255, 0.20) !important;
+      border-top-width: 4px !important;
+      border-top-style: solid !important;
+      border-radius: 14px !important;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.30), inset 0 1px 1px rgba(255, 255, 255, 0.22) !important;
+      color: #F8FAFC !important;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+      overflow: hidden;
+    }
+    [data-theme="dark"] .kpi-card.kpi-navy,
+    :root:not([data-theme="light"]) .kpi-card.kpi-navy {
+      border-top-color: #38BDF8 !important;
+    }
+    [data-theme="dark"] .kpi-card.kpi-orange,
+    :root:not([data-theme="light"]) .kpi-card.kpi-orange {
+      border-top-color: #F59E0B !important;
+    }
+    [data-theme="dark"] .kpi-card.kpi-green,
+    :root:not([data-theme="light"]) .kpi-card.kpi-green {
+      border-top-color: #10B981 !important;
+    }
+    [data-theme="dark"] .kpi-card.kpi-red,
+    :root:not([data-theme="light"]) .kpi-card.kpi-red {
+      border-top-color: #EF4444 !important;
+    }
+    [data-theme="dark"] .kpi-card.kpi-blue,
+    :root:not([data-theme="light"]) .kpi-card.kpi-blue {
+      border-top-color: #0284C7 !important;
+    }
+    [data-theme="dark"] .kpi-card:hover,
+    :root:not([data-theme="light"]) .kpi-card:hover {
+      background: rgba(255, 255, 255, 0.12) !important;
+      border-color: rgba(56, 189, 248, 0.50) !important;
+      box-shadow: 0 14px 40px rgba(56, 189, 248, 0.25), inset 0 1px 2px rgba(255, 255, 255, 0.40) !important;
+      transform: translateY(-3px);
+    }
+    [data-theme="dark"] .kpi-label,
+    :root:not([data-theme="light"]) .kpi-label {
+      color: #94A3B8 !important;
+    }
+    [data-theme="dark"] .kpi-main-num,
+    :root:not([data-theme="light"]) .kpi-main-num {
+      color: #FFFFFF !important;
+      text-shadow: 0 0 12px rgba(255, 255, 255, 0.30);
+    }
+    [data-theme="dark"] .kpi-unit-text,
+    :root:not([data-theme="light"]) .kpi-unit-text {
+      color: #94A3B8 !important;
+    }
+    [data-theme="dark"] .filter-bar,
+    :root:not([data-theme="light"]) .filter-bar {
+      background: rgba(255, 255, 255, 0.05) !important;
+      backdrop-filter: blur(15px) !important;
+      -webkit-backdrop-filter: blur(15px) !important;
+      border: 1px solid rgba(255, 255, 255, 0.16) !important;
+      border-radius: 12px !important;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.20), inset 0 1px 1px rgba(255, 255, 255, 0.15) !important;
+    }
+    [data-theme="dark"] .filter-group label,
+    :root:not([data-theme="light"]) .filter-group label {
+      color: #CBD5E1 !important;
+    }
+
+    /* Form Controls & Inputs in Frosted Glass */
     [data-theme="dark"] .form-control,
     [data-theme="dark"] .form-select,
     [data-theme="dark"] input[type="text"],
@@ -598,238 +1068,661 @@
     [data-theme="dark"] input[type="date"],
     [data-theme="dark"] input[type="password"],
     [data-theme="dark"] select,
-    [data-theme="dark"] textarea {
-      background-color: #0A0A0A !important;
+    [data-theme="dark"] textarea,
+    :root:not([data-theme="light"]) .form-control,
+    :root:not([data-theme="light"]) .form-select,
+    :root:not([data-theme="light"]) input[type="text"],
+    :root:not([data-theme="light"]) input[type="number"],
+    :root:not([data-theme="light"]) input[type="date"],
+    :root:not([data-theme="light"]) input[type="password"],
+    :root:not([data-theme="light"]) select,
+    :root:not([data-theme="light"]) textarea {
+      background-color: rgba(255, 255, 255, 0.07) !important;
       color: #FFFFFF !important;
-      border-color: #282828 !important;
+      border: 1px solid rgba(255, 255, 255, 0.20) !important;
+      backdrop-filter: blur(12px) !important;
+      -webkit-backdrop-filter: blur(12px) !important;
+      border-radius: 9px !important;
+      transition: all 0.2s ease !important;
     }
     [data-theme="dark"] .form-control:focus,
     [data-theme="dark"] .form-select:focus,
     [data-theme="dark"] input:focus,
     [data-theme="dark"] select:focus,
-    [data-theme="dark"] textarea:focus {
+    [data-theme="dark"] textarea:focus,
+    :root:not([data-theme="light"]) .form-control:focus,
+    :root:not([data-theme="light"]) .form-select:focus,
+    :root:not([data-theme="light"]) input:focus,
+    :root:not([data-theme="light"]) select:focus,
+    :root:not([data-theme="light"]) textarea:focus {
       border-color: #38BDF8 !important;
-      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25) !important;
-      background-color: #141414 !important;
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25), 0 0 15px rgba(56, 189, 248, 0.30) !important;
+      background-color: rgba(255, 255, 255, 0.12) !important;
     }
-    [data-theme="dark"] select option {
-      background-color: #0A0A0A !important;
+    [data-theme="dark"] select option,
+    :root:not([data-theme="light"]) select option {
+      background-color: #0F172A !important;
       color: #FFFFFF !important;
     }
-    [data-theme="dark"] .btn-outline {
-      background: #141414 !important;
-      color: #E5E5E5 !important;
-      border-color: #282828 !important;
+    [data-theme="dark"] .btn-outline,
+    :root:not([data-theme="light"]) .btn-outline {
+      background: rgba(255, 255, 255, 0.08) !important;
+      color: #F1F5F9 !important;
+      border: 1px solid rgba(255, 255, 255, 0.22) !important;
+      backdrop-filter: blur(10px) !important;
+      -webkit-backdrop-filter: blur(10px) !important;
     }
-    [data-theme="dark"] .btn-outline:hover:not(:disabled) {
-      background: #262626 !important;
+    [data-theme="dark"] .btn-outline:hover:not(:disabled),
+    :root:not([data-theme="light"]) .btn-outline:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.15) !important;
       color: #FFFFFF !important;
+      border-color: rgba(255, 255, 255, 0.35) !important;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.30) !important;
     }
 
-    /* Tables True Black Dark Mode */
-    [data-theme="dark"] .table-responsive {
-      border-color: #242424 !important;
+    /* Tables in Frosted Glass */
+    [data-theme="dark"] .table-responsive,
+    :root:not([data-theme="light"]) .table-responsive {
+      border: 1px solid rgba(255, 255, 255, 0.18) !important;
+      border-radius: 12px !important;
+      background: rgba(15, 23, 42, 0.45) !important;
+      backdrop-filter: blur(15px) !important;
+      -webkit-backdrop-filter: blur(15px) !important;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.12) !important;
     }
-    [data-theme="dark"] table.data-table {
-      background: #111111 !important;
+    [data-theme="dark"] table.data-table,
+    :root:not([data-theme="light"]) table.data-table {
+      background: transparent !important;
+      color: #F1F5F9 !important;
+    }
+    [data-theme="dark"] table.data-table th,
+    :root:not([data-theme="light"]) table.data-table th {
+      background: rgba(255, 255, 255, 0.08) !important;
+      color: #38BDF8 !important;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.20) !important;
+      font-weight: 600;
+    }
+    /* In Dark Mode: default numbers and text (black in light mode) MUST BE PURE WHITE #FFFFFF */
+    [data-theme="dark"] table.data-table td,
+    :root:not([data-theme="light"]) table.data-table td {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
       color: #FFFFFF !important;
     }
-    [data-theme="dark"] table.data-table th {
-      background: #050505 !important;
+    [data-theme="dark"] table.data-table td strong,
+    [data-theme="dark"] table.data-table td small,
+    :root:not([data-theme="light"]) table.data-table td strong,
+    :root:not([data-theme="light"]) table.data-table td small {
       color: #FFFFFF !important;
-      border-bottom: 2px solid #282828 !important;
     }
-    [data-theme="dark"] table.data-table td {
-      border-bottom: 1px solid #1E1E1E !important;
-      color: #F5F5F5 !important;
-    }
-    [data-theme="dark"] table.data-table tbody tr:hover {
-      background: #1C1C1C !important;
-    }
-    [data-theme="dark"] table.data-table tbody tr:nth-child(even) {
-      background: rgba(255, 255, 255, 0.015) !important;
+    [data-theme="dark"] table.data-table td small,
+    :root:not([data-theme="light"]) table.data-table td small {
+      opacity: 0.85 !important;
     }
 
-    /* Modals True Black Dark Mode */
-    [data-theme="dark"] .modal-dialog {
-      background: #111111 !important;
-      border-color: #262626 !important;
+    /* In Dark Mode: col-remain-qty numbers are Green #10B981 */
+    [data-theme="dark"] table.data-table td.col-remain-qty,
+    [data-theme="dark"] table.data-table td.col-remain-qty span,
+    [data-theme="dark"] table.data-table td.col-remain-qty strong,
+    :root:not([data-theme="light"]) table.data-table td.col-remain-qty,
+    :root:not([data-theme="light"]) table.data-table td.col-remain-qty span,
+    :root:not([data-theme="light"]) table.data-table td.col-remain-qty strong {
+      color: #10B981 !important;
+    }
+
+    [data-theme="dark"] table.data-table td.text-green strong,
+    [data-theme="dark"] table.data-table td[style*="color:#10B981"] strong,
+    [data-theme="dark"] table.data-table td strong.text-green,
+    :root:not([data-theme="light"]) table.data-table td.text-green strong,
+    :root:not([data-theme="light"]) table.data-table td[style*="color:#10B981"] strong,
+    :root:not([data-theme="light"]) table.data-table td strong.text-green {
+      color: #10B981 !important;
+    }
+
+    /* In Light Mode: col-remain-qty with text-blue is Blue #0284C7 */
+    [data-theme="light"] table.data-table td.col-remain-qty.text-blue,
+    [data-theme="light"] table.data-table td.col-remain-qty.text-blue span,
+    [data-theme="light"] table.data-table td.col-remain-qty.text-blue strong {
+      color: #0284C7 !important;
+    }
+
+    /* Specific data colors (Green #10B981, Red #EF4444, Blue #0284C7) override cell defaults in all themes */
+    [data-theme="dark"] table.data-table td.text-green,
+    [data-theme="dark"] table.data-table td[style*="color:#10B981"],
+    [data-theme="dark"] table.data-table td[style*="color: #10B981"],
+    [data-theme="dark"] table.data-table td[style*="color:#15803D"],
+    [data-theme="dark"] table.data-table td[style*="color: #15803D"],
+    [data-theme="dark"] table.data-table td span.text-green,
+    [data-theme="dark"] table.data-table td span[style*="color:#10B981"],
+    [data-theme="dark"] table.data-table td span[style*="color: #10B981"],
+    [data-theme="dark"] table.data-table td span[style*="color:#15803D"],
+    [data-theme="dark"] table.data-table td span[style*="color: #15803D"],
+    [data-theme="dark"] table.data-table td strong[style*="color:#10B981"],
+    [data-theme="dark"] table.data-table td strong[style*="color: #10B981"],
+    [data-theme="dark"] table.data-table th span.text-green,
+    [data-theme="dark"] table.data-table th span[style*="color:#10B981"],
+    [data-theme="dark"] table.data-table th span[style*="color: #10B981"],
+    [data-theme="light"] table.data-table td.text-green,
+    [data-theme="light"] table.data-table td[style*="color:#10B981"],
+    [data-theme="light"] table.data-table td[style*="color: #10B981"],
+    [data-theme="light"] table.data-table td span.text-green,
+    [data-theme="light"] table.data-table td span[style*="color:#10B981"],
+    [data-theme="light"] table.data-table td span[style*="color: #10B981"],
+    table.data-table td.text-green,
+    table.data-table td.text-success,
+    table.data-table td[style*="color:#10B981"],
+    table.data-table td[style*="color: #10B981"],
+    table.data-table td span.text-green,
+    table.data-table td span[style*="color:#10B981"],
+    table.data-table td span[style*="color: #10B981"] {
+      color: #10B981 !important;
+    }
+
+    [data-theme="dark"] table.data-table td.text-red,
+    [data-theme="dark"] table.data-table td[style*="color:#EF4444"],
+    [data-theme="dark"] table.data-table td[style*="color: #EF4444"],
+    [data-theme="dark"] table.data-table td[style*="color:#DC2626"],
+    [data-theme="dark"] table.data-table td[style*="color: #DC2626"],
+    [data-theme="dark"] table.data-table td span.text-red,
+    [data-theme="dark"] table.data-table td span[style*="color:#EF4444"],
+    [data-theme="dark"] table.data-table td span[style*="color: #EF4444"],
+    [data-theme="dark"] table.data-table td span[style*="color:#DC2626"],
+    [data-theme="dark"] table.data-table td span[style*="color: #DC2626"],
+    [data-theme="dark"] table.data-table td strong[style*="color:#EF4444"],
+    [data-theme="dark"] table.data-table td strong[style*="color: #EF4444"],
+    [data-theme="dark"] table.data-table th span.text-red,
+    [data-theme="dark"] table.data-table th span[style*="color:#EF4444"],
+    [data-theme="dark"] table.data-table th span[style*="color: #EF4444"],
+    [data-theme="light"] table.data-table td.text-red,
+    [data-theme="light"] table.data-table td[style*="color:#EF4444"],
+    [data-theme="light"] table.data-table td[style*="color: #EF4444"],
+    [data-theme="light"] table.data-table td span.text-red,
+    [data-theme="light"] table.data-table td span[style*="color:#EF4444"],
+    [data-theme="light"] table.data-table td span[style*="color: #EF4444"],
+    table.data-table td.text-red,
+    table.data-table td.text-danger,
+    table.data-table td[style*="color:#EF4444"],
+    table.data-table td[style*="color: #EF4444"],
+    table.data-table td span.text-red,
+    table.data-table td span[style*="color:#EF4444"],
+    table.data-table td span[style*="color: #EF4444"] {
+      color: #EF4444 !important;
+    }
+
+    [data-theme="dark"] table.data-table td.text-blue,
+    [data-theme="dark"] table.data-table td[style*="color:#0284C7"],
+    [data-theme="dark"] table.data-table td[style*="color: #0284C7"],
+    [data-theme="dark"] table.data-table td[style*="color:#0369A1"],
+    [data-theme="dark"] table.data-table td[style*="color: #0369A1"],
+    [data-theme="dark"] table.data-table td span.text-blue,
+    [data-theme="dark"] table.data-table td span[style*="color:#0284C7"],
+    [data-theme="dark"] table.data-table td span[style*="color: #0284C7"],
+    [data-theme="dark"] table.data-table td strong[style*="color:#0284C7"],
+    [data-theme="dark"] table.data-table td strong[style*="color: #0284C7"],
+    [data-theme="light"] table.data-table td.text-blue,
+    [data-theme="light"] table.data-table td[style*="color:#0284C7"],
+    [data-theme="light"] table.data-table td[style*="color: #0284C7"],
+    [data-theme="light"] table.data-table td span.text-blue,
+    [data-theme="light"] table.data-table td span[style*="color:#0284C7"],
+    [data-theme="light"] table.data-table td span[style*="color: #0284C7"],
+    table.data-table td.text-blue,
+    table.data-table td.text-primary,
+    table.data-table td[style*="color:#0284C7"],
+    table.data-table td[style*="color: #0284C7"],
+    table.data-table td span.text-blue,
+    table.data-table td span[style*="color:#0284C7"],
+    table.data-table td span[style*="color: #0284C7"] {
+      color: #0284C7 !important;
+    }
+
+    table.data-table td {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+    }
+    [data-theme="dark"] table.data-table tbody tr:hover,
+    :root:not([data-theme="light"]) table.data-table tbody tr:hover {
+      background: rgba(56, 189, 248, 0.09) !important;
+    }
+    [data-theme="dark"] table.data-table tbody tr:nth-child(even),
+    :root:not([data-theme="light"]) table.data-table tbody tr:nth-child(even) {
+      background: rgba(255, 255, 255, 0.02) !important;
+    }
+
+    /* Modals in Frosted Glass */
+    [data-theme="dark"] .modal-dialog label,
+    :root:not([data-theme="light"]) .modal-dialog label {
+      color: #E2E8F0 !important;
+      font-weight: 600 !important;
+    }
+
+    [data-theme="dark"] .modal-backdrop,
+    :root:not([data-theme="light"]) .modal-backdrop {
+      background: rgba(15, 23, 42, 0.75) !important;
+      backdrop-filter: blur(12px) !important;
+      -webkit-backdrop-filter: blur(12px) !important;
+    }
+    [data-theme="dark"] .modal-dialog,
+    :root:not([data-theme="light"]) .modal-dialog {
+      background: rgba(15, 23, 42, 0.85) !important;
+      border: 1px solid rgba(255, 255, 255, 0.25) !important;
       color: #FFFFFF !important;
-      box-shadow: 0 25px 60px rgba(0,0,0,0.9) !important;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.70), inset 0 1px 2px rgba(255, 255, 255, 0.30) !important;
+      backdrop-filter: blur(25px) !important;
+      -webkit-backdrop-filter: blur(25px) !important;
+      border-radius: 20px !important;
     }
-    [data-theme="dark"] .modal-header {
-      background: #0A0A0A !important;
-      border-bottom-color: #222222 !important;
+    [data-theme="dark"] .modal-header,
+    :root:not([data-theme="light"]) .modal-header {
+      background: rgba(255, 255, 255, 0.04) !important;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
     }
-    [data-theme="dark"] .modal-header h3 {
+    [data-theme="dark"] .modal-header h3,
+    :root:not([data-theme="light"]) .modal-header h3 {
+      color: #38BDF8 !important;
+      text-shadow: 0 0 12px rgba(56, 189, 248, 0.40);
+    }
+    [data-theme="dark"] .modal-body,
+    :root:not([data-theme="light"]) .modal-body {
+      background: transparent !important;
+      color: #FFFFFF !important;
+    }
+    [data-theme="dark"] .modal-footer,
+    :root:not([data-theme="light"]) .modal-footer {
+      background: rgba(255, 255, 255, 0.04) !important;
+      border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
+    }
+
+    /* Notifications & Toasts in Frosted Glass */
+    [data-theme="dark"] #notifModalList > div,
+    :root:not([data-theme="light"]) #notifModalList > div {
+      background: rgba(255, 255, 255, 0.06) !important;
+      backdrop-filter: blur(15px) !important;
+      -webkit-backdrop-filter: blur(15px) !important;
+      border: 1px solid rgba(255, 255, 255, 0.18) !important;
+      color: #FFFFFF !important;
+      border-radius: 12px !important;
+    }
+    [data-theme="dark"] #notifModalList > div h4,
+    :root:not([data-theme="light"]) #notifModalList > div h4 {
       color: #38BDF8 !important;
     }
-    [data-theme="dark"] .modal-body {
-      background: #111111 !important;
-      color: #FFFFFF !important;
+    [data-theme="dark"] #notifModalList > div p,
+    :root:not([data-theme="light"]) #notifModalList > div p {
+      color: #CBD5E1 !important;
     }
-    [data-theme="dark"] .modal-footer {
-      background: #0A0A0A !important;
-      border-top-color: #222222 !important;
+    [data-theme="dark"] .toast-item,
+    :root:not([data-theme="light"]) .toast-item {
+      background: rgba(15, 23, 42, 0.88) !important;
+      backdrop-filter: blur(20px) !important;
+      -webkit-backdrop-filter: blur(20px) !important;
+      color: #FFFFFF !important;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.60) !important;
+      border: 1px solid rgba(255, 255, 255, 0.22) !important;
+      border-radius: 14px !important;
     }
 
-    /* Notifications & Toasts True Black Dark Mode */
-    [data-theme="dark"] #notifModalList > div {
-      background: #0A0A0A !important;
-      border-color: #242424 !important;
+    /* Steppers & Pagination in Frosted Glass */
+    [data-theme="dark"] .wf-circle,
+    :root:not([data-theme="light"]) .wf-circle {
+      background: rgba(255, 255, 255, 0.08) !important;
+      border-color: rgba(255, 255, 255, 0.25) !important;
+      color: #CBD5E1 !important;
+    }
+    [data-theme="dark"] .wf-label,
+    :root:not([data-theme="light"]) .wf-label {
       color: #FFFFFF !important;
     }
-    [data-theme="dark"] #notifModalList > div h4 {
-      color: #38BDF8 !important;
+    [data-theme="dark"] .wf-sub,
+    :root:not([data-theme="light"]) .wf-sub {
+      color: #94A3B8 !important;
     }
-    [data-theme="dark"] #notifModalList > div p {
-      color: #D4D4D4 !important;
+    [data-theme="dark"] .pagination-bar,
+    :root:not([data-theme="light"]) .pagination-bar {
+      color: #94A3B8 !important;
     }
-    [data-theme="dark"] .toast-item {
-      background: #141414 !important;
-      color: #FFFFFF !important;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.8) !important;
-      border: 1px solid #282828 !important;
+    [data-theme="dark"] .mobile-bottom-nav,
+    :root:not([data-theme="light"]) .mobile-bottom-nav {
+      background: rgba(15, 23, 42, 0.85) !important;
+      backdrop-filter: blur(20px) !important;
+      -webkit-backdrop-filter: blur(20px) !important;
+      border-top: 1px solid rgba(255, 255, 255, 0.16) !important;
     }
 
-    /* Steppers & Pagination True Black Dark Mode */
-    [data-theme="dark"] .wf-circle {
-      background: #141414 !important;
-      border-color: #3D3D3D !important;
-      color: #A3A3A3 !important;
-    }
-    [data-theme="dark"] .wf-label {
-      color: #FFFFFF !important;
-    }
-    [data-theme="dark"] .wf-sub {
-      color: #A3A3A3 !important;
-    }
-    [data-theme="dark"] .pagination-bar {
-      color: #A3A3A3 !important;
-    }
-    [data-theme="dark"] .mobile-bottom-nav {
-      background: #0A0A0A !important;
-      border-top-color: #222222 !important;
-    }
-
-    /* Persistent Alert Bar True Black Dark Mode */
-    [data-theme="dark"] .global-alert-strip {
-      background: linear-gradient(90deg, #0A0A0A 0%, #171717 100%) !important;
+    /* Persistent Alert Bar in Frosted Glass */
+    [data-theme="dark"] .global-alert-strip,
+    :root:not([data-theme="light"]) .global-alert-strip {
+      background: rgba(15, 23, 42, 0.75) !important;
+      backdrop-filter: blur(15px) !important;
+      -webkit-backdrop-filter: blur(15px) !important;
       border-bottom: 2px solid #F59E0B !important;
     }
-    [data-theme="dark"] .alert-pill.warn { background: #261A00 !important; color: #FBBF24 !important; border-color: #78350F !important; }
-    [data-theme="dark"] .alert-pill.danger { background: #2A0808 !important; color: #FCA5A5 !important; border-color: #7F1D1D !important; }
-    [data-theme="dark"] .alert-pill.success { background: #022010 !important; color: #86EFAC !important; border-color: #14532D !important; }
-    [data-theme="dark"] .alert-pill.info { background: #051A2E !important; color: #7DD3FC !important; border-color: #0369A1 !important; }
+    [data-theme="dark"] .alert-pill.warn, :root:not([data-theme="light"]) .alert-pill.warn { background: rgba(245, 158, 11, 0.18) !important; color: #FBBF24 !important; border-color: rgba(245, 158, 11, 0.4) !important; }
+    [data-theme="dark"] .alert-pill.danger, :root:not([data-theme="light"]) .alert-pill.danger { background: rgba(239, 68, 68, 0.18) !important; color: #FCA5A5 !important; border-color: rgba(239, 68, 68, 0.4) !important; }
+    [data-theme="dark"] .alert-pill.success, :root:not([data-theme="light"]) .alert-pill.success { background: rgba(16, 185, 129, 0.18) !important; color: #86EFAC !important; border-color: rgba(16, 185, 129, 0.4) !important; }
+    [data-theme="dark"] .alert-pill.info, :root:not([data-theme="light"]) .alert-pill.info { background: rgba(56, 189, 248, 0.18) !important; color: #7DD3FC !important; border-color: rgba(56, 189, 248, 0.4) !important; }
 
-    /* SweetAlert2 Popups in True Black Dark Mode */
-    [data-theme="dark"] .swal2-popup {
-      background: #111111 !important;
+    /* SweetAlert2 Popups in Frosted Glass */
+    [data-theme="dark"] .swal2-popup,
+    :root:not([data-theme="light"]) .swal2-popup {
+      background: rgba(15, 23, 42, 0.88) !important;
+      backdrop-filter: blur(25px) !important;
+      -webkit-backdrop-filter: blur(25px) !important;
       color: #FFFFFF !important;
-      border: 1px solid #282828 !important;
-      box-shadow: 0 20px 50px rgba(0,0,0,0.9) !important;
+      border: 1px solid rgba(255, 255, 255, 0.25) !important;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.70), inset 0 1px 1px rgba(255, 255, 255, 0.30) !important;
+      border-radius: 18px !important;
     }
-    [data-theme="dark"] .swal2-title {
+    [data-theme="dark"] .swal2-title,
+    :root:not([data-theme="light"]) .swal2-title {
       color: #FFFFFF !important;
+      text-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
     }
-    [data-theme="dark"] .swal2-html-container {
-      color: #D4D4D4 !important;
+    [data-theme="dark"] .swal2-html-container,
+    :root:not([data-theme="light"]) .swal2-html-container {
+      color: #CBD5E1 !important;
     }
 
-    /* Dynamic Style Overrides for Inline Colors in True Black Dark Mode */
-    [data-theme="dark"] #dashTitleText {
+    /* Headings and Text Contrast Overrides */
+    [data-theme="dark"] #dashTitleText, :root:not([data-theme="light"]) #dashTitleText {
       color: #FFFFFF !important;
+      text-shadow: 0 0 15px rgba(255, 255, 255, 0.30);
     }
-    [data-theme="dark"] #dashSubTitle {
-      color: #A3A3A3 !important;
+    [data-theme="dark"] #dashSubTitle, :root:not([data-theme="light"]) #dashSubTitle {
+      color: #94A3B8 !important;
     }
-    [data-theme="dark"] h1, [data-theme="dark"] h2, [data-theme="dark"] h3, [data-theme="dark"] h4 {
+    [data-theme="dark"] h1, [data-theme="dark"] h2, [data-theme="dark"] h3, [data-theme="dark"] h4,
+    :root:not([data-theme="light"]) h1, :root:not([data-theme="light"]) h2, :root:not([data-theme="light"]) h3, :root:not([data-theme="light"]) h4 {
       color: #FFFFFF !important;
     }
     [data-theme="dark"] [style*="color:#0A3D62"],
     [data-theme="dark"] [style*="color: #0A3D62"],
-    [data-theme="dark"] [style*="color:var(--primary-navy)"] {
+    [data-theme="dark"] [style*="color:var(--primary-navy)"],
+    :root:not([data-theme="light"]) [style*="color:#0A3D62"],
+    :root:not([data-theme="light"]) [style*="color: #0A3D62"],
+    :root:not([data-theme="light"]) [style*="color:var(--primary-navy)"] {
       color: #38BDF8 !important;
+      text-shadow: 0 0 10px rgba(56, 189, 248, 0.30);
     }
     [data-theme="dark"] [style*="color:#0F172A"],
     [data-theme="dark"] [style*="color: #0F172A"],
-    [data-theme="dark"] [style*="color:var(--text-main)"] {
+    [data-theme="dark"] [style*="color:var(--text-main)"],
+    :root:not([data-theme="light"]) [style*="color:#0F172A"],
+    :root:not([data-theme="light"]) [style*="color: #0F172A"],
+    :root:not([data-theme="light"]) [style*="color:var(--text-main)"] {
       color: #FFFFFF !important;
     }
     [data-theme="dark"] [style*="color:#64748B"],
     [data-theme="dark"] [style*="color: #64748B"],
-    [data-theme="dark"] [style*="color:var(--text-muted)"] {
-      color: #A3A3A3 !important;
+    [data-theme="dark"] [style*="color:var(--text-muted)"],
+    :root:not([data-theme="light"]) [style*="color:#64748B"],
+    :root:not([data-theme="light"]) [style*="color: #64748B"],
+    :root:not([data-theme="light"]) [style*="color:var(--text-muted)"] {
+      color: #94A3B8 !important;
     }
+
+    /* Inline Backgrounds to Frosted Glass Overrides */
     [data-theme="dark"] [style*="background:#FFFFFF"],
     [data-theme="dark"] [style*="background: #FFFFFF"],
     [data-theme="dark"] [style*="background:#fff"],
     [data-theme="dark"] [style*="background: #fff"],
     [data-theme="dark"] [style*="background-color:#fff"],
-    [data-theme="dark"] [style*="background-color: #fff"] {
-      background-color: #111111 !important;
+    [data-theme="dark"] [style*="background-color: #fff"],
+    :root:not([data-theme="light"]) [style*="background:#FFFFFF"],
+    :root:not([data-theme="light"]) [style*="background: #FFFFFF"],
+    :root:not([data-theme="light"]) [style*="background:#fff"],
+    :root:not([data-theme="light"]) [style*="background: #fff"],
+    :root:not([data-theme="light"]) [style*="background-color:#fff"],
+    :root:not([data-theme="light"]) [style*="background-color: #fff"] {
+      background-color: rgba(255, 255, 255, 0.08) !important;
+      backdrop-filter: blur(20px) !important;
+      -webkit-backdrop-filter: blur(20px) !important;
+      border-color: rgba(255, 255, 255, 0.20) !important;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37), inset 0 1px 1px 0 rgba(255, 255, 255, 0.25) !important;
+      color: #FFFFFF !important;
     }
     [data-theme="dark"] [style*="background:#F8FAFC"],
     [data-theme="dark"] [style*="background: #F8FAFC"],
     [data-theme="dark"] [style*="background:#F1F5F9"],
-    [data-theme="dark"] [style*="background: #F1F5F9"] {
-      background-color: #0A0A0A !important;
+    [data-theme="dark"] [style*="background: #F1F5F9"],
+    :root:not([data-theme="light"]) [style*="background:#F8FAFC"],
+    :root:not([data-theme="light"]) [style*="background: #F8FAFC"],
+    :root:not([data-theme="light"]) [style*="background:#F1F5F9"],
+    :root:not([data-theme="light"]) [style*="background: #F1F5F9"] {
+      background-color: rgba(255, 255, 255, 0.05) !important;
+      backdrop-filter: blur(15px) !important;
+      -webkit-backdrop-filter: blur(15px) !important;
+      border-color: rgba(255, 255, 255, 0.16) !important;
     }
     [data-theme="dark"] [style*="border: 1px solid #E2E8F0"],
     [data-theme="dark"] [style*="border:1px solid #E2E8F0"],
     [data-theme="dark"] [style*="border: 1px solid #CBD5E1"],
-    [data-theme="dark"] [style*="border:1px solid #CBD5E1"] {
-      border-color: #242424 !important;
+    [data-theme="dark"] [style*="border:1px solid #CBD5E1"],
+    :root:not([data-theme="light"]) [style*="border: 1px solid #E2E8F0"],
+    :root:not([data-theme="light"]) [style*="border:1px solid #E2E8F0"],
+    :root:not([data-theme="light"]) [style*="border: 1px solid #CBD5E1"],
+    :root:not([data-theme="light"]) [style*="border:1px solid #CBD5E1"] {
+      border-color: rgba(255, 255, 255, 0.18) !important;
     }
 
-    /* Receipt Slips Dark Mode Screen Handling */
-    [data-theme="dark"] .receipt-slip-original {
-      background: #111111 !important;
+    /* Receipt Slips in Frosted Glass Screen View */
+    [data-theme="dark"] .receipt-slip-original,
+    :root:not([data-theme="light"]) .receipt-slip-original {
+      background: rgba(15, 23, 42, 0.85) !important;
+      backdrop-filter: blur(20px) !important;
+      -webkit-backdrop-filter: blur(20px) !important;
       color: #FFFFFF !important;
-      border-color: #242424 !important;
+      border: 1px solid rgba(255, 255, 255, 0.22) !important;
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.50), inset 0 1px 1px rgba(255, 255, 255, 0.25) !important;
+      border-radius: 14px;
     }
-    [data-theme="dark"] .receipt-slip {
-      background: #111111 !important;
+    [data-theme="dark"] .receipt-slip,
+    :root:not([data-theme="light"]) .receipt-slip {
+      background: rgba(15, 23, 42, 0.85) !important;
+      backdrop-filter: blur(20px) !important;
+      -webkit-backdrop-filter: blur(20px) !important;
       color: #FFFFFF !important;
+      border-radius: 14px;
     }
-    [data-theme="dark"] .receipt-slip table th {
-      background: #0A0A0A !important;
-      color: #FFFFFF !important;
-      border-color: #242424 !important;
-    }
-    [data-theme="dark"] .receipt-slip table td {
-      border-color: #1F1F1F !important;
-      color: #FFFFFF !important;
-    }
-
-    /* Login Screen in True Black Dark Mode */
-    [data-theme="dark"] .login-card {
-      background: #111111 !important;
-      color: #FFFFFF !important;
-      border-color: #242424 !important;
-      box-shadow: 0 20px 50px rgba(0,0,0,0.85) !important;
-    }
-    [data-theme="dark"] .role-pill-btn {
-      background: #0A0A0A !important;
+    [data-theme="dark"] .receipt-slip table th,
+    :root:not([data-theme="light"]) .receipt-slip table th {
+      background: rgba(255, 255, 255, 0.08) !important;
       color: #38BDF8 !important;
-      border-color: #242424 !important;
+      border-color: rgba(255, 255, 255, 0.18) !important;
     }
-    [data-theme="dark"] .role-pill-btn:hover {
-      background: #1A1A1A !important;
+    [data-theme="dark"] .receipt-slip table td,
+    :root:not([data-theme="light"]) .receipt-slip table td {
+      border-color: rgba(255, 255, 255, 0.10) !important;
+      color: #FFFFFF !important;
+    }
+
+    /* Login Screen in Authentic Frosted Glass */
+    [data-theme="dark"] .login-card,
+    :root:not([data-theme="light"]) .login-card {
+      background: rgba(255, 255, 255, 0.08) !important;
+      backdrop-filter: blur(25px) !important;
+      -webkit-backdrop-filter: blur(25px) !important;
+      color: #FFFFFF !important;
+      border: 1px solid rgba(255, 255, 255, 0.22) !important;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.60), inset 0 1px 2px rgba(255, 255, 255, 0.35) !important;
+      border-radius: 24px !important;
+    }
+    [data-theme="dark"] .role-pill-btn,
+    :root:not([data-theme="light"]) .role-pill-btn {
+      background: rgba(255, 255, 255, 0.07) !important;
+      color: #38BDF8 !important;
+      border: 1px solid rgba(255, 255, 255, 0.18) !important;
+      backdrop-filter: blur(10px) !important;
+      -webkit-backdrop-filter: blur(10px) !important;
+      border-radius: 8px !important;
+    }
+    [data-theme="dark"] .role-pill-btn:hover,
+    :root:not([data-theme="light"]) .role-pill-btn:hover {
+      background: rgba(56, 189, 248, 0.20) !important;
       border-color: #38BDF8 !important;
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.35) !important;
+    }
+
+    /* =====================================================================
+       Light Theme (Crystal Frosted Glass with Luminous Pearl Slate Backdrop)
+       ===================================================================== */
+    [data-theme="light"] {
+      --primary-navy: #0A3D62;
+      --primary-blue: #0284C7;
+      --primary-light: #E0F2FE;
+      --golden-orange: #F39C12;
+      --golden-dark: #D97706;
+      --golden-light: #FEF3C7;
+      --bg-body: #F1F5F9;
+      --bg-card: rgba(255, 255, 255, 0.72);
+      --text-main: #0F172A;
+      --text-muted: #64748B;
+      --border-color: rgba(255, 255, 255, 0.70);
+      --shadow-sm: 0 4px 15px rgba(31, 38, 135, 0.06);
+      --shadow-md: 0 8px 32px rgba(31, 38, 135, 0.10);
+      --shadow-lg: 0 16px 40px rgba(31, 38, 135, 0.15);
+    }
+    [data-theme="light"] body {
+      background-color: #F1F5F9 !important;
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.12) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(168, 85, 247, 0.10) 0px, transparent 50%),
+        radial-gradient(at 50% 100%, rgba(236, 72, 153, 0.08) 0px, transparent 50%) !important;
+      color: #0F172A !important;
+    }
+    [data-theme="light"] .glass-ambient-orbs {
+      opacity: 0.65;
+    }
+    [data-theme="light"] .sidebar {
+      background: rgba(10, 61, 98, 0.85) !important;
+      backdrop-filter: blur(20px) !important;
+      -webkit-backdrop-filter: blur(20px) !important;
+      border-right: 1px solid rgba(255, 255, 255, 0.20) !important;
+    }
+    [data-theme="light"] .top-header {
+      background: rgba(255, 255, 255, 0.75) !important;
+      backdrop-filter: blur(20px) !important;
+      -webkit-backdrop-filter: blur(20px) !important;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.60) !important;
+    }
+    /* โหมดสว่างคริสตัล: ขอบกล่องด้านบนมีสีเด่นชัด (Colored Top Borders 4px) */
+    [data-theme="light"] .kpi-card {
+      background: rgba(255, 255, 255, 0.82) !important;
+      backdrop-filter: blur(20px) !important;
+      -webkit-backdrop-filter: blur(20px) !important;
+      border: 1px solid rgba(226, 232, 240, 0.90) !important;
+      border-top-width: 4px !important;
+      border-top-style: solid !important;
+      border-radius: 14px !important;
+      box-shadow: 0 4px 15px rgba(10, 61, 98, 0.06), 0 1px 3px rgba(0, 0, 0, 0.03) !important;
+      color: #0F172A !important;
+      overflow: hidden;
+    }
+    [data-theme="light"] .kpi-card.kpi-navy {
+      border-top-color: #0A3D62 !important;
+    }
+    [data-theme="light"] .kpi-card.kpi-orange {
+      border-top-color: #F59E0B !important;
+    }
+    [data-theme="light"] .kpi-card.kpi-green {
+      border-top-color: #10B981 !important;
+    }
+    [data-theme="light"] .kpi-card.kpi-red {
+      border-top-color: #EF4444 !important;
+    }
+    [data-theme="light"] .kpi-card.kpi-blue {
+      border-top-color: #0284C7 !important;
+    }
+
+    [data-theme="light"] .card-box {
+      background: rgba(255, 255, 255, 0.82) !important;
+      backdrop-filter: blur(20px) !important;
+      -webkit-backdrop-filter: blur(20px) !important;
+      border: 1px solid rgba(226, 232, 240, 0.90) !important;
+      border-top-width: 4px !important;
+      border-top-style: solid !important;
+      border-top-color: #0284C7 !important;
+      border-radius: 16px !important;
+      box-shadow: 0 6px 20px rgba(10, 61, 98, 0.06), 0 1px 3px rgba(0, 0, 0, 0.03) !important;
+      color: #0F172A !important;
+      overflow: hidden;
+    }
+    [data-theme="light"] .card-box.blue-strip {
+      border-top-color: #0284C7 !important;
+    }
+    [data-theme="light"] .card-box.orange-strip {
+      border-top-color: #F59E0B !important;
+    }
+    [data-theme="light"] .card-box.green-strip {
+      border-top-color: #10B981 !important;
+    }
+    [data-theme="light"] .card-box.red-strip {
+      border-top-color: #EF4444 !important;
+    }
+    [data-theme="light"] .card-box.navy-strip {
+      border-top-color: #0A3D62 !important;
+    }
+    [data-theme="light"] .table-responsive {
+      background: rgba(255, 255, 255, 0.60) !important;
+      backdrop-filter: blur(15px) !important;
+      -webkit-backdrop-filter: blur(15px) !important;
+      border: 1px solid rgba(255, 255, 255, 0.80) !important;
+    }
+    [data-theme="light"] table.data-table th {
+      background: rgba(10, 61, 98, 0.08) !important;
+      color: #0A3D62 !important;
+    }
+    [data-theme="light"] table.data-table td {
+      color: #1E293B;
+      border-bottom-color: rgba(226, 232, 240, 0.6) !important;
+    }
+    [data-theme="light"] .modal-dialog {
+      background: rgba(255, 255, 255, 0.85) !important;
+      backdrop-filter: blur(25px) !important;
+      -webkit-backdrop-filter: blur(25px) !important;
+      border: 1px solid rgba(255, 255, 255, 0.90) !important;
+      box-shadow: 0 25px 60px rgba(10, 61, 98, 0.20) !important;
+      color: #0F172A !important;
+    }
+    [data-theme="light"] .modal-body {
+      color: #0F172A !important;
+    }
+    [data-theme="light"] .swal2-popup {
+      background: rgba(255, 255, 255, 0.88) !important;
+      backdrop-filter: blur(25px) !important;
+      -webkit-backdrop-filter: blur(25px) !important;
+      border: 1px solid rgba(255, 255, 255, 0.90) !important;
+      color: #0F172A !important;
+    }
+    [data-theme="light"] .swal2-title {
+      color: #0A3D62 !important;
+    }
+    [data-theme="light"] .swal2-html-container {
+      color: #334155 !important;
+    }
+    [data-theme="light"] .login-card {
+      background: rgba(255, 255, 255, 0.75) !important;
+      backdrop-filter: blur(25px) !important;
+      -webkit-backdrop-filter: blur(25px) !important;
+      border: 1px solid rgba(255, 255, 255, 0.85) !important;
+      box-shadow: 0 20px 50px rgba(10, 61, 98, 0.15) !important;
+      color: #0F172A !important;
     }
 
     /* Print Guarantee: Always Light on Physical Paper */
     @media print {
-      [data-theme="dark"] body,
-      [data-theme="dark"] .receipt-slip,
-      [data-theme="dark"] .receipt-slip-original,
-      [data-theme="dark"] table,
-      [data-theme="dark"] th,
-      [data-theme="dark"] td {
+      body,
+      .receipt-slip,
+      .receipt-slip-original,
+      table,
+      th,
+      td {
         background: #FFFFFF !important;
         color: #000000 !important;
         border-color: #CBD5E1 !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        box-shadow: none !important;
+      }
+      .glass-ambient-orbs {
+        display: none !important;
       }
     }
     /* Global Search Box */
@@ -949,17 +1842,18 @@
       }
     }
     .kpi-card {
-      background: #FFFFFF;
-      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 14px;
       padding: 16px 18px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-      border: 1px solid #E2E8F0;
-      border-top: 4px solid var(--primary-navy);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.30), inset 0 1px 1px rgba(255, 255, 255, 0.22);
+      border: 1px solid rgba(255, 255, 255, 0.20);
       display: flex;
       flex-direction: column;
       justify-content: space-between;
       min-height: 145px;
-      transition: all 0.2s ease;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .kpi-card:hover {
       transform: translateY(-2px);
@@ -1035,11 +1929,12 @@
 
     /* Card Box & Filter Toolbar */
     .card-box {
-      background: #FFFFFF;
-      border-radius: 12px;
-      box-shadow: 0 2px 6px rgba(10, 61, 98, 0.05);
-      border: 1px solid #E2E8F0;
-      border-top: 4px solid var(--primary-navy);
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37), inset 0 1px 1px 0 rgba(255, 255, 255, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.20);
       padding: 18px 20px;
       margin-bottom: 20px;
       position: relative;
@@ -1115,14 +2010,61 @@
       white-space: nowrap;
     }
     .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    .btn-primary { background: var(--primary-navy); color: #fff; }
-    .btn-primary:hover:not(:disabled) { background: #072A44; }
-    .btn-blue { background: var(--primary-blue); color: #fff; }
-    .btn-blue:hover:not(:disabled) { background: #0369A1; }
-    .btn-orange { background: #F39C12; color: #fff; font-weight: 600; }
-    .btn-orange:hover:not(:disabled) { background: #D97706; }
-    .btn-success { background: var(--status-approved); color: #fff; }
-    .btn-danger { background: var(--status-rejected); color: #fff; }
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7 0%, #7c3aed 100%) !important;
+      color: #ffffff !important;
+      border-color: rgba(56, 189, 248, 0.50) !important;
+      box-shadow: 0 4px 15px rgba(2, 132, 199, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.35) !important;
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%) !important;
+      box-shadow: 0 6px 20px rgba(56, 189, 248, 0.50), inset 0 1px 2px rgba(255, 255, 255, 0.45) !important;
+      transform: translateY(-1px);
+    }
+    .btn-blue {
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+      color: #ffffff !important;
+      border-color: rgba(56, 189, 248, 0.50) !important;
+      box-shadow: 0 4px 15px rgba(2, 132, 199, 0.30) !important;
+    }
+    .btn-blue:hover:not(:disabled) {
+      background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%) !important;
+      box-shadow: 0 6px 18px rgba(56, 189, 248, 0.45) !important;
+      transform: translateY(-1px);
+    }
+    .btn-orange {
+      background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%) !important;
+      color: #ffffff !important;
+      border-color: rgba(245, 158, 11, 0.50) !important;
+      box-shadow: 0 4px 15px rgba(245, 158, 11, 0.30) !important;
+    }
+    .btn-orange:hover:not(:disabled) {
+      background: linear-gradient(135deg, #fbbf24 0%, #f97316 100%) !important;
+      box-shadow: 0 6px 18px rgba(245, 158, 11, 0.45) !important;
+      transform: translateY(-1px);
+    }
+    .btn-success {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+      color: #ffffff !important;
+      border-color: rgba(16, 185, 129, 0.50) !important;
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.30) !important;
+    }
+    .btn-success:hover:not(:disabled) {
+      background: linear-gradient(135deg, #34d399 0%, #10b981 100%) !important;
+      box-shadow: 0 6px 18px rgba(16, 185, 129, 0.45) !important;
+      transform: translateY(-1px);
+    }
+    .btn-danger {
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+      color: #ffffff !important;
+      border-color: rgba(239, 68, 68, 0.50) !important;
+      box-shadow: 0 4px 15px rgba(239, 68, 68, 0.30) !important;
+    }
+    .btn-danger:hover:not(:disabled) {
+      background: linear-gradient(135deg, #f87171 0%, #ef4444 100%) !important;
+      box-shadow: 0 6px 18px rgba(239, 68, 68, 0.45) !important;
+      transform: translateY(-1px);
+    }
     .btn-outline {
       background: #fff;
       color: #475569;
@@ -1458,6 +2400,14 @@
   </style>
 </head>
 <body>
+
+  <!-- Futuristic Ambient Neon Light Orbs for Authentic Glassmorphism -->
+  <div class="glass-ambient-orbs" aria-hidden="true">
+    <div class="ambient-orb orb-cyan"></div>
+    <div class="ambient-orb orb-violet"></div>
+    <div class="ambient-orb orb-magenta"></div>
+    <div class="ambient-orb orb-blue"></div>
+  </div>
 
   <!-- Loading Overlay -->
   <div id="globalLoader" class="hidden">
@@ -2324,8 +3274,8 @@
                   <div>
                     <label style="font-weight:600; font-size:13px;"><i class="fa-solid fa-circle-half-stroke" style="color:var(--golden-orange);"></i> โหมดการแสดงผลของระบบ (Theme Mode)</label>
                     <select id="cfgThemeMode" class="form-select" onchange="applyThemeMode(this.value)">
-                      <option value="light">☀️ โหมดสว่าง (Light Theme)</option>
-                      <option value="dark">🖤 โหมดมืดสีดำ (Dark Theme)</option>
+                      <option value="dark">🌌 Glassmorphism โหมดมืดนีออน (Deep Slate Dark Glass)</option>
+                      <option value="light">💎 Glassmorphism โหมดสว่างคริสตัล (Light Crystal Glass)</option>
                     </select>
                   </div>
                   <button type="submit" class="btn btn-primary" style="margin-top:8px;">
@@ -7721,10 +8671,10 @@
      * Dark / Light Theme Toggle Functions
      */
     function toggleThemeMode() {
-      const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+      const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
       const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
       applyThemeMode(newTheme);
-      showToast(newTheme === 'dark' ? 'เปิดใช้งานโหมดมืดสีดำ (Dark Theme) เรียบร้อย' : 'เปิดใช้งานโหมดสว่าง (Light Theme) เรียบร้อย', 'info');
+      showToast(newTheme === 'dark' ? 'เปิดใช้งาน Glassmorphism โหมดมืดนีออน (Deep Slate Dark Glass)' : 'เปิดใช้งาน Glassmorphism โหมดสว่างคริสตัล (Light Crystal Glass)', 'info');
     }
 
     function applyThemeMode(theme) {
@@ -7736,7 +8686,7 @@
         } catch (e) {}
         updateThemeToggleUI('dark');
       } else {
-        document.documentElement.removeAttribute('data-theme');
+        document.documentElement.setAttribute('data-theme', 'light');
         document.body.classList.remove('dark-theme');
         try {
           localStorage.setItem('POR_THEME_MODE', 'light');
@@ -7756,16 +8706,16 @@
           icon.className = 'fa-solid fa-sun';
           icon.style.color = '#F59E0B';
         }
-        if (label) label.textContent = 'โหมดสว่าง';
-        if (btn) btn.setAttribute('title', 'สลับเป็นโหมดสว่าง (Light Theme)');
+        if (label) label.textContent = 'โหมดสว่างคริสตัล';
+        if (btn) btn.setAttribute('title', 'สลับเป็นโหมดสว่างคริสตัล');
         if (cfgSelect) cfgSelect.value = 'dark';
       } else {
         if (icon) {
           icon.className = 'fa-solid fa-moon';
-          icon.style.color = '#0284C7';
+          icon.style.color = '#38BDF8';
         }
-        if (label) label.textContent = 'โหมดมืด';
-        if (btn) btn.setAttribute('title', 'สลับเป็นโหมดมืด (Dark Theme)');
+        if (label) label.textContent = 'โหมดมืดนีออน';
+        if (btn) btn.setAttribute('title', 'สลับเป็นโหมดมืดนีออน (Glassmorphism)');
         if (cfgSelect) cfgSelect.value = 'light';
       }
     }
@@ -8543,8 +9493,8 @@
               '<tr>' +
                 '<td style="padding:11px 14px;"><strong>' + escapeHtml(s.LotNo) + '</strong></td>' +
                 '<td style="padding:11px 14px;">' + escapeHtml(s.ProductName) + '</td>' +
-                '<td class="text-right" style="padding:11px 14px; font-weight:700; color:' + (parseFloat(s.RemainQty) > 0 ? '#10B981' : '#64748B') + ';"><strong>' + fmtNum(s.RemainQty) + '</strong> ' + escapeHtml(s.Unit) + '</td>' +
-                '<td class="text-right" style="padding:11px 14px; color:#0284C7; font-weight:700;">' + fmtNum(s.RemainWeight, 2) + '</td>' +
+                '<td class="text-right text-green col-remain-qty" style="padding:11px 14px; font-weight:700; color:#10B981 !important;"><strong class="text-green" style="color:#10B981 !important;">' + fmtNum(s.RemainQty) + '</strong> ' + escapeHtml(s.Unit) + '</td>' +
+                '<td class="text-right text-blue" style="padding:11px 14px; color:#0284C7 !important; font-weight:700;">' + fmtNum(s.RemainWeight, 2) + '</td>' +
               '</tr>'
             ).join('');
       } else {
@@ -8565,10 +9515,10 @@
           ? '<tr><td colspan="4" class="empty-state">ไม่มีข้อมูลสต๊อก</td></tr>'
           : summaryArr.map(c =>
               '<tr>' +
-                '<td style="padding:11px 14px; font-weight:500; color:#0F172A;">' + escapeHtml(c.name) + '</td>' +
-                '<td class="text-center" style="padding:11px 14px;"><span style="background:#E0F2FE; color:#0284C7; font-size:11px; font-weight:600; padding:3px 10px; border-radius:4px;">' + c.lots + ' Lot</span></td>' +
-                '<td class="text-right" style="padding:11px 14px; font-weight:700; color:' + (c.qty > 0 ? '#10B981' : '#64748B') + ';">' + fmtNum(c.qty) + '</td>' +
-                '<td class="text-right" style="padding:11px 14px; color:#0284C7; font-weight:700;">' + fmtNum(c.weight, 2) + '</td>' +
+                '<td style="padding:11px 14px; font-weight:500;">' + escapeHtml(c.name) + '</td>' +
+                '<td class="text-center" style="padding:11px 14px;"><span style="background:#E0F2FE; color:#0284C7 !important; font-size:11px; font-weight:600; padding:3px 10px; border-radius:4px;">' + c.lots + ' Lot</span></td>' +
+                '<td class="text-right text-green" style="padding:11px 14px; font-weight:700; color:#10B981 !important;">' + fmtNum(c.qty) + '</td>' +
+                '<td class="text-right text-blue" style="padding:11px 14px; color:#0284C7 !important; font-weight:700;">' + fmtNum(c.weight, 2) + '</td>' +
               '</tr>'
             ).join('');
       }
@@ -8721,7 +9671,7 @@
           '<td style="padding:10px 12px;">' + refDocHtml + '</td>' +
           '<td class="text-center" style="padding:10px 12px;">' + escapeHtml(m.LotNo) + '</td>' +
           '<td style="padding:10px 12px;">' + escapeHtml(m.ProductName) + '</td>' +
-          '<td class="text-right" style="padding:10px 12px; font-weight:700; color:' + (isIn ? '#15803D' : '#DC2626') + ';">' + (isIn ? '+' : '') + fmtNum(m.QtyChange) + ' ' + escapeHtml(m.Unit) + '</td>' +
+          '<td class="text-right ' + (isIn ? 'text-green' : 'text-red') + '" style="padding:10px 12px; font-weight:700; color:' + (isIn ? '#10B981 !important' : '#EF4444 !important') + ';">' + (isIn ? '+' : '') + fmtNum(m.QtyChange) + ' ' + escapeHtml(m.Unit) + '</td>' +
           '<td class="text-right" style="padding:10px 12px;">' + fmtNum(Math.abs(m.WeightChange), 2) + '</td>' +
           '<td class="text-right" style="padding:10px 12px;"><strong>' + fmtNum(m.BalanceQty) + ' ' + escapeHtml(m.Unit) + '</strong> (' + fmtNum(m.BalanceWeight, 2) + ' กก.)</td>' +
         '</tr>';
@@ -8749,7 +9699,7 @@
               return c ? c.ClientName : (s.ClientName || '-');
             })()) + '</strong></td>' +
               '<td>' + escapeHtml(s.ProductName) + '</td>' +
-              '<td class="text-right" style="font-weight:700; color:' + (parseFloat(s.RemainQty) > 0 ? '#10B981' : '#64748B') + ';"><strong>' + fmtNum(s.RemainQty) + '</strong> ' + escapeHtml(s.Unit) + '</td>' +
+              '<td class="text-right text-green col-remain-qty" style="font-weight:700; color:#10B981 !important;"><strong class="text-green" style="color:#10B981 !important;">' + fmtNum(s.RemainQty) + '</strong> ' + escapeHtml(s.Unit) + '</td>' +
               '<td class="text-right">' + fmtNum(s.RemainWeight, 2) + '</td>' +
               '<td>' + escapeHtml(s.ReceiveDate) + '</td>' +
               '<td><strong>' + escapeHtml(s.NextBillingDate) + '</strong></td>' +
@@ -9276,7 +10226,9 @@
             totalWeightDisp = fmtNum(numW, 2);
           }
 
-          const outStyle = outQty > 0 ? 'font-weight:700; color:#EF4444;' : 'font-weight:normal; color:#111827;';
+          const outStyle = outQty > 0 ? 'font-weight:700; color:#EF4444 !important;' : 'font-weight:normal;';
+          const outCls = outQty > 0 ? ' text-red' : '';
+          const remCls = isInStock ? ' text-blue' : ' text-red';
 
           return '<tr>' +
             '<td class="text-center"><strong>' + escapeHtml(lotText) + '</strong></td>' +
@@ -9284,10 +10236,10 @@
             '<td class="text-center">' + imgHtml + '</td>' +
             '<td class="text-center"><strong>' + escapeHtml(p.Unit) + '</strong></td>' +
             '<td class="text-right"><strong>' + weightDisp + '</strong></td>' +
-            '<td class="text-right" style="font-weight:700; color:#10B981;">' + fmtNum(initQty) + '</td>' +
-            '<td class="text-right" style="' + outStyle + '">' + fmtNum(outQty) + '</td>' +
-            '<td class="text-right" style="font-weight:700; color:' + (isInStock ? '#0284C7' : '#EF4444') + ';">' + fmtNum(remQty) + '</td>' +
-            '<td class="text-right" style="font-weight:700; color:#0284C7;">' + totalWeightDisp + '</td>' +
+            '<td class="text-right text-green" style="font-weight:700; color:#10B981 !important;">' + fmtNum(initQty) + '</td>' +
+            '<td class="text-right' + outCls + '" style="' + outStyle + '">' + fmtNum(outQty) + '</td>' +
+            '<td class="text-right col-remain-qty ' + (isInStock ? ((document.documentElement.getAttribute('data-theme') === 'dark' || !document.documentElement.getAttribute('data-theme')) ? 'text-green' : 'text-blue') : 'text-red') + '" style="font-weight:700; color:' + (isInStock ? (((document.documentElement.getAttribute('data-theme') === 'dark' || !document.documentElement.getAttribute('data-theme')) ? '#10B981' : '#0284C7') + ' !important') : '#EF4444 !important') + ';"><strong class="col-remain-qty" style="color:inherit !important;">' + fmtNum(remQty) + '</strong></td>' +
+            '<td class="text-right text-blue" style="font-weight:700; color:#0284C7 !important;">' + totalWeightDisp + '</td>' +
             '<td class="text-center">' + statusBadge + '</td>' +
             '<td class="text-center" style="white-space:nowrap;"><div style="display:inline-flex; gap:6px; align-items:center; justify-content:center;">' +
               actionButtons.join(' ') +
@@ -10740,7 +11692,7 @@ function editProduct(p) {
 
       const row = document.createElement('div');
       row.className = 'rcv-item-row';
-      row.style.cssText = 'background:#ffffff; padding:14px; border-radius:10px; border:1px solid #cbd5e1; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.04);';
+      row.style.cssText = 'padding:14px; border-radius:12px; margin-bottom:12px;';
       row.innerHTML =
         '<input type="hidden" class="rcv-lot" data-auto-lot="false" value="' + escapeHtml(lotDefault) + '">' +
         '<input type="hidden" class="rcv-prod-sel" value="' + escapeHtml(item ? (item.productId || '') : '') + '">' +
@@ -11758,7 +12710,7 @@ function editProduct(p) {
 
       const row = document.createElement('div');
       row.className = 'edit-rcv-item-row';
-      row.style.cssText = 'background:#ffffff; padding:14px; border-radius:10px; border:1px solid #cbd5e1; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.04);';
+      row.style.cssText = 'padding:14px; border-radius:12px; margin-bottom:12px;';
       row.innerHTML =
         '<input type="hidden" class="edit-rcv-item-id" value="' + escapeHtml(item ? (item.ItemID || item.itemId || '') : '') + '">' +
         '<input type="hidden" class="edit-rcv-orig-lot" value="' + escapeHtml(lotDefault) + '">' +
@@ -12986,7 +13938,7 @@ function editProduct(p) {
 
       const row = document.createElement('div');
       row.className = 'req-item-row';
-      row.style.cssText = 'background:#ffffff; padding:14px; border-radius:10px; border:1px solid #cbd5e1; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.04);';
+      row.style.cssText = 'padding:14px; border-radius:12px; margin-bottom:12px;';
       row.innerHTML =
         '<input type="hidden" class="req-lot" value="' + escapeHtml(item ? (item.lotNo || item.LotNo || '') : '') + '">' +
         '<input type="hidden" class="req-cat" value="' + escapeHtml(item ? (item.categoryName || item.CategoryName || 'อาหารทะเลแช่แข็ง') : 'อาหารทะเลแช่แข็ง') + '">' +
@@ -13872,7 +14824,7 @@ function editProduct(p) {
 
       const row = document.createElement('div');
       row.className = 'edit-req-item-row';
-      row.style.cssText = 'background:#ffffff; padding:14px; border-radius:10px; border:1px solid #cbd5e1; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.04);';
+      row.style.cssText = 'padding:14px; border-radius:12px; margin-bottom:12px;';
       const isPostApproveMode = document.getElementById('editReqIsPostApprove') && document.getElementById('editReqIsPostApprove').value === 'true';
       const canEditAllReqFields = isPostApproveMode || (STATE.user && (STATE.user.role === 'Admin' || STATE.user.role === 'Manager'));
 
@@ -15430,20 +16382,20 @@ function editProduct(p) {
           document.getElementById('activeReportHeading').textContent = 'รายงานตัดสต็อก (Stock Card)';
           document.getElementById('activeReportSummaryBadge').innerHTML = '<span style="color:#64748B; font-weight:500;"><i class="fa-solid fa-circle-info"></i> กรุณาเลือกชื่อลูกค้าและระบุ Lot No. เพื่อแสดงข้อมูล</span>';
           document.getElementById('activeReportThead').innerHTML =
-            '<tr style="background:#BDD7EE; color:#000000; font-weight:700;">' +
-            '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8;">วันที่</th>' +
-            '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8;">เลขที่เอกสาร</th>' +
-            '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8;">ทะเบียนรถ</th>' +
-            '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8;">น้ำหนัก/หน่วย<br>(กก.)</th>' +
-            '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; color:#10B981;">เข้า<br><span style="color:#ffffff; font-weight:normal;">(หน่วย)</span></th>' +
-            '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; color:#EF4444;">ออก<br><span style="color:#ffffff; font-weight:normal;">(หน่วย)</span></th>' +
-            '<th colspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8;">คงเหลือ</th>' +
-            '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8;">วันครบรอบบิล</th>' +
-            '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8;">หมายเหตุ</th>' +
+            '<tr>' +
+            '<th rowspan="2" class="text-center" style="vertical-align:middle; padding:8px 6px;">วันที่</th>' +
+            '<th rowspan="2" class="text-center" style="vertical-align:middle; padding:8px 6px;">เลขที่เอกสาร</th>' +
+            '<th rowspan="2" class="text-center" style="vertical-align:middle; padding:8px 6px;">ทะเบียนรถ</th>' +
+            '<th rowspan="2" class="text-center" style="vertical-align:middle; padding:8px 6px;">น้ำหนัก/หน่วย<br>(กก.)</th>' +
+            '<th rowspan="2" class="text-center" style="vertical-align:middle; padding:8px 6px;"><span class="text-green" style="color:#10B981 !important; font-weight:700;">เข้า</span><br><span style="font-weight:normal; font-size:12px;">(หน่วย)</span></th>' +
+            '<th rowspan="2" class="text-center" style="vertical-align:middle; padding:8px 6px;"><span class="text-red" style="color:#EF4444 !important; font-weight:700;">ออก</span><br><span style="font-weight:normal; font-size:12px;">(หน่วย)</span></th>' +
+            '<th colspan="2" class="text-center" style="vertical-align:middle; padding:8px 6px;">คงเหลือ</th>' +
+            '<th rowspan="2" class="text-center" style="vertical-align:middle; padding:8px 6px;">วันครบรอบบิล</th>' +
+            '<th rowspan="2" class="text-center" style="vertical-align:middle; padding:8px 6px;">หมายเหตุ</th>' +
             '</tr>' +
-            '<tr style="background:#BDD7EE; color:#000000; font-weight:700;">' +
-            '<th class="text-center" style="vertical-align:middle; border:1px solid #94A3B8;">(หน่วย)</th>' +
-            '<th class="text-center" style="vertical-align:middle; border:1px solid #94A3B8;">(กก.)</th>' +
+            '<tr>' +
+            '<th class="text-center" style="vertical-align:middle; padding:6px; font-weight:normal; font-size:12px;">(หน่วย)</th>' +
+            '<th class="text-center" style="vertical-align:middle; padding:6px; font-weight:normal; font-size:12px;">(กก.)</th>' +
             '</tr>';
           document.getElementById('activeReportTbody').innerHTML =
             '<tr><td colspan="10" style="text-align:center; padding:44px 16px; background:#F8FAFC; border:1px dashed #CBD5E1;">' +
@@ -15467,20 +16419,20 @@ function editProduct(p) {
           '<span style="color:#0284C7; font-weight:700;">คงเหลือ: ' + fmtNum(data.remainQty) + ' ' + escapeHtml(data.unit) + ' | น้ำหนักคงเหลือ: ' + fmtNum(data.remainWeight, 2) + ' กก.</span>';
 
         document.getElementById('activeReportThead').innerHTML =
-          '<tr style="background:#BDD7EE; color:#000000; font-weight:700;">' +
-          '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; padding:8px 6px;">วันที่</th>' +
-          '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; padding:8px 6px;">เลขที่เอกสาร</th>' +
-          '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; padding:8px 6px;">ทะเบียนรถ</th>' +
-          '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; padding:8px 6px;">น้ำหนัก/หน่วย<br>(กก.)</th>' +
-          '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; color:#10B981; padding:8px 6px;">เข้า<br><span style="color:#ffffff; font-weight:normal;">(หน่วย)</span></th>' +
-          '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; color:#EF4444; padding:8px 6px;">ออก<br><span style="color:#ffffff; font-weight:normal;">(หน่วย)</span></th>' +
-          '<th colspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; padding:8px 6px;">คงเหลือ</th>' +
-          '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; padding:8px 6px;">วันครบรอบบิล</th>' +
-          '<th rowspan="2" class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; padding:8px 6px;">หมายเหตุ</th>' +
+          '<tr>' +
+          '<th rowspan="2" class="text-center" style="vertical-align:middle; padding:8px 6px;">วันที่</th>' +
+          '<th rowspan="2" class="text-center" style="vertical-align:middle; padding:8px 6px;">เลขที่เอกสาร</th>' +
+          '<th rowspan="2" class="text-center" style="vertical-align:middle; padding:8px 6px;">ทะเบียนรถ</th>' +
+          '<th rowspan="2" class="text-center" style="vertical-align:middle; padding:8px 6px;">น้ำหนัก/หน่วย<br>(กก.)</th>' +
+          '<th rowspan="2" class="text-center" style="vertical-align:middle; padding:8px 6px;"><span class="text-green" style="color:#10B981 !important; font-weight:700;">เข้า</span><br><span style="font-weight:normal; font-size:12px;">(หน่วย)</span></th>' +
+          '<th rowspan="2" class="text-center" style="vertical-align:middle; padding:8px 6px;"><span class="text-red" style="color:#EF4444 !important; font-weight:700;">ออก</span><br><span style="font-weight:normal; font-size:12px;">(หน่วย)</span></th>' +
+          '<th colspan="2" class="text-center" style="vertical-align:middle; padding:8px 6px;">คงเหลือ</th>' +
+          '<th rowspan="2" class="text-center" style="vertical-align:middle; padding:8px 6px;">วันครบรอบบิล</th>' +
+          '<th rowspan="2" class="text-center" style="vertical-align:middle; padding:8px 6px;">หมายเหตุ</th>' +
           '</tr>' +
-          '<tr style="background:#BDD7EE; color:#000000; font-weight:700;">' +
-          '<th class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; padding:6px;">(หน่วย)</th>' +
-          '<th class="text-center" style="vertical-align:middle; border:1px solid #94A3B8; padding:6px;">(กก.)</th>' +
+          '<tr>' +
+          '<th class="text-center" style="vertical-align:middle; padding:6px; font-weight:normal; font-size:12px;">(หน่วย)</th>' +
+          '<th class="text-center" style="vertical-align:middle; padding:6px; font-weight:normal; font-size:12px;">(กก.)</th>' +
           '</tr>';
 
         const tbody = document.getElementById('activeReportTbody');
@@ -15491,22 +16443,23 @@ function editProduct(p) {
 
         let rowsHtml = data.transactions.map((tx, idx) => {
           const isIN = tx.type === 'IN';
-          const docColor = isIN ? '#10B981' : '#EF4444';
-          const inDisplay = tx.inQty !== null ? ('<span style="color:#10B981; font-weight:700;">' + fmtNum(tx.inQty) + '</span>') : '';
-          const outDisplay = tx.outQty !== null ? ('<span style="color:#EF4444; font-weight:700;">' + fmtNum(tx.outQty) + '</span>') : '';
+          const docColor = isIN ? '#10B981 !important' : '#EF4444 !important';
+          const docCls = isIN ? ' text-green' : ' text-red';
+          const inDisplay = tx.inQty !== null ? ('<span class="text-green" style="color:#10B981 !important; font-weight:700;">' + fmtNum(tx.inQty) + '</span>') : '';
+          const outDisplay = tx.outQty !== null ? ('<span class="text-red" style="color:#EF4444 !important; font-weight:700;">' + fmtNum(tx.outQty) + '</span>') : '';
           const wPerUnitDisp = isIN && tx.weightPerUnit ? fmtNum(tx.weightPerUnit, 2) : '';
           const isLastZero = (idx === data.transactions.length - 1 && (parseFloat(tx.remainQty) || 0) <= 0);
-          const remarkHtml = isLastZero ? '<span style="color:#EF4444; font-weight:700;">หมดสต็อก</span>' : '';
+          const remarkHtml = isLastZero ? '<span class="text-red" style="color:#EF4444 !important; font-weight:700;">หมดสต็อก</span>' : '';
 
           return '<tr style="border-bottom:1px solid #E2E8F0;">' +
             '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1;">' + escapeHtml(tx.date) + '</td>' +
-            '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1; color:' + docColor + '; font-weight:700;">' + escapeHtml(tx.docNo) + '</td>' +
+            '<td class="text-center' + docCls + '" style="padding:8px 6px; border:1px solid #CBD5E1; color:' + docColor + '; font-weight:700;">' + escapeHtml(tx.docNo) + '</td>' +
             '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1;">' + escapeHtml(tx.vehicle || '-') + '</td>' +
             '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1;">' + escapeHtml(wPerUnitDisp) + '</td>' +
-            '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1;">' + inDisplay + '</td>' +
-            '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1;">' + outDisplay + '</td>' +
-            '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1; color:#0284C7; font-weight:700;">' + fmtNum(tx.remainQty) + '</td>' +
-            '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1; color:#0284C7; font-weight:700;">' + fmtNum(tx.remainWeight, 2) + '</td>' +
+            '<td class="text-center text-green" style="padding:8px 6px; border:1px solid #CBD5E1;">' + inDisplay + '</td>' +
+            '<td class="text-center text-red" style="padding:8px 6px; border:1px solid #CBD5E1;">' + outDisplay + '</td>' +
+            '<td class="text-center text-blue" style="padding:8px 6px; border:1px solid #CBD5E1; color:#0284C7 !important; font-weight:700;">' + fmtNum(tx.remainQty) + '</td>' +
+            '<td class="text-center text-blue" style="padding:8px 6px; border:1px solid #CBD5E1; color:#0284C7 !important; font-weight:700;">' + fmtNum(tx.remainWeight, 2) + '</td>' +
             '<td class="text-center" style="padding:8px 6px; border:1px solid #CBD5E1;">' + escapeHtml(tx.nextBillingDate || '-') + '</td>' +
             '<td class="text-center" style="padding:8px 8px; border:1px solid #CBD5E1;">' + remarkHtml + '</td>' +
             '</tr>';
@@ -15519,9 +16472,9 @@ function editProduct(p) {
 
         // แถวสรุปผลรวมจำนวนคงเหลือท้ายตาราง
         rowsHtml += '<tr>' +
-          '<td colspan="6" style="border:none; text-align:right; font-weight:700; padding:12px 14px; font-size:14.5px; color:#0F172A;">จำนวนคงเหลือ:</td>' +
-          '<td style="border:1.5px solid #94A3B8; text-align:center; font-weight:700; color:#0284C7; padding:10px 8px; font-size:14.5px; background:#F0F9FF; white-space:nowrap;">' + fmtNum(data.remainQty) + ' ' + escapeHtml(data.unit) + '</td>' +
-          '<td style="border:1.5px solid #94A3B8; text-align:center; font-weight:700; color:#0284C7; padding:10px 8px; font-size:14.5px; background:#F0F9FF; white-space:nowrap;">รวม: ' + fmtNum(data.remainWeight, 2) + ' กก.</td>' +
+          '<td colspan="6" style="border:none; text-align:right; font-weight:700; padding:12px 14px; font-size:14.5px;">จำนวนคงเหลือ:</td>' +
+          '<td style="border:1.5px solid #94A3B8; text-align:center; font-weight:700; color:#0284C7 !important; padding:10px 8px; font-size:14.5px; background:#F0F9FF; white-space:nowrap;"><span class="text-blue" style="color:#0284C7 !important; font-weight:700;">' + fmtNum(data.remainQty) + ' ' + escapeHtml(data.unit) + '</span></td>' +
+          '<td style="border:1.5px solid #94A3B8; text-align:center; font-weight:700; color:#0284C7 !important; padding:10px 8px; font-size:14.5px; background:#F0F9FF; white-space:nowrap;"><span class="text-blue" style="color:#0284C7 !important; font-weight:700;">รวม: ' + fmtNum(data.remainWeight, 2) + ' กก.</span></td>' +
           '<td colspan="2" style="border:none;"></td>' +
           '</tr>';
 
@@ -15596,25 +16549,34 @@ function editProduct(p) {
 
             // สีตัวเลขข้อมูลตามสเปก
             if (h.indexOf('รับเข้าเริ่มต้น') !== -1) {
-              style = ' style="color:#10B981; font-weight:700;"';
+              style = ' style="color:#10B981 !important; font-weight:700;"';
+              cls += ' text-green';
             } else if (h.indexOf('เบิกออก') !== -1) {
               const numV = parseFloat(String(c).replace(/,/g, '')) || 0;
               if (numV > 0) {
-                style = ' style="color:#EF4444; font-weight:700;"';
+                style = ' style="color:#EF4444 !important; font-weight:700;"';
+                cls += ' text-red';
               } else {
-                style = ' style="color:#111827; font-weight:normal;"';
+                style = ' style="font-weight:normal;"';
               }
             } else if (h.indexOf('คงเหลือ') !== -1 && h.indexOf('น้ำหนัก') === -1) {
-              style = ' style="color:#0284C7; font-weight:700;"';
+              const isDark = document.documentElement.getAttribute('data-theme') === 'dark' || !document.documentElement.getAttribute('data-theme');
+              const remColor = isDark ? '#10B981' : '#0284C7';
+              const remCls = isDark ? 'text-green' : 'text-blue';
+              style = ' style="color:' + remColor + ' !important; font-weight:700;"';
+              cls += ' col-remain-qty ' + remCls;
             } else if (h.indexOf('จำนวนเปลี่ยนแปลง') !== -1) {
               const numV = parseFloat(String(c).replace(/,/g, '')) || 0;
               if (STATE.activeReportType === 'INBOUND' || numV > 0) {
-                style = ' style="color:#10B981; font-weight:700;"';
+                style = ' style="color:#10B981 !important; font-weight:700;"';
+                cls += ' text-green';
               } else if (STATE.activeReportType === 'OUTBOUND' || numV < 0) {
-                style = ' style="color:#EF4444; font-weight:700;"';
+                style = ' style="color:#EF4444 !important; font-weight:700;"';
+                cls += ' text-red';
               }
             } else if (h.indexOf('หมายเหตุ') !== -1 && String(c || '').indexOf('หมด') !== -1) {
-              style = ' style="color:#EF4444; font-weight:700;"';
+              style = ' style="color:#EF4444 !important; font-weight:700;"';
+              cls += ' text-red';
             }
 
             if (h === 'เลขที่เอกสาร') {
@@ -17291,8 +18253,8 @@ function editProduct(p) {
 
         const timeBadgesHtml = (dispTimeIn || dispTimeOut)
           ? '<div style="font-size:11px; margin-top:3px; display:flex; gap:6px; flex-wrap:wrap;">' +
-              (dispTimeIn ? '<span style="color:var(--primary-blue); font-weight:600;"><i class="fa-solid fa-clock"></i> เข้า: ' + escapeHtml(dispTimeIn) + '</span>' : '') +
-              (dispTimeOut ? '<span style="color:#EF4444; font-weight:600;"><i class="fa-solid fa-clock-rotate-left"></i> ออก: ' + escapeHtml(dispTimeOut) + '</span>' : '') +
+              (dispTimeIn ? '<span class="text-blue" style="color:#0284C7 !important; font-weight:600;"><i class="fa-solid fa-clock"></i> เข้า: ' + escapeHtml(dispTimeIn) + '</span>' : '') +
+              (dispTimeOut ? '<span class="text-red" style="color:#EF4444 !important; font-weight:600;"><i class="fa-solid fa-clock-rotate-left"></i> ออก: ' + escapeHtml(dispTimeOut) + '</span>' : '') +
             '</div>'
           : '';
 
@@ -17326,14 +18288,14 @@ function editProduct(p) {
           : '<span class="status-badge status-Rejected" style="font-size:11px;"><i class="fa-solid fa-circle-xmark"></i> สินค้าหมด</span>';
 
         return '<tr>' +
-          '<td class="text-center"><strong style="color:#0A3D62; font-size:14px;">' + escapeHtml(item.LotNo) + '</strong></td>' +
+          '<td class="text-center"><strong style="font-size:14px;">' + escapeHtml(item.LotNo) + '</strong></td>' +
           '<td><strong>' + escapeHtml(docNum) + '</strong>' + timeBadgesHtml + '</td>' +
           '<td><strong>' + escapeHtml(item.ProductName) + '</strong><br><small style="color:var(--text-muted);">' + escapeHtml(item.Description || '-') + '</small></td>' +
           '<td><strong>' + escapeHtml(item.ClientName || '-') + '</strong><br><small style="color:#64748B;">' + escapeHtml(item.ClientID || clientObj.ClientCode || '-') + '</small></td>' +
           '<td class="text-center"><strong>' + escapeHtml(item.Unit || 'กล่อง') + '</strong></td>' +
           '<td class="text-right"><strong>' + wPerUnitDisp + '</strong></td>' +
-          '<td class="text-right" style="font-weight:700; color:' + (isInStock ? '#10B981' : '#EF4444') + ';">' + fmtNum(remQty) + '</td>' +
-          '<td class="text-right" style="font-weight:700; color:var(--primary-blue);">' + remWeightDisp + '</td>' +
+          '<td class="text-right ' + (isInStock ? 'text-green' : 'text-red') + '" style="font-weight:700; color:' + (isInStock ? '#10B981 !important' : '#EF4444 !important') + ';">' + fmtNum(remQty) + '</td>' +
+          '<td class="text-right text-blue" style="font-weight:700; color:#0284C7 !important;">' + remWeightDisp + '</td>' +
           '<td class="text-center" style="font-size:12px;">' + billingDays + ' วัน<br><small style="color:#0284C7;">' + fmtNum(ratePerKg, 2) + ' ฿/กก.</small></td>' +
           '<td class="text-center">' + statusBadge + '</td>' +
           '<td class="text-center">' +
