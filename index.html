@@ -2841,10 +2841,10 @@
               <table class="data-table">
                 <thead>
                   <tr>
+                    <th class="text-center" style="width:110px;">วันที่ฝาก</th>
                     <th class="text-center" style="width:110px;">Lot No.</th>
                     <th>ชื่อสินค้า</th>
                     <th style="width:65px;" class="text-center">รูปภาพ</th>
-                    <th class="text-center">หน่วยนับ</th>
                     <th class="text-right">น้ำหนัก/หน่วย</th>
                     <th class="text-right">รับเข้า</th>
                     <th class="text-right">เบิกออก</th>
@@ -4980,7 +4980,23 @@
         if (clientsRows.length > 0) tasks.push(sb.from('wms_clients').upsert(clientsRows, { onConflict: 'client_id' }));
         if (categoriesRows.length > 0) tasks.push(sb.from('wms_categories').upsert(categoriesRows, { onConflict: 'category_id' }));
         if (productsRows.length > 0) tasks.push(sb.from('wms_products').upsert(productsRows, { onConflict: 'product_id' }));
-        if (stockRows.length > 0) tasks.push(sb.from('wms_stock').upsert(stockRows, { onConflict: 'stock_id' }));
+        if (stockRows.length > 0) {
+          tasks.push(
+            sb.from('wms_stock').upsert(stockRows, { onConflict: 'stock_id' }).then(res => {
+              // หากเกิดข้อผิดพลาดเพราะตารางใน Supabase ยังไม่มีคอลัมน์ time_in หรือ time_out ให้ retry โดยตัด 2 ฟิลด์นี้ออกอัตโนมัติ
+              if (res && res.error && (res.error.message.indexOf('time_in') !== -1 || res.error.message.indexOf('time_out') !== -1 || res.error.code === '42703')) {
+                const fallbackRows = stockRows.map(r => {
+                  const copy = Object.assign({}, r);
+                  delete copy.time_in;
+                  delete copy.time_out;
+                  return copy;
+                });
+                return sb.from('wms_stock').upsert(fallbackRows, { onConflict: 'stock_id' });
+              }
+              return res;
+            })
+          );
+        }
         if (receivingsRows.length > 0) tasks.push(sb.from('wms_receivings').upsert(receivingsRows, { onConflict: 'receiving_no' }));
         if (rcvItemsRows.length > 0) tasks.push(sb.from('wms_receiving_items').upsert(rcvItemsRows, { onConflict: 'item_id' }));
         if (requisitionsRows.length > 0) tasks.push(sb.from('wms_requisitions').upsert(requisitionsRows, { onConflict: 'requisition_no' }));
@@ -10230,11 +10246,13 @@
           const outCls = outQty > 0 ? ' text-red' : '';
           const remCls = isInStock ? ' text-blue' : ' text-red';
 
+          const rcvDateDisp = p.ReceiveDate ? escapeHtml(p.ReceiveDate) : '-';
+
           return '<tr>' +
+            '<td class="text-center" style="white-space:nowrap;">' + rcvDateDisp + '</td>' +
             '<td class="text-center"><strong>' + escapeHtml(lotText) + '</strong></td>' +
             '<td><strong>' + escapeHtml(p.ProductName) + '</strong><br><small style="color:var(--text-muted);">' + escapeHtml(p.Description || '-') + '</small></td>' +
             '<td class="text-center">' + imgHtml + '</td>' +
-            '<td class="text-center"><strong>' + escapeHtml(p.Unit) + '</strong></td>' +
             '<td class="text-right"><strong>' + weightDisp + '</strong></td>' +
             '<td class="text-right text-green" style="font-weight:700; color:#10B981 !important;">' + fmtNum(initQty) + '</td>' +
             '<td class="text-right' + outCls + '" style="' + outStyle + '">' + fmtNum(outQty) + '</td>' +
@@ -11142,8 +11160,8 @@ function editProduct(p) {
       const cli = document.getElementById('prodFilterClient') ? document.getElementById('prodFilterClient').value : '';
       const isClient = STATE.user && STATE.user.role === 'Client Portal';
       const list = getFilteredProducts();
-      // คอลัมน์ หมวดหมู่ เอาออก, เพิ่มคอลัมน์ รับเข้า และ เบิกออก
-      const headers = ['Lot No.', 'ชื่อสินค้า', 'รายละเอียด', 'หน่วยนับ', 'น้ำหนัก/หน่วย', 'รับเข้า', 'เบิกออก', 'คงเหลือ (หน่วย)', 'น้ำหนักรวม (กก.)', 'หมายเหตุ'];
+      // เพิ่มคอลัมน์ "วันที่ฝาก" เป็นคอลัมน์แรก และเอาคอลัมน์ "หน่วยนับ" ออก ทั้งหน้าเวปและ Export Excel, Google sheets
+      const headers = ['วันที่ฝาก', 'Lot No.', 'ชื่อสินค้า', 'รายละเอียด', 'น้ำหนัก/หน่วย', 'รับเข้า', 'เบิกออก', 'คงเหลือ (หน่วย)', 'น้ำหนักรวม (กก.)', 'หมายเหตุ'];
       const rows = list.map(p => {
         const stockObj = (STATE.stock || []).find(s => (p.StockID && s.StockID === p.StockID) || (p.LotNo && p.LotNo !== '-' && s.LotNo === p.LotNo)) || p;
         const initQty = (stockObj.InitialQty !== undefined && !isNaN(parseFloat(stockObj.InitialQty))) ? parseFloat(stockObj.InitialQty) : ((p.InitialQty !== undefined && !isNaN(parseFloat(p.InitialQty))) ? parseFloat(p.InitialQty) : (parseFloat(p.RemainQty) || 0));
@@ -11163,8 +11181,9 @@ function editProduct(p) {
         const weightValCol = isWeighed ? 'น้ำหนักชั่ง' : (p.WeightPerUnit !== undefined && p.WeightPerUnit !== null ? p.WeightPerUnit : 0);
         const remWeightCol = remWeight > 0 ? remWeight : (isWeighed ? 'น้ำหนักชั่ง' : 0);
         const remarkCol = remQty <= 0 ? getOutOfStockRemarkForStock(stockObj) : '';
+        const rcvDate = p.ReceiveDate || (stockObj ? stockObj.ReceiveDate : '') || '-';
 
-        return [lotText, p.ProductName, p.Description, p.Unit, weightValCol, initQty, outQty, remQty, remWeightCol, remarkCol];
+        return [rcvDate, lotText, p.ProductName, p.Description, weightValCol, initQty, outQty, remQty, remWeightCol, remarkCol];
       });
       downloadTableFile('Stock_POR_MARINE_' + formatYMDCompact(), headers, rows, format, { isStock: true, selectedClient: cli });
     }
@@ -16914,7 +16933,7 @@ function editProduct(p) {
           csvLines.push(r.map((v, cIdx) => {
             let strVal = String(v === undefined || v === null ? '' : v);
             if (isStock) {
-              if (cIdx === 1 || cIdx === 2) {
+              if (cIdx === 2 || cIdx === 3) {
                 strVal = strVal ? (' ' + strVal.trim()) : '';
               } else if (cIdx === 4 || cIdx === 5 || cIdx === 6 || cIdx === 7 || cIdx === 8) {
                 strVal = formatCleanNumber(strVal);
@@ -17369,16 +17388,16 @@ function editProduct(p) {
       // =========================================================================
       if (isStock) {
         let colgroupHtml = '<colgroup>' +
-          '<col width="100" style="width: 75pt;" align="center">' +   // Lot No.
-          '<col width="240" style="width: 180pt;">' +  // ชื่อสินค้า
-          '<col width="200" style="width: 150pt;">' +  // รายละเอียด
-          '<col width="90" style="width: 68pt;">' +    // หน่วยนับ
-          '<col width="110" style="width: 82pt;">' +   // น้ำหนัก/หน่วย
-          '<col width="100" style="width: 75pt;">' +   // รับเข้า
-          '<col width="100" style="width: 75pt;">' +   // เบิกออก
-          '<col width="120" style="width: 90pt;">' +   // คงเหลือ (หน่วย)
-          '<col width="120" style="width: 90pt;">' +   // น้ำหนักรวม (กก.)
-          '<col width="140" style="width: 105pt;">' +  // หมายเหตุ
+          '<col width="110" style="width: 82pt;" align="center">' +  // วันที่ฝาก
+          '<col width="100" style="width: 75pt;" align="center">' +  // Lot No.
+          '<col width="240" style="width: 180pt;">' +                 // ชื่อสินค้า
+          '<col width="200" style="width: 150pt;">' +                 // รายละเอียด
+          '<col width="110" style="width: 82pt;" align="center">' +  // น้ำหนัก/หน่วย
+          '<col width="100" style="width: 75pt;" align="center">' +  // รับเข้า
+          '<col width="100" style="width: 75pt;" align="center">' +  // เบิกออก
+          '<col width="120" style="width: 90pt;" align="center">' +  // คงเหลือ (หน่วย)
+          '<col width="120" style="width: 90pt;" align="center">' +  // น้ำหนักรวม (กก.)
+          '<col width="140" style="width: 105pt;" align="center">' + // หมายเหตุ
           '</colgroup>';
 
         let theadHtml = '<thead>' +
@@ -17404,9 +17423,20 @@ function editProduct(p) {
             let cellsHtml = '';
             r.forEach((c, cIdx) => {
               const rawStr = String(c === undefined || c === null ? '' : c).trim();
-              if (cIdx === 1 || cIdx === 2) {
+              if (cIdx === 0) {
+                // วันที่ฝาก
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif; mso-number-format:\"@\"; white-space:nowrap;">' + escapeHtml(rawStr) + '</td>';
+              } else if (cIdx === 1) {
+                // Lot No.
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif; mso-number-format:\"@\"; white-space:nowrap;">' + escapeHtml(rawStr) + '</td>';
+              } else if (cIdx === 2 || cIdx === 3) {
+                // ชื่อสินค้า, รายละเอียด
                 const textVal = rawStr ? ('&nbsp;' + escapeHtml(rawStr)) : '';
-                cellsHtml += '<td style="border:0.5pt solid #AEABAB; text-align:left; vertical-align:middle; padding:4px 8px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif; mso-number-format:"\@"; white-space:nowrap;">' + textVal + '</td>';
+                cellsHtml += '<td style="border:0.5pt solid #AEABAB; text-align:left; vertical-align:middle; padding:4px 8px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif; mso-number-format:\"@\"; white-space:nowrap;">' + textVal + '</td>';
+              } else if (cIdx === 4) {
+                // น้ำหนัก/หน่วย
+                const dispNum = formatCleanNumber(rawStr);
+                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(dispNum) + '</td>';
               } else if (cIdx === 5) {
                 // รับเข้า
                 const dispNum = formatCleanNumber(rawStr);
@@ -17421,21 +17451,11 @@ function editProduct(p) {
                 // คงเหลือ (หน่วย) และ น้ำหนักรวม (กก.)
                 const dispNum = formatCleanNumber(rawStr);
                 cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:bold; height:24.75pt; font-family:Sarabun, Arial, sans-serif; color:#0284C7;">' + escapeHtml(dispNum) + '</td>';
-              } else if (cIdx === 4) {
-                // น้ำหนัก/หน่วย
-                const dispNum = formatCleanNumber(rawStr);
-                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(dispNum) + '</td>';
               } else if (cIdx === 9) {
                 // หมายเหตุ
                 const isOutOfStock = rawStr.indexOf('หมด') !== -1;
                 const noteColor = isOutOfStock ? ' color:#EF4444; font-weight:bold;' : '';
                 cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; height:24.75pt; font-family:Sarabun, Arial, sans-serif;' + noteColor + '">' + escapeHtml(rawStr) + '</td>';
-              } else if (cIdx === 0) {
-                // Lot No. -> จัดให้อยู่ตรงกลางคอลัมน์
-                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif; mso-number-format:"\@";">' + escapeHtml(rawStr) + '</td>';
-              } else {
-                // หน่วยนับ (cIdx 3)
-                cellsHtml += '<td align="center" style="border:0.5pt solid #AEABAB; text-align:center; vertical-align:middle; padding:4px 6px; font-size:11pt; font-weight:normal; height:24.75pt; font-family:Sarabun, Arial, sans-serif;">' + escapeHtml(rawStr) + '</td>';
               }
             });
             return '<tr height="33" style="mso-height-source:userset; height:24.75pt;">' + cellsHtml + '</tr>';
