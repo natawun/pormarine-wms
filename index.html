@@ -3365,7 +3365,7 @@
                 </div>
                 <div>
                   <label style="font-weight:600; font-size:12.5px; color:var(--primary-navy);">Google Apps Script Webhook URL (ตัวเลือกเสริมสำหรับโหมด Standalone)</label>
-                  <input type="text" id="cfgDualWebhookUrl" class="form-control" placeholder="https://script.google.com/macros/s/.../exec" style="font-family:monospace; font-size:12.5px;" onchange="DUAL_SYNC_CONFIG.webhookUrl = this.value.trim()">
+                  <input type="text" id="cfgDualWebhookUrl" class="form-control" value="https://script.google.com/macros/s/AKfycbzZHlwXM6KugN9jqkkm20UAznM-J39Ygy_61xu20fcNS7t6MD-GvGdficFbYLFnmCLx/exec" style="font-family:monospace; font-size:12.5px;" onchange="DUAL_SYNC_CONFIG.webhookUrl = this.value.trim()">
                 </div>
               </div>
               <div id="dualSyncLogBox" style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:10px; padding:12px 16px; margin-bottom:14px; font-size:13px; color:#166534;">
@@ -4607,7 +4607,7 @@
       enabled: true, // เปิดใช้งานระบบบันทึกและอัปเดตคู่ขนานอัตโนมัติ (Supabase + Google Sheets / Drive)
       spreadsheetId: '1DlPaxnCJ4PZzwkStCAi07njs8bjUvVI6FgbJekgspXk',
       driveFolderId: '', // รหัสโฟลเดอร์ Google Drive สำหรับจัดเก็บไฟล์สำรอง JSON/PDF (ถ้ามี)
-      webhookUrl: '',    // Web App URL ของ Google Apps Script สำหรับรับ Webhook แบบ Standalone (ถ้ามี)
+      webhookUrl: 'https://script.google.com/macros/s/AKfycbzZHlwXM6KugN9jqkkm20UAznM-J39Ygy_61xu20fcNS7t6MD-GvGdficFbYLFnmCLx/exec', // Web App URL ของ Google Apps Script สำหรับรับ Webhook แบบ Standalone
       syncIntervalMs: 2000
     };
 
@@ -18163,11 +18163,19 @@ function editProduct(p) {
           await fetch(DUAL_SYNC_CONFIG.webhookUrl.trim(), {
             method: 'POST',
             mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({ db: db, syncedAt: formatNowThai() })
           });
           hideLoader();
-          Swal.fire('ส่งข้อมูลสำเร็จ', 'ส่งข้อมูลไปยัง Google Sheets Webhook เรียบร้อยแล้ว', 'success');
+          updateDualSyncStatusUI('ซิงค์ Google Sheets สำเร็จล่าสุด: ' + formatNowThai(), true);
+          Swal.fire({
+            title: 'ส่งข้อมูลเข้า Google Sheets สำเร็จ!',
+            html: '<div style="text-align:left;font-size:13.5px;line-height:1.7;">' +
+                  '<p>ส่งข้อมูลทั้งหมดไปยัง Google Apps Script Webhook เรียบร้อยแล้ว</p>' +
+                  '<p><a href="https://docs.google.com/spreadsheets/d/' + DUAL_SYNC_CONFIG.spreadsheetId + '/edit" target="_blank" style="color:#0284C7;font-weight:600;"><i class="fa-solid fa-arrow-up-right-from-square"></i> เปิดดู Google Sheets (POR MARINE_DB)</a></p>' +
+                  '</div>',
+            icon: 'success'
+          });
         } else {
           hideLoader();
           Swal.fire({
