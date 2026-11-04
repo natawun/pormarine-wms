@@ -3339,6 +3339,37 @@
                 <button type="button" class="btn btn-outline" onclick="handlePullFromSupabase()">
                   <i class="fa-solid fa-cloud-arrow-down"></i> ดึงข้อมูลล่าสุดจาก Supabase (Pull from Supabase)
                 </button>
+                <button type="button" class="btn btn-success" onclick="handleManualSyncToSheets()" style="background:#0F9D58; color:#FFFFFF; border:none;">
+                  <i class="fa-solid fa-table"></i> ซิงค์ข้อมูลเข้า Google Sheets ทันที (Manual Sync)
+                </button>
+              </div>
+            </div>
+
+            <!-- 27.1 ระบบบันทึกคู่ขนานอัตโนมัติ Google Sheets & Google Drive (Dual-Database Sync) -->
+            <div class="card-box" style="margin-bottom:24px; border-left:4px solid #0F9D58;">
+              <div class="card-box-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                <div class="card-box-title">
+                  <i class="fa-solid fa-table-cells" style="color:#0F9D58;"></i> 27.1 การบันทึกคู่ขนานอัตโนมัติ (Google Sheets &amp; Google Drive)
+                </div>
+                <span id="dualSyncStatusBadge" class="status-badge" style="background:#DCFCE7; color:#166534; font-weight:700; padding:5px 12px;">
+                  <i class="fa-solid fa-circle-check"></i> เปิดระบบบันทึกคู่ขนานแล้ว (Active)
+                </span>
+              </div>
+              <p style="font-size:13.5px; color:var(--text-muted); margin-bottom:14px;">
+                ระบบจะทำการบันทึกและส่งข้อมูลคู่ขนานไปยัง Google Sheets และสำรองไฟล์ใน Google Drive อัตโนมัติทุกครั้งที่มีการขยับสต็อก, รับสินค้าเข้า, หรือตัดจ่ายสินค้า เพื่อให้มีฐานข้อมูลสำรองและนำไปเปิดดูใน Google Drive ได้ทันที
+              </p>
+              <div class="form-grid" style="margin-bottom:14px;">
+                <div>
+                  <label style="font-weight:600; font-size:12.5px; color:var(--primary-navy);">Google Spreadsheet ID</label>
+                  <input type="text" id="cfgDualSpreadsheetId" class="form-control" value="1DlPaxnCJ4PZzwkStCAi07njs8bjUvVI6FgbJekgspXk" style="font-family:monospace; font-size:12.5px;" onchange="DUAL_SYNC_CONFIG.spreadsheetId = this.value.trim()">
+                </div>
+                <div>
+                  <label style="font-weight:600; font-size:12.5px; color:var(--primary-navy);">Google Apps Script Webhook URL (ตัวเลือกเสริมสำหรับโหมด Standalone)</label>
+                  <input type="text" id="cfgDualWebhookUrl" class="form-control" placeholder="https://script.google.com/macros/s/.../exec" style="font-family:monospace; font-size:12.5px;" onchange="DUAL_SYNC_CONFIG.webhookUrl = this.value.trim()">
+                </div>
+              </div>
+              <div id="dualSyncLogBox" style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:10px; padding:12px 16px; margin-bottom:14px; font-size:13px; color:#166534;">
+                <i class="fa-solid fa-circle-check"></i> <strong>สถานะระบบคู่ขนาน:</strong> <span id="dualSyncStatusText">พร้อมบันทึกคู่ขนานอัตโนมัติ (Real-time Dual-Sync Ready)</span>
               </div>
             </div>
 
@@ -4572,6 +4603,70 @@
       enabled: true
     };
 
+    const DUAL_SYNC_CONFIG = {
+      enabled: true, // เปิดใช้งานระบบบันทึกและอัปเดตคู่ขนานอัตโนมัติ (Supabase + Google Sheets / Drive)
+      spreadsheetId: '1DlPaxnCJ4PZzwkStCAi07njs8bjUvVI6FgbJekgspXk',
+      driveFolderId: '', // รหัสโฟลเดอร์ Google Drive สำหรับจัดเก็บไฟล์สำรอง JSON/PDF (ถ้ามี)
+      webhookUrl: '',    // Web App URL ของ Google Apps Script สำหรับรับ Webhook แบบ Standalone (ถ้ามี)
+      syncIntervalMs: 2000
+    };
+
+    let _dualSyncTimer = null;
+    function triggerDualSyncToGoogleSheets() {
+      if (!DUAL_SYNC_CONFIG.enabled) return;
+      if (_dualSyncTimer) clearTimeout(_dualSyncTimer);
+      _dualSyncTimer = setTimeout(async function() {
+        try {
+          const db = LocalPreviewEngine.getDb();
+          // กรณีรันบน Google Apps Script Web App
+          if (typeof google !== 'undefined' && google.script && google.script.run && typeof google.script.run.syncDatabaseToGoogleSheets === 'function') {
+            google.script.run
+              .withSuccessHandler(function(res) {
+                console.log('Dual-sync to Google Sheets success:', res);
+                updateDualSyncStatusUI('ซิงค์ Google Sheets สำเร็จล่าสุด: ' + formatNowThai(), true);
+              })
+              .withFailureHandler(function(err) {
+                console.warn('Dual-sync to Google Sheets warning:', err);
+                updateDualSyncStatusUI('เกิดข้อผิดพลาดในการซิงค์ Google Sheets: ' + (err.message || err), false);
+              })
+              .syncDatabaseToGoogleSheets(STATE.auth, { db: db });
+          } else if (DUAL_SYNC_CONFIG.webhookUrl && DUAL_SYNC_CONFIG.webhookUrl.trim() !== '') {
+            // กรณีรันแบบ Standalone Web Browser ผ่าน Webhook Endpoint
+            fetch(DUAL_SYNC_CONFIG.webhookUrl.trim(), {
+              method: 'POST',
+              mode: 'no-cors',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ db: db, syncedAt: formatNowThai() })
+            }).then(() => {
+              console.log('Dual-sync webhook dispatched');
+              updateDualSyncStatusUI('ส่งข้อมูลไปยัง Google Sheets Webhook สำเร็จ: ' + formatNowThai(), true);
+            }).catch(e => {
+              console.warn('Dual-sync webhook error:', e);
+            });
+          }
+        } catch (syncEx) {
+          console.warn('Dual sync execution error:', syncEx);
+        }
+      }, DUAL_SYNC_CONFIG.syncIntervalMs);
+    }
+
+    function updateDualSyncStatusUI(statusText, isOk) {
+      const badge = document.getElementById('dualSyncStatusBadge');
+      const txt = document.getElementById('dualSyncStatusText');
+      if (txt && statusText) txt.textContent = statusText;
+      if (badge) {
+        if (isOk === true) {
+          badge.style.background = '#DCFCE7';
+          badge.style.color = '#166534';
+          badge.innerHTML = '<i class="fa-solid fa-circle-check"></i> เปิดระบบบันทึกคู่ขนานแล้ว (Active)';
+        } else if (isOk === false) {
+          badge.style.background = '#FEE2E2';
+          badge.style.color = '#991B1B';
+          badge.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> ตรวจสอบการเชื่อมต่อ Sheets';
+        }
+      }
+    }
+
     const SupabaseEngine = (function() {
       let client = null;
       let realtimeChannel = null;
@@ -5533,6 +5628,11 @@
           } catch (syncErr) {
             console.warn('Supabase background sync warning:', syncErr);
           }
+        }
+
+        // เรียกซิงค์คู่ขนานไปยัง Google Sheets & Google Drive อัตโนมัติในเบื้องหลัง
+        if (typeof triggerDualSyncToGoogleSheets === 'function') {
+          triggerDualSyncToGoogleSheets();
         }
 
         return result;
@@ -18034,6 +18134,53 @@ function editProduct(p) {
         Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
       } finally {
         hideLoader();
+      }
+    }
+
+    async function handleManualSyncToSheets() {
+      showLoader('กำลังซิงค์ข้อมูลทั้งหมดไปยัง Google Sheets & Google Drive...');
+      try {
+        const db = LocalPreviewEngine.getDb();
+        if (typeof google !== 'undefined' && google.script && google.script.run && typeof google.script.run.syncDatabaseToGoogleSheets === 'function') {
+          google.script.run
+            .withSuccessHandler(function(res) {
+              hideLoader();
+              Swal.fire({
+                title: 'ซิงค์เข้า Google Sheets สำเร็จ!',
+                html: '<div style="text-align:left;font-size:13.5px;"><p>' + escapeHtml(res.message || 'บันทึกข้อมูลคู่ขนานเรียบร้อยแล้ว') + '</p>' +
+                      (res.sheetUrl ? '<p><a href="' + res.sheetUrl + '" target="_blank" style="color:#0284C7;font-weight:600;"><i class="fa-solid fa-arrow-up-right-from-square"></i> เปิดดู Google Sheets</a></p>' : '') +
+                      (res.driveUrl ? '<p><a href="' + res.driveUrl + '" target="_blank" style="color:#0F9D58;font-weight:600;"><i class="fa-solid fa-folder-open"></i> เปิดดูไฟล์ใน Google Drive</a></p>' : '') +
+                      '</div>',
+                icon: 'success'
+              });
+            })
+            .withFailureHandler(function(err) {
+              hideLoader();
+              Swal.fire('เกิดข้อผิดพลาด', err.message || String(err), 'error');
+            })
+            .syncDatabaseToGoogleSheets(STATE.auth, { db: db });
+        } else if (DUAL_SYNC_CONFIG.webhookUrl) {
+          await fetch(DUAL_SYNC_CONFIG.webhookUrl.trim(), {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ db: db, syncedAt: formatNowThai() })
+          });
+          hideLoader();
+          Swal.fire('ส่งข้อมูลสำเร็จ', 'ส่งข้อมูลไปยัง Google Sheets Webhook เรียบร้อยแล้ว', 'success');
+        } else {
+          hideLoader();
+          Swal.fire({
+            title: 'คำแนะนำการเชื่อมต่อ',
+            html: '<div style="text-align:left;font-size:13.5px;line-height:1.7;">' +
+                  '<p>ระบบพร้อมบันทึกคู่ขนานอัตโนมัติแล้ว เมื่อคุณรันระบบบน <strong>Google Apps Script Web App</strong> หรือระบุ <strong>Google Apps Script Webhook URL</strong> ในการตั้งค่าข้อ 27.1</p>' +
+                  '<p>ข้อมูลจะถูกส่งเข้า Google Sheets ID: <code>' + DUAL_SYNC_CONFIG.spreadsheetId + '</code> อัตโนมัติทุกครั้งที่มีรายการใหม่ครับ</p></div>',
+            icon: 'info'
+          });
+        }
+      } catch (err) {
+        hideLoader();
+        Swal.fire('เกิดข้อผิดพลาด', err.message || String(err), 'error');
       }
     }
 
