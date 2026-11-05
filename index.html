@@ -4367,7 +4367,7 @@
           <div style="display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:12px; margin-bottom:12px;">
             <div>
               <label style="font-weight:600; font-size:13px; color:var(--primary-navy); margin-bottom:4px; display:block;">วันที่รับฝาก</label>
-              <input type="text" id="editLotReceiveDate" class="form-control">
+              <input type="text" id="editLotReceiveDate" class="form-control" onchange="if (typeof calculateNextBillingMonthThai === 'function') { document.getElementById('editLotNextBillingDate').value = calculateNextBillingMonthThai(this.value); }">
             </div>
             <div>
               <label style="font-weight:600; font-size:13px; color:var(--primary-navy); margin-bottom:4px; display:block;">วันครบรอบบิลถัดไป</label>
@@ -4523,6 +4523,46 @@
       const now = new Date();
       const pad = n => ('0' + n).slice(-2);
       return pad(now.getDate()) + '/' + pad(now.getMonth() + 1) + '/' + now.getFullYear();
+    }
+
+    /**
+     * คำนวณวันครบรอบบิลถัดไป ให้ตรงกับวันที่รับฝากของเดือนถัดไป (เช่น 02/11/2026 -> 02/12/2026)
+     * รองรับกรณีวันสิ้นเดือน (เช่น วันที่ 31 ม.ค. -> 28 ก.พ. หรือ 31 มี.ค. -> 30 เม.ย.)
+     */
+    function calculateNextBillingMonthThai(dateStr) {
+      if (!dateStr) return '';
+      let parsed = null;
+      if (typeof parseThaiDateToObj === 'function') {
+        parsed = parseThaiDateToObj(dateStr);
+      }
+      if (!parsed || isNaN(parsed.getTime())) {
+        const parts = String(dateStr).trim().split(/[\sT]+/)[0].split('/');
+        if (parts.length === 3) {
+          const d = parseInt(parts[0], 10);
+          const m = parseInt(parts[1], 10) - 1;
+          let y = parseInt(parts[2], 10);
+          if (y > 2400) y -= 543;
+          parsed = new Date(y, m, d);
+        }
+      }
+      if (!parsed || isNaN(parsed.getTime())) return String(dateStr);
+      const day = parsed.getDate();
+      const month = parsed.getMonth(); // 0-11
+      const year = parsed.getFullYear();
+
+      let targetMonth = month + 1; // 1-12
+      let targetYear = year;
+      if (targetMonth > 11) {
+        targetMonth = 0;
+        targetYear += 1;
+      }
+
+      // จำนวนวันสูงสุดในเดือนเป้าหมาย
+      const daysInTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+      const targetDay = Math.min(day, daysInTargetMonth);
+
+      const pad = n => ('0' + n).slice(-2);
+      return pad(targetDay) + '/' + pad(targetMonth + 1) + '/' + targetYear;
     }
 
     function formatYMDCompact() {
@@ -6451,7 +6491,7 @@
                   RemainQty: it.qty,
                   RemainWeight: lw,
                   ReceiveDate: formatTodayThai(),
-                  NextBillingDate: '14/11/2026',
+                  NextBillingDate: calculateNextBillingMonthThai(formatTodayThai()),
                   BillingStatus: 'Active',
                   RoomZone: 'Room A-01',
                   VehicleInfo: p.vehicleInfo,
@@ -6946,7 +6986,7 @@
                   RemainQty: it.Qty,
                   RemainWeight: it.TotalWeight,
                   ReceiveDate: formatTodayThai(),
-                  NextBillingDate: '14/11/2026',
+                  NextBillingDate: calculateNextBillingMonthThai(formatTodayThai()),
                   BillingStatus: 'Active',
                   RoomZone: 'Room A-01',
                   VehicleInfo: rcv.VehicleInfo,
@@ -7383,9 +7423,13 @@
           }
           if (fn === 'renewBillingCycle') {
             const st = db.stock.find(s => s.StockID === args[1]);
-            if (st) { st.NextBillingDate = '15/11/2026'; st.BillingStatus = 'Billed & Renewed'; }
+            if (st) {
+              const baseDate = st.NextBillingDate || st.ReceiveDate || formatTodayThai();
+              st.NextBillingDate = calculateNextBillingMonthThai(baseDate);
+              st.BillingStatus = 'Billed & Renewed';
+            }
             saveDbToStorage();
-            return { success: true, message: 'ต่อรอบบิลสำเร็จ', stock: db.stock };
+            return { success: true, message: 'ต่อรอบบิลสำเร็จ (วันครบรอบบิลถัดไป: ' + (st ? st.NextBillingDate : '') + ')', stock: db.stock };
           }
           if (fn === 'saveUser') {
             const u = args[1];
@@ -8606,7 +8650,12 @@
       // ตรวจสอบสินค้า Lot No. ที่หมดสต็อกเกิน 6 เดือน เพื่อลบรหัสสินค้า (Product Code) ออกและนำกลับมาใช้ใหม่ได้
       cleanupExpiredOutOfStockProductCodes(rawProds, rawStock, rawMoves, rawReqs, new Date());
 
-      STATE.stock = filterByOwner(rawStock).sort((a, b) => {
+      STATE.stock = filterByOwner(rawStock).map(s => {
+        const rcvDate = s.ReceiveDate || formatTodayThai();
+        // คำนวณวันครบรอบบิลถัดไปให้ตรงกับวันที่รับฝากของเดือนถัดไปเสมอ 100%
+        s.NextBillingDate = calculateNextBillingMonthThai(rcvDate);
+        return s;
+      }).sort((a, b) => {
         const lotA = String(a.LotNo || '').trim();
         const lotB = String(b.LotNo || '').trim();
         if (!lotA || lotA === '-') return 1;
@@ -9807,7 +9856,10 @@
       billBody.innerHTML = activeStocks.length === 0
         ? '<tr><td colspan="9" class="empty-state">ไม่มีรายการสินค้าคงค้างในห้องเย็น</td></tr>'
         : activeStocks.map(s => {
-            const due = isDateDueSoon(s.NextBillingDate, 5);
+            const rcvD = s.ReceiveDate || formatTodayThai();
+            const computedNextBill = calculateNextBillingMonthThai(rcvD);
+            s.NextBillingDate = computedNextBill;
+            const due = isDateDueSoon(computedNextBill, 5);
             return '<tr>' +
               '<td class="text-center"><strong>' + escapeHtml(s.LotNo) + '</strong></td>' +
               '<td><strong>' + escapeHtml((function() {
@@ -9818,7 +9870,7 @@
               '<td class="text-right text-green col-remain-qty" style="font-weight:700; color:#10B981 !important;"><strong class="text-green" style="color:#10B981 !important;">' + fmtNum(s.RemainQty) + '</strong> ' + escapeHtml(s.Unit) + '</td>' +
               '<td class="text-right">' + fmtNum(s.RemainWeight, 2) + '</td>' +
               '<td>' + escapeHtml(s.ReceiveDate) + '</td>' +
-              '<td><strong>' + escapeHtml(s.NextBillingDate) + '</strong></td>' +
+              '<td><strong>' + escapeHtml(computedNextBill) + '</strong></td>' +
               '<td class="text-center"><span class="status-badge ' + (due ? 'status-DueSoon' : 'status-Approved') + '">' + (due ? '⚠️ ใกล้ครบรอบบิล' : 'ปกติ (Active)') + '</span></td>' +
               '<td class="text-center">' +
                 '<button class="btn btn-orange btn-sm" onclick="handleRenewBilling(\'' + escapeHtml(s.StockID) + '\', \'' + escapeHtml(s.LotNo) + '\')">' +
@@ -10102,7 +10154,7 @@
           TimeIn: s.TimeIn || '',
           TimeOut: s.TimeOut || '',
           OutOfStockDate: s.OutOfStockDate || '',
-          NextBillingDate: s.NextBillingDate || '',
+          NextBillingDate: calculateNextBillingMonthThai(s.ReceiveDate || formatTodayThai()),
           RoomZone: s.RoomZone || 'Room A-01',
           VehicleInfo: s.VehicleInfo || '',
           Status: rQty > 0 ? 'InStock' : 'OutOfStock'
@@ -18544,8 +18596,10 @@ function editProduct(p) {
       document.getElementById('editLotBillingDays').value = clientObj.BillingCycleDays || 30;
       document.getElementById('editLotStorageRate').value = clientObj.StorageRatePerKgDay || 0.8;
 
-      document.getElementById('editLotReceiveDate').value = stockObj.ReceiveDate || item.ReceiveDate || formatTodayThai();
-      document.getElementById('editLotNextBillingDate').value = stockObj.NextBillingDate || '';
+      const lotRcvDateVal = stockObj.ReceiveDate || item.ReceiveDate || formatTodayThai();
+      document.getElementById('editLotReceiveDate').value = lotRcvDateVal;
+      // วันครบรอบบิลถัดไป ให้ตรงกับวันที่รับฝากของเดือนถัดไปเสมอ 100% (เช่น 02/11/2026 -> 02/12/2026)
+      document.getElementById('editLotNextBillingDate').value = calculateNextBillingMonthThai(lotRcvDateVal);
       document.getElementById('editLotRoomZone').value = stockObj.RoomZone || 'Room A-01';
       document.getElementById('editLotVehicle').value = stockObj.VehicleInfo || '';
 
