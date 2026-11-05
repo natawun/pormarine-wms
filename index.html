@@ -5107,20 +5107,46 @@
           updated_by: STATE.user ? STATE.user.username : 'system'
         }));
 
-        const tasks = [];
-        if (usersRows.length > 0) {
-          await sb.from('wms_users').delete().neq('user_id', '__NEVER_MATCH__');
-          tasks.push(sb.from('wms_users').upsert(usersRows, { onConflict: 'user_id' }));
+        function dedupeRows(arr, pk) {
+          if (!Array.isArray(arr)) return [];
+          const seen = new Set();
+          const out = [];
+          for (let i = 0; i < arr.length; i++) {
+            const row = arr[i];
+            if (!row) continue;
+            const k = String(row[pk] !== undefined && row[pk] !== null ? row[pk] : '').trim().toUpperCase();
+            if (!k || seen.has(k)) continue;
+            seen.add(k);
+            out.push(row);
+          }
+          return out;
         }
-        if (clientsRows.length > 0) tasks.push(sb.from('wms_clients').upsert(clientsRows, { onConflict: 'client_id' }));
-        if (categoriesRows.length > 0) tasks.push(sb.from('wms_categories').upsert(categoriesRows, { onConflict: 'category_id' }));
-        if (productsRows.length > 0) tasks.push(sb.from('wms_products').upsert(productsRows, { onConflict: 'product_id' }));
-        if (stockRows.length > 0) {
+
+        const cleanUsers = dedupeRows(usersRows, 'user_id');
+        const cleanClients = dedupeRows(clientsRows, 'client_id');
+        const cleanCategories = dedupeRows(categoriesRows, 'category_id');
+        const cleanProducts = dedupeRows(productsRows, 'product_id');
+        const cleanStock = dedupeRows(stockRows, 'stock_id');
+        const cleanReceivings = dedupeRows(receivingsRows, 'receiving_no');
+        const cleanRcvItems = dedupeRows(rcvItemsRows, 'item_id');
+        const cleanRequisitions = dedupeRows(requisitionsRows, 'requisition_no');
+        const cleanReqItems = dedupeRows(reqItemsRows, 'item_id');
+        const cleanMovements = dedupeRows(movementsRows, 'movement_id');
+        const cleanSettings = dedupeRows(settingsRows, 'setting_key');
+
+        const tasks = [];
+        if (cleanUsers.length > 0) {
+          await sb.from('wms_users').delete().neq('user_id', '__NEVER_MATCH__');
+          tasks.push(sb.from('wms_users').upsert(cleanUsers, { onConflict: 'user_id' }));
+        }
+        if (cleanClients.length > 0) tasks.push(sb.from('wms_clients').upsert(cleanClients, { onConflict: 'client_id' }));
+        if (cleanCategories.length > 0) tasks.push(sb.from('wms_categories').upsert(cleanCategories, { onConflict: 'category_id' }));
+        if (cleanProducts.length > 0) tasks.push(sb.from('wms_products').upsert(cleanProducts, { onConflict: 'product_id' }));
+        if (cleanStock.length > 0) {
           tasks.push(
-            sb.from('wms_stock').upsert(stockRows, { onConflict: 'stock_id' }).then(res => {
-              // หากเกิดข้อผิดพลาดเพราะตารางใน Supabase ยังไม่มีคอลัมน์ time_in หรือ time_out ให้ retry โดยตัด 2 ฟิลด์นี้ออกอัตโนมัติ
+            sb.from('wms_stock').upsert(cleanStock, { onConflict: 'stock_id' }).then(res => {
               if (res && res.error && (res.error.message.indexOf('time_in') !== -1 || res.error.message.indexOf('time_out') !== -1 || res.error.code === '42703')) {
-                const fallbackRows = stockRows.map(r => {
+                const fallbackRows = cleanStock.map(r => {
                   const copy = Object.assign({}, r);
                   delete copy.time_in;
                   delete copy.time_out;
@@ -5132,12 +5158,12 @@
             })
           );
         }
-        if (receivingsRows.length > 0) tasks.push(sb.from('wms_receivings').upsert(receivingsRows, { onConflict: 'receiving_no' }));
-        if (rcvItemsRows.length > 0) tasks.push(sb.from('wms_receiving_items').upsert(rcvItemsRows, { onConflict: 'item_id' }));
-        if (requisitionsRows.length > 0) tasks.push(sb.from('wms_requisitions').upsert(requisitionsRows, { onConflict: 'requisition_no' }));
-        if (reqItemsRows.length > 0) tasks.push(sb.from('wms_requisition_items').upsert(reqItemsRows, { onConflict: 'item_id' }));
-        if (movementsRows.length > 0) tasks.push(sb.from('wms_movements').upsert(movementsRows, { onConflict: 'movement_id' }));
-        if (settingsRows.length > 0) tasks.push(sb.from('wms_settings').upsert(settingsRows, { onConflict: 'setting_key' }));
+        if (cleanReceivings.length > 0) tasks.push(sb.from('wms_receivings').upsert(cleanReceivings, { onConflict: 'receiving_no' }));
+        if (cleanRcvItems.length > 0) tasks.push(sb.from('wms_receiving_items').upsert(cleanRcvItems, { onConflict: 'item_id' }));
+        if (cleanRequisitions.length > 0) tasks.push(sb.from('wms_requisitions').upsert(cleanRequisitions, { onConflict: 'requisition_no' }));
+        if (cleanReqItems.length > 0) tasks.push(sb.from('wms_requisition_items').upsert(cleanReqItems, { onConflict: 'item_id' }));
+        if (cleanMovements.length > 0) tasks.push(sb.from('wms_movements').upsert(cleanMovements, { onConflict: 'movement_id' }));
+        if (cleanSettings.length > 0) tasks.push(sb.from('wms_settings').upsert(cleanSettings, { onConflict: 'setting_key' }));
 
         const results = await Promise.all(tasks);
         for (let i = 0; i < results.length; i++) {
