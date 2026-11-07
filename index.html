@@ -2628,7 +2628,7 @@
               <div class="card-box-header">
                 <div class="card-box-title">
                   <i class="fa-solid fa-bell-concierge" style="color:var(--golden-orange);"></i>
-                  <span>แจ้งเตือนสินค้าครบรอบบิล & คำสั่งรออนุมัติล่าสุด</span>
+                  <span>แจ้งเตือนคำสั่งรออนุมัติล่าสุด</span>
                 </div>
                 <button class="btn btn-orange btn-sm" onclick="switchSection('secRequisition')">ไปหน้าอนุมัติ</button>
               </div>
@@ -2723,21 +2723,18 @@
             <div class="card-box-header">
               <div class="card-box-title">
                 <i class="fa-solid fa-file-invoice-dollar" style="color:var(--golden-orange);"></i>
-                <span>รายการสินค้าในห้องเย็นและกำหนดครบรอบบิล (Billing Cycle Management)</span>
+                <span>จัดการใบวางบิลและใบเสร็จรับเงิน (Billing & Tax Invoice)</span>
               </div>
             </div>
             <div class="table-responsive">
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th class="text-center">Lot No.</th>
                     <th>ชื่อลูกค้า</th>
-                    <th>สินค้า</th>
-                    <th class="text-right">คงเหลือ (หน่วย)</th>
-                    <th class="text-right">น้ำหนักคงเหลือ (กก.)</th>
-                    <th>วันที่รับฝาก</th>
-                    <th>วันครบรอบบิลถัดไป</th>
-                    <th class="text-center">สถานะรอบบิล</th>
+                    <th class="text-center">จำนวน Lot</th>
+                    <th class="text-right">คงเหลือ(หน่วย)</th>
+                    <th class="text-right">น้ำหนักรวม(กก.)</th>
+                    <th class="text-center">สถานะ</th>
                     <th class="text-center">จัดการบิลลิ่ง</th>
                   </tr>
                 </thead>
@@ -4267,6 +4264,175 @@
     </div>
   </div>
   <!-- =====================================================================
+       Modal: จัดการเอกสารใบวางบิล/ใบแจ้งหนี้ และ ใบเสร็จรับเงิน/ใบกำกับภาษี
+       ระบบคิดค่าฝากแบบครบรอบบิลสินค้า (Anniversary Billing)
+       กำหนดสิทธิ์เฉพาะ: 1. Admin 2. Manager 3. Office
+       ===================================================================== -->
+  <div class="modal-backdrop" id="modalBillingInvoice">
+    <div class="modal-dialog" style="max-width: 1050px;">
+      <div class="modal-header">
+        <h3 id="modalBillingInvoiceTitle"><i class="fa-solid fa-file-invoice-dollar" style="color:#0284C7;"></i> จัดการใบวางบิลและใบเสร็จรับเงิน (Billing &amp; Tax Invoice)</h3>
+        <button class="btn btn-outline btn-sm" onclick="closeModal('modalBillingInvoice')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" style="padding: 20px 24px;">
+        <!-- Card ข้อมูลสรุปและรอบบิล Anniversary Billing -->
+        <div style="background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%); border: 1.5px solid #BAE6FD; border-radius: 12px; padding: 16px 20px; margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
+            <div>
+              <span class="status-badge" style="background:#0284C7; color:#fff; font-size:12px; font-weight:700;">
+                <i class="fa-solid fa-calculator"></i> ระบบคิดค่าฝากแบบครบรอบบิลสินค้า (Anniversary Billing)
+              </span>
+              <span id="billAnniversaryCycleBadge" class="status-badge" style="background:#DCFCE7; color:#166534; font-size:12px; font-weight:700; margin-left:8px;">
+                รวมทุกล็อตของลูกค้า (Multi-Lot Batch)
+              </span>
+            </div>
+            <div style="font-size: 13px; color: #0369A1; font-weight: 600;">
+              <i class="fa-solid fa-circle-info"></i> คิดจากน้ำหนัก ณ วันเข้าเต็มเดือน และรอบถัดไปคิดตามยอดคงเหลือจริง
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; font-size: 13px;">
+            <div><strong>ลูกค้า:</strong> <span id="billClientNameText" style="font-weight:700; color:#0A3D62;">-</span></div>
+            <div><strong>จำนวน Lot ทั้งหมด:</strong> <span id="billClientLotCountText" style="font-weight:700; color:#0284C7;">-</span></div>
+            <div><strong>น้ำหนักรวมสินค้า:</strong> <span id="billClientTotalWeightText" style="font-weight:700; color:#059669;">-</span></div>
+            <div>
+              <strong>สถานะบิลลิ่ง:</strong> <span id="billClientStatusBadge">-</span>
+              <select id="billManualStatusSelect" class="form-select form-select-sm" style="display:inline-block; width:auto; margin-left:8px; height:28px; padding:2px 8px; font-size:12px;" onchange="handleManualBillingStatusChange(this.value)">
+                <option value="">-- ปรับเปลี่ยนสถานะ --</option>
+                <option value="วางบิลแล้ว">วางบิลแล้ว (สีฟ้า)</option>
+                <option value="ค้างชำระ">ค้างชำระ (สีแดง)</option>
+                <option value="ชำระแล้ว">ชำระแล้ว (สีเขียว)</option>
+                <option value="RESET">ล้างสถานะ (-)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- ฟอร์มแก้ไขรายละเอียดเอกสาร (สามารถปรับแต่งก่อนออกบิลได้) -->
+        <form id="formBillingInvoiceDetails" onsubmit="event.preventDefault()">
+          <input type="hidden" id="billClientId">
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 16px;">
+            <div>
+              <label style="font-weight:600; font-size:12.5px; color:var(--primary-navy); margin-bottom:4px; display:block;">เลขที่ใบวางบิล / ใบแจ้งหนี้ *</label>
+              <input type="text" id="billInvoiceDocNo" class="form-control" style="font-weight:700; color:#0A3D62;">
+            </div>
+            <div>
+              <label style="font-weight:600; font-size:12.5px; color:var(--primary-navy); margin-bottom:4px; display:block;">เลขที่ใบเสร็จ / ใบกำกับภาษี *</label>
+              <input type="text" id="billReceiptDocNo" class="form-control" style="font-weight:700; color:#0A3D62;">
+            </div>
+            <div>
+              <label style="font-weight:600; font-size:12.5px; color:var(--primary-navy); margin-bottom:4px; display:block;">วันที่ออกเอกสาร</label>
+              <input type="text" id="billDocDate" class="form-control">
+            </div>
+            <div>
+              <label style="font-weight:600; font-size:12.5px; color:var(--primary-navy); margin-bottom:4px; display:block;">วันที่ครบกำหนดชำระ</label>
+              <input type="text" id="billDueDate" class="form-control">
+            </div>
+            <div>
+              <label style="font-weight:600; font-size:12.5px; color:var(--primary-navy); margin-bottom:4px; display:block;">ภาษีหัก ณ ที่จ่าย</label>
+              <select id="billWhtRateSelect" class="form-control" onchange="recalcMultiLotBilling()">
+                <option value="0.03" selected>หักภาษี ณ ที่จ่าย 3% (บริการ)</option>
+                <option value="0.01">หักภาษี ณ ที่จ่าย 1% (ขนส่ง)</option>
+                <option value="0">ไม่หัก ณ ที่จ่าย (0%)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-weight:600; font-size:12.5px; color:var(--primary-navy); margin-bottom:4px; display:block;">ภาษีมูลค่าเพิ่ม (VAT 7%)</label>
+              <select id="billVatSelect" class="form-control" onchange="recalcMultiLotBilling()">
+                <option value="0.07" selected>คิด VAT 7%</option>
+                <option value="0">ไม่มี VAT (0%)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- ตารางแสดงรายการ Lot ทั้งหมดของลูกค้าแบบ Multi-Lot Consolidation -->
+          <div style="margin-bottom: 8px; display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-weight:700; font-size:13.5px; color:#0A3D62;">
+              <i class="fa-solid fa-list-ol"></i> รายการสินค้าทุกล็อตที่ต้องวางบิล (แยกตาม Lot No.)
+            </div>
+            <div style="font-size:12px; color:var(--text-muted);">
+              * คิดจากน้ำหนัก ณ วันเข้าเต็มเดือน และรอบถัดไปคิดตามยอดคงเหลือจริง
+            </div>
+          </div>
+          <div class="table-responsive" style="max-height: 260px; overflow-y: auto; margin-bottom: 16px; border: 1.5px solid #CBD5E1; border-radius: 8px;">
+            <table class="data-table" style="font-size: 12.5px; margin:0;">
+              <thead>
+                <tr style="background:#0A3D62; color:#fff;">
+                  <th class="text-center" style="width:45px;">ลำดับ</th>
+                  <th style="width:110px;">เลขที่ใบฝาก</th>
+                  <th style="width:90px;">Lot No.</th>
+                  <th>รายการฝากสินค้า</th>
+                  <th class="text-center" style="width:95px;">วันที่เริ่มฝาก</th>
+                  <th class="text-center" style="width:95px;">ครบกำหนด</th>
+                  <th class="text-right" style="width:125px;">น้ำหนัก (กก.) *</th>
+                  <th class="text-right" style="width:95px;">อัตรา *</th>
+                  <th class="text-right" style="width:115px;">จำนวนเงิน (บาท)</th>
+                </tr>
+              </thead>
+              <tbody id="billMultiLotsTableBody"></tbody>
+            </table>
+          </div>
+
+          <!-- ตารางสรุปยอดเงินคำนวณ -->
+          <div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:14px 18px; margin-bottom:18px;">
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap:12px; text-align:center;">
+              <div>
+                <div style="font-size:12px; color:var(--text-muted);">จำนวนเงินก่อน VAT</div>
+                <div id="billSubtotalDisp" style="font-size:18px; font-weight:700; color:#0A3D62;">0.00 บาท</div>
+              </div>
+              <div>
+                <div style="font-size:12px; color:var(--text-muted);">ภาษีมูลค่าเพิ่ม 7%</div>
+                <div id="billVatDisp" style="font-size:18px; font-weight:700; color:#0284C7;">0.00 บาท</div>
+              </div>
+              <div>
+                <div style="font-size:12px; color:var(--text-muted);">จำนวนเงินสุทธิ</div>
+                <div id="billTotalDisp" style="font-size:18px; font-weight:700; color:#0A3D62;">0.00 บาท</div>
+              </div>
+              <div>
+                <div style="font-size:12px; color:var(--text-muted);">หัก ณ ที่จ่าย 3%</div>
+                <div id="billWhtDisp" style="font-size:18px; font-weight:700; color:#DC2626;">0.00 บาท</div>
+              </div>
+              <div style="background:#ECFDF5; border:1.5px solid #10B981; border-radius:8px; padding:6px 10px;">
+                <div style="font-size:12px; color:#065F46; font-weight:600;">ยอดเงินที่ต้องชำระจริง</div>
+                <div id="billNetPayDisp" style="font-size:20px; font-weight:800; color:#059669;">0.00 บาท</div>
+              </div>
+            </div>
+            <div id="billBahtTextDisp" style="text-align:center; font-size:12.5px; font-weight:600; color:#475569; margin-top:10px;">
+              (ศูนย์บาทถ้วน)
+            </div>
+          </div>
+
+          <!-- หมายเหตุและเงื่อนไขการชำระเงิน -->
+          <div style="margin-bottom:16px;">
+            <label style="font-weight:600; font-size:12.5px; color:var(--primary-navy); margin-bottom:4px; display:block;">หมายเหตุ / บัญชีธนาคาร</label>
+            <input type="text" id="billNotesInput" class="form-control" value="กรุณาชำระค่าฝากสินค้าหลังจากวางบิล ไม่เกิน 7 วัน">
+          </div>
+        </form>
+      </div>
+
+      <div class="modal-footer" style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modalBillingInvoice')">ปิด</button>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px;">
+          <!-- ปุ่มดูและพิมพ์ใบวางบิล / ใบแจ้งหนี้ -->
+          <button type="button" class="btn btn-primary" onclick="generateAndPrintMultiLotBillingDoc('INVOICE')" style="background:#0284C7; border-color:#0284C7;">
+            <i class="fa-solid fa-file-invoice"></i> พิมพ์ใบวางบิล / ใบแจ้งหนี้
+          </button>
+          <!-- ปุ่มดูและพิมพ์ใบเสร็จรับเงิน / ใบกำกับภาษี -->
+          <button type="button" class="btn btn-success" onclick="generateAndPrintMultiLotBillingDoc('RECEIPT')" style="background:#059669; border-color:#059669;">
+            <i class="fa-solid fa-receipt"></i> พิมพ์ใบเสร็จ / ใบกำกับภาษี
+          </button>
+          <!-- ปุ่มชำระแล้ว (สีเขียว บันทึกชำระและต่อรอบบิล) -->
+          <button type="button" class="btn btn-success" onclick="confirmMarkPaidAndRenewBilling()" style="background:#10B981; border-color:#10B981; color:#fff;">
+            <i class="fa-solid fa-circle-check"></i> ชำระแล้ว
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+    <!-- =====================================================================
        Modal: ดูและแก้ไขรายละเอียดสินค้าแต่ละ Lot No. (Master Lot Details Editor)
        สิทธิ์เฉพาะ Admin และ Manager เพื่อแก้ไขสินค้าที่รับเข้าสต็อกแล้วได้ทุกส่วน
        ===================================================================== -->
@@ -7457,6 +7623,24 @@
             saveDbToStorage();
             return { success: true, message: 'ต่อรอบบิลสำเร็จ (วันครบรอบบิลถัดไป: ' + (st ? st.NextBillingDate : '') + ')', stock: db.stock };
           }
+          if (fn === 'renewClientBillingCycle') {
+            const clientId = args[1];
+            const targetStocks = db.stock.filter(s =>
+              (s.ClientID === clientId || s.ClientName === clientId) &&
+              (parseFloat(s.RemainQty) || 0) > 0
+            );
+            targetStocks.forEach(st => {
+              const baseDate = st.NextBillingDate || st.ReceiveDate || formatTodayThai();
+              st.NextBillingDate = calculateNextBillingMonthThai(baseDate);
+              st.BillingStatus = 'Billed & Renewed';
+            });
+            saveDbToStorage();
+            return {
+              success: true,
+              message: 'รับชำระเงินและต่ออายุรอบบิลลูกค้าเรียบร้อยแล้ว (' + targetStocks.length + ' Lot)',
+              stock: db.stock
+            };
+          }
           if (fn === 'saveUser') {
             const u = args[1];
             const targetId = String(u.userId || '').trim().toUpperCase();
@@ -9714,18 +9898,8 @@
             ).join('');
       }
 
-      // ตารางที่ 2 บน Dashboard: แจ้งเตือนสินค้าครบรอบบิล & คำสั่งรออนุมัติล่าสุด
+      // ตารางที่ 2 บน Dashboard: แจ้งเตือนคำสั่งรออนุมัติล่าสุด (แจ้งเตือนเฉพาะคำสั่งรออนุมัติ)
       const alertRows = [];
-      filteredStock.filter(s => (parseFloat(s.RemainQty) || 0) > 0 && isDateDueSoon(s.NextBillingDate, 5)).forEach(s => {
-        alertRows.push(
-          '<tr>' +
-            '<td style="padding:11px 14px;"><span style="background:#FFEDD5; color:#C2410C; font-size:11px; font-weight:600; padding:2px 6px; border-radius:4px; margin-right:4px;">ครบรอบบิล</span> <strong>' + escapeHtml(s.LotNo) + '</strong></td>' +
-            '<td style="padding:11px 14px;">' + escapeHtml(s.ClientName) + ' - ' + escapeHtml(s.ProductName) + '</td>' +
-            '<td class="text-right" style="padding:11px 14px;">' + fmtNum(s.RemainQty) + ' ' + escapeHtml(s.Unit) + '<br><small style="color:#64748B;">(' + fmtNum(s.RemainWeight, 2) + ' กก.)</small></td>' +
-            '<td class="text-center" style="padding:11px 14px;"><span style="background:#FFEDD5; color:#C2410C; font-size:11.5px; font-weight:600; padding:3px 8px; border-radius:4px;">' + escapeHtml(s.NextBillingDate) + '</span></td>' +
-          '</tr>'
-        );
-      });
       STATE.requisitions.filter(r => isClientMatch(r.ClientName, r.ClientID, selectedClient) && (r.Status === 'Pending' || r.Status === 'Receive Orders' || r.Status === 'รอรับแจ้งเบิก' || r.Status === 'รับคำสั่งแล้ว' || r.Status === 'อนุมัติเบิกสินค้า')).forEach(r => {
         const stObj = getRequisitionStatusDisplay(r.Status, isClient);
         const isWeighed = typeof r.TotalWeight === 'string' && r.TotalWeight.indexOf('ชั่ง') !== -1;
@@ -9869,42 +10043,452 @@
       }).join('');
     }
 
+    /**
+     * แปลงจำนวนเงินเป็นตัวอักษรภาษาไทย (Thai Baht Text)
+     */
+    /**
+     * แปลงจำนวนเงินเป็นตัวอักษรภาษาไทย (Thai Baht Text)
+     */
+    /**
+     * แปลงจำนวนเงินเป็นตัวอักษรภาษาไทย (Thai Baht Text)
+     */
+    function thaiBahtText(num) {
+      if (num === null || num === undefined || isNaN(num)) return '(ศูนย์บาทถ้วน)';
+      num = Math.round(Number(num) * 100) / 100;
+      if (num === 0) return '(ศูนย์บาทถ้วน)';
+
+      const isNeg = num < 0;
+      num = Math.abs(num);
+
+      const numStr = num.toFixed(2);
+      const parts = numStr.split('.');
+      let bahtPart = parts[0];
+      const satangPart = parts[1];
+
+      const digits = ['', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'];
+      const positions = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน'];
+
+      function readGroup(str) {
+        let res = '';
+        const len = str.length;
+        for (let i = 0; i < len; i++) {
+          const d = parseInt(str.charAt(i), 10);
+          const pos = len - i - 1;
+          if (d === 0) continue;
+          if (pos === 1) {
+            if (d === 1) res += 'สิบ';
+            else if (d === 2) res += 'ยี่สิบ';
+            else res += digits[d] + 'สิบ';
+          } else if (pos === 0) {
+            if (d === 1 && len > 1 && parseInt(str.charAt(len - 2), 10) !== 0) {
+              res += 'เอ็ด';
+            } else {
+              res += digits[d];
+            }
+          } else {
+            res += digits[d] + positions[pos];
+          }
+        }
+        return res;
+      }
+
+      let result = '';
+      const groups = [];
+      while (bahtPart.length > 0) {
+        const chunk = bahtPart.slice(Math.max(0, bahtPart.length - 6));
+        bahtPart = bahtPart.slice(0, Math.max(0, bahtPart.length - 6));
+        groups.unshift(chunk);
+      }
+
+      for (let g = 0; g < groups.length; g++) {
+        const groupText = readGroup(groups[g]);
+        if (groupText) {
+          result += groupText;
+          const millionsPower = groups.length - g - 1;
+          for (let m = 0; m < millionsPower; m++) {
+            result += 'ล้าน';
+          }
+        }
+      }
+
+      if (result) {
+        result += 'บาท';
+      }
+
+      const satangInt = parseInt(satangPart, 10);
+      if (satangInt === 0) {
+        result += 'ถ้วน';
+      } else {
+        result += readGroup(satangPart) + 'สตางค์';
+      }
+
+      return (isNeg ? 'ลบ' : '') + '(' + result + ')';
+    }
+
+    /**
+     * ดึง HTML Badge สถานะบิลลิ่งตามข้อกำหนด:
+     * - "วางบิลแล้ว" สีฟ้า
+     * - "ค้างชำระ" สีแดง
+     * - "ชำระแล้ว" สีเขียว
+     * - "ปกติ (Active)" เอาออกไม่ต้องมี (แสดงเป็น -)
+     */
+    function getClientBillingStatusBadge(status) {
+      const s = String(status || '').trim();
+      if (s === 'วางบิลแล้ว' || s === 'INVOICED') {
+        return '<span class="status-badge" style="background:#E0F2FE; color:#0284C7; border:1px solid #BAE6FD; font-weight:700;"><i class="fa-solid fa-file-invoice"></i> วางบิลแล้ว</span>';
+      }
+      if (s === 'ค้างชำระ' || s === 'OVERDUE') {
+        return '<span class="status-badge" style="background:#FEE2E2; color:#DC2626; border:1px solid #FECACA; font-weight:700;"><i class="fa-solid fa-circle-exclamation"></i> ค้างชำระ</span>';
+      }
+      if (s === 'ชำระแล้ว' || s === 'PAID' || s === 'รับชำระแล้ว') {
+        return '<span class="status-badge" style="background:#DCFCE7; color:#15803D; border:1px solid #BBF7D0; font-weight:700;"><i class="fa-solid fa-circle-check"></i> ชำระแล้ว</span>';
+      }
+      // สถานะ "ปกติ (Active)" เอาออกไม่ต้องมี
+      return '<span style="color:var(--text-muted); font-size:13px; font-weight:500;">-</span>';
+    }
+
+    /**
+     * ดึงและประมวลผลสถานะบิลลิ่งของลูกค้า:
+     * 1. สถานะ "วางบิลแล้ว" หลังจากวางบิลเลย 7 วัน ถ้ายังไม่เปลี่ยนสถานะเป็น "ชำระแล้ว" ให้เปลี่ยนเป็นสถานะ "ค้างชำระ" ตลอดไปจนกว่าจะได้รับชำระแล้ว
+     * 2. สถานะ "รับชำระแล้ว" เปลี่ยนเป็น "ชำระแล้ว" และให้แสดงไปตลอดจนถึงรอบบิลใหม่
+     * 3. สถานะ "ปกติ (Active)" เอาออกไม่ต้องมี
+     */
+    function getClientBillingStatus(clientKey, clientGroup) {
+      if (!STATE.clientBillingData) {
+        try {
+          const raw = localStorage.getItem('POR_CLIENT_BILLING_DATA_V2');
+          STATE.clientBillingData = raw ? JSON.parse(raw) : {};
+        } catch (e) {
+          STATE.clientBillingData = {};
+        }
+      }
+
+      STATE.clientBillingStatus = STATE.clientBillingStatus || {};
+      let info = STATE.clientBillingData[clientKey];
+
+      // เชื่อมโยงข้อมูลจาก clientBillingStatus เดิมหากมี
+      if (!info && STATE.clientBillingStatus[clientKey]) {
+        const leg = STATE.clientBillingStatus[clientKey];
+        info = {
+          status: (leg === 'รับชำระแล้ว' ? 'ชำระแล้ว' : leg),
+          invoicedDate: null,
+          paidDate: null
+        };
+        STATE.clientBillingData[clientKey] = info;
+      }
+
+      if (!info || !info.status) {
+        return { status: '', badge: getClientBillingStatusBadge('') };
+      }
+
+      // 1. ตรวจสอบสถานะ "ชำระแล้ว": ให้แสดงไปตลอดจนถึงรอบบิลใหม่
+      if (info.status === 'ชำระแล้ว' || info.status === 'PAID' || info.status === 'รับชำระแล้ว') {
+        let reachedNewCycle = false;
+        const targetCycleDate = info.nextCycleDate || (clientGroup && clientGroup.lots && clientGroup.lots[0] ? (clientGroup.lots[0].NextBillingDate || calculateNextBillingMonthThai(clientGroup.lots[0].ReceiveDate || formatTodayThai())) : '');
+        if (targetCycleDate) {
+          const cycleObj = parseThaiDateToObj(targetCycleDate);
+          if (cycleObj) {
+            const now = new Date();
+            const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+            const cycleDay = new Date(cycleObj.getFullYear(), cycleObj.getMonth(), cycleObj.getDate()).getTime();
+            if (nowDay >= cycleDay) {
+              reachedNewCycle = true;
+            }
+          }
+        }
+
+        if (reachedNewCycle) {
+          // ถึงรอบบิลใหม่แล้ว: รีเซ็ตสถานะชำระแล้วของรอบเดิม เพื่อเริ่มรอบบิลใหม่ (ไม่แสดงปกติ Active)
+          info.status = '';
+          saveClientBillingData();
+          return { status: '', badge: getClientBillingStatusBadge('') };
+        }
+
+        return { status: 'ชำระแล้ว', badge: getClientBillingStatusBadge('ชำระแล้ว') };
+      }
+
+      // 2. ตรวจสอบสถานะ "วางบิลแล้ว": หลังจากวางบิลเลย 7 วัน ถ้ายังไม่เปลี่ยนสถานะเป็น "ชำระแล้ว" ให้เปลี่ยนเป็น "ค้างชำระ" ตลอดไปจนกว่าจะได้รับชำระแล้ว
+      if (info.status === 'วางบิลแล้ว' || info.status === 'INVOICED') {
+        let isOverdue = false;
+        const invDateStr = info.invoicedDate || info.date || '';
+        if (invDateStr) {
+          const invObj = parseThaiDateToObj(invDateStr);
+          if (invObj) {
+            const now = new Date();
+            const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+            const invDay = new Date(invObj.getFullYear(), invObj.getMonth(), invObj.getDate()).getTime();
+            const diffDays = Math.floor((nowDay - invDay) / (1000 * 60 * 60 * 24));
+            if (diffDays > 7) {
+              isOverdue = true;
+            }
+          }
+        }
+
+        if (isOverdue) {
+          info.status = 'ค้างชำระ';
+          saveClientBillingData();
+          return { status: 'ค้างชำระ', badge: getClientBillingStatusBadge('ค้างชำระ') };
+        }
+
+        return { status: 'วางบิลแล้ว', badge: getClientBillingStatusBadge('วางบิลแล้ว') };
+      }
+
+      // 3. ตรวจสอบสถานะ "ค้างชำระ": แสดงตลอดไปจนกว่าจะได้รับชำระแล้ว
+      if (info.status === 'ค้างชำระ' || info.status === 'OVERDUE') {
+        return { status: 'ค้างชำระ', badge: getClientBillingStatusBadge('ค้างชำระ') };
+      }
+
+      return { status: '', badge: getClientBillingStatusBadge('') };
+    }
+
+    /**
+     * บันทึกสถานะบิลลิ่งของลูกค้าลง Local Memory และ LocalStorage
+     */
+    function setClientBillingStatus(clientKey, newStatus, extraData) {
+      if (!clientKey) return;
+      STATE.clientBillingData = STATE.clientBillingData || {};
+      STATE.clientBillingStatus = STATE.clientBillingStatus || {};
+
+      const existing = STATE.clientBillingData[clientKey] || {};
+      const updated = Object.assign({}, existing, extraData || {}, { status: newStatus });
+      STATE.clientBillingData[clientKey] = updated;
+      STATE.clientBillingStatus[clientKey] = newStatus;
+
+      saveClientBillingData();
+    }
+
+    function saveClientBillingData() {
+      try {
+        if (STATE.clientBillingData) {
+          localStorage.setItem('POR_CLIENT_BILLING_DATA_V2', JSON.stringify(STATE.clientBillingData));
+        }
+      } catch (e) {
+        console.warn('saveClientBillingData error:', e);
+      }
+    }
+
+    /**
+     * เปลี่ยนสถานะบิลลิ่งด้วยตนเองผ่านเมนูในหน้าต่างออกบิล
+     */
+    function handleManualBillingStatusChange(val) {
+      if (!CURRENT_BILLING_CLIENT) return;
+      const cKey = CURRENT_BILLING_CLIENT.clientKey;
+      const nowThai = formatTodayThai();
+
+      if (!val || val === 'RESET') {
+        setClientBillingStatus(cKey, '', {});
+      } else if (val === 'วางบิลแล้ว') {
+        const docDate = (document.getElementById('billDocDate') ? document.getElementById('billDocDate').value.trim() : '') || nowThai;
+        setClientBillingStatus(cKey, 'วางบิลแล้ว', {
+          invoicedDate: docDate,
+          invoicedTimestamp: Date.now()
+        });
+      } else if (val === 'ค้างชำระ') {
+        setClientBillingStatus(cKey, 'ค้างชำระ', {
+          overdueDate: nowThai
+        });
+      } else if (val === 'ชำระแล้ว') {
+        let nextCycleDate = '';
+        const lots = CURRENT_BILLING_CLIENT.lots || [];
+        lots.forEach(st => {
+          if ((parseFloat(st.RemainQty) || 0) > 0) {
+            const currD = st.NextBillingDate || st.ReceiveDate || nowThai;
+            const nextD = calculateNextBillingMonthThai(currD);
+            if (!nextCycleDate) nextCycleDate = nextD;
+          }
+        });
+        if (!nextCycleDate && lots.length > 0) {
+          nextCycleDate = calculateNextBillingMonthThai(lots[0].NextBillingDate || lots[0].ReceiveDate || nowThai);
+        }
+        setClientBillingStatus(cKey, 'ชำระแล้ว', {
+          paidDate: nowThai,
+          paidTimestamp: Date.now(),
+          nextCycleDate: nextCycleDate
+        });
+      }
+
+      const bInfo = getClientBillingStatus(cKey, CURRENT_BILLING_CLIENT);
+      const statusBadgeEl = document.getElementById('billClientStatusBadge');
+      if (statusBadgeEl) statusBadgeEl.innerHTML = bInfo.badge;
+
+      const sel = document.getElementById('billManualStatusSelect');
+      if (sel) sel.value = '';
+
+      closeModal('modalBillingInvoice');
+      renderClientsAndBillingView();
+      showToast('ปรับสถานะบิลลิ่งเป็น "' + (val === 'RESET' ? 'ไม่มีสถานะ (-)' : val) + '" เรียบร้อยแล้ว', 'info');
+    }
+
+    /**
+     * ตรวจสอบว่าสินค้า Lot นี้ต้องนำมาคำนวณบิลลิ่ง/คิดค่าฝากหรือไม่
+     * เงื่อนไขสำคัญ:
+     * 1. สินค้าที่ยังมีสต็อกคงเหลือ (RemainQty > 0)
+     * 2. สินค้าที่เบิกหมดแล้ว (RemainQty <= 0) แต่หมด "หลัง" วันครบรอบบิล (เท่ากับว่าต้องอยู่ในรอบบิลใหม่ด้วย)
+     * 3. สินค้าที่รับเข้าและเบิกหมดในรอบนี้ (รอบแรกคิดเต็มเดือน)
+     */
+    function isStockBillable(s) {
+      if (!s) return false;
+      const remQty = parseFloat(s.RemainQty) || 0;
+      if (remQty > 0) return true;
+
+      // หาวันที่เบิกหมด (ClearDate)
+      let clearDateObj = null;
+      const rawDate = s.OutOfStockDate || s.LastIssueDate || '';
+      if (rawDate) {
+        clearDateObj = parseThaiDateToObj(rawDate);
+      }
+
+      if (!clearDateObj) {
+        const lotNorm = String(s.LotNo || '').trim().toLowerCase();
+        if (lotNorm && lotNorm !== '-') {
+          const mList = Array.isArray(STATE.movements) ? STATE.movements : [];
+          const zeroMove = mList.find(m =>
+            String(m.MovementType || '').toUpperCase().indexOf('OUT') !== -1 &&
+            String(m.LotNo || '').trim().toLowerCase() === lotNorm &&
+            (parseFloat(m.BalanceQty) || 0) <= 0 &&
+            m.Timestamp
+          );
+          if (zeroMove && zeroMove.Timestamp) {
+            clearDateObj = parseThaiDateToObj(zeroMove.Timestamp);
+          } else {
+            const anyOut = mList.find(m =>
+              String(m.MovementType || '').toUpperCase().indexOf('OUT') !== -1 &&
+              String(m.LotNo || '').trim().toLowerCase() === lotNorm &&
+              m.Timestamp
+            );
+            if (anyOut && anyOut.Timestamp) {
+              clearDateObj = parseThaiDateToObj(anyOut.Timestamp);
+            }
+          }
+
+          if (!clearDateObj) {
+            const rList = Array.isArray(STATE.requisitions) ? STATE.requisitions : [];
+            for (let i = 0; i < rList.length; i++) {
+              const rq = rList[i];
+              const isDone = rq.Status === 'เบิกสินค้าสำเร็จ' || rq.Status === 'Approved' || rq.Status === 'จ่ายสินค้าเสร็จสมบูรณ์' || rq.Status === 'ปรับปรุงรายการ';
+              if (isDone && Array.isArray(rq.items)) {
+                const hasLot = rq.items.some(it => String(it.LotNo || it.lotNo || '').trim().toLowerCase() === lotNorm);
+                if (hasLot && (rq.DateTimeOut || rq.DateTimeIn)) {
+                  clearDateObj = parseThaiDateToObj(rq.DateTimeOut || rq.DateTimeIn);
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      if (!clearDateObj && s.UpdatedAt) {
+        clearDateObj = parseThaiDateToObj(s.UpdatedAt);
+      }
+
+      const nextBillDateStr = s.NextBillingDate || (s.ReceiveDate ? calculateNextBillingMonthThai(s.ReceiveDate) : '');
+      const nextBillObj = nextBillDateStr ? parseThaiDateToObj(nextBillDateStr) : null;
+      const rcvDateObj = s.ReceiveDate ? parseThaiDateToObj(s.ReceiveDate) : null;
+
+      // เงื่อนไข 1: หมด "หลัง" หรือ "ตรงกับ" วันครบรอบบิล (clearDate >= nextBillDate) -> ก้าวเข้าสู่รอบบิลใหม่ ต้องคิดค่าฝาก
+      if (clearDateObj && nextBillObj) {
+        const clearDay = new Date(clearDateObj.getFullYear(), clearDateObj.getMonth(), clearDateObj.getDate()).getTime();
+        const billDay = new Date(nextBillObj.getFullYear(), nextBillObj.getMonth(), nextBillObj.getDate()).getTime();
+        if (clearDay >= billDay) {
+          return true;
+        }
+      }
+
+      // เงื่อนไข 2: เพิ่งรับเข้าในรอบนี้แล้วเบิกหมดในรอบนี้ -> รอบแรกคิดเต็มเดือนเสมอ
+      if (clearDateObj && rcvDateObj && s.BillingStatus !== 'Billed & Renewed') {
+        const rcvDay = new Date(rcvDateObj.getFullYear(), rcvDateObj.getMonth(), rcvDateObj.getDate()).getTime();
+        const clearDay = new Date(clearDateObj.getFullYear(), clearDateObj.getMonth(), clearDateObj.getDate()).getTime();
+        if (clearDay >= rcvDay) {
+          return true;
+        }
+      }
+
+      // เงื่อนไข 3: สถานะรอบบิลถูกต่อไว้แล้ว
+      if (s.BillingStatus === 'Billed & Renewed') {
+        return true;
+      }
+
+      // เงื่อนไข 4: เพิ่งหมดภายในรอบบิล 35 วันล่าสุด
+      if (clearDateObj) {
+        const now = new Date();
+        const diffDays = Math.floor((now.getTime() - clearDateObj.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays <= 35) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
     function renderClientsAndBillingView() {
       const billBody = document.getElementById('billingTableBody');
-      const activeStocks = STATE.stock.filter(s => (parseFloat(s.RemainQty) || 0) > 0);
-      activeStocks.sort((a, b) => {
-        const lotA = String(a.LotNo || '').trim();
-        const lotB = String(b.LotNo || '').trim();
-        if (!lotA || lotA === '-') return 1;
-        if (!lotB || lotB === '-') return -1;
-        return lotA.localeCompare(lotB, 'en', { numeric: true });
+      const billableStocks = (STATE.stock || []).filter(isStockBillable);
+
+      // จัดกลุ่มสินค้าคงเหลือและสินค้าที่ครบกำหนดในรอบบิลนี้แยกตามลูกค้า (Group by Client)
+      const clientMap = {};
+      billableStocks.forEach(s => {
+        let matchedClient = (STATE.clients || []).find(c =>
+          (s.ClientID && (c.ClientID === s.ClientID || c.ClientCode === s.ClientID)) ||
+          (s.ClientName && (c.ClientName === s.ClientName || (c.ContactPerson && c.ContactPerson === s.ClientName) || c.ClientName.indexOf(s.ClientName) !== -1 || s.ClientName.indexOf(c.ClientName) !== -1))
+        );
+        const cKey = matchedClient ? (matchedClient.ClientID || matchedClient.ClientCode || matchedClient.ClientName) : (s.ClientID || s.ClientName || 'UNKNOWN');
+        const cName = matchedClient ? matchedClient.ClientName : (s.ClientName || 'ลูกค้าทั่วไป');
+
+        if (!clientMap[cKey]) {
+          clientMap[cKey] = {
+            clientKey: cKey,
+            clientId: matchedClient ? matchedClient.ClientID : (s.ClientID || ''),
+            clientCode: matchedClient ? matchedClient.ClientCode : '',
+            clientName: cName,
+            clientObj: matchedClient || { ClientID: cKey, ClientName: cName },
+            lots: [],
+            totalRemainQty: 0,
+            totalRemainWeight: 0,
+            units: {}
+          };
+        }
+        clientMap[cKey].lots.push(s);
+        const remQty = parseFloat(s.RemainQty) || 0;
+        const remWeight = parseFloat(s.RemainWeight) || 0;
+        clientMap[cKey].totalRemainQty += remQty;
+        clientMap[cKey].totalRemainWeight += remWeight;
+        const u = s.Unit || 'หน่วย';
+        if (remQty > 0) {
+          clientMap[cKey].units[u] = (clientMap[cKey].units[u] || 0) + remQty;
+        }
       });
-      billBody.innerHTML = activeStocks.length === 0
-        ? '<tr><td colspan="9" class="empty-state">ไม่มีรายการสินค้าคงค้างในห้องเย็น</td></tr>'
-        : activeStocks.map(s => {
-            const rcvD = s.ReceiveDate || formatTodayThai();
-            const computedNextBill = calculateNextBillingMonthThai(rcvD);
-            s.NextBillingDate = computedNextBill;
-            const due = isDateDueSoon(computedNextBill, 5);
-            return '<tr>' +
-              '<td class="text-center"><strong>' + escapeHtml(s.LotNo) + '</strong></td>' +
-              '<td><strong>' + escapeHtml((function() {
-              const c = (STATE.clients || []).find(x => (s.ClientID && (x.ClientID === s.ClientID || x.ClientCode === s.ClientID)) || (s.ClientName && (x.ClientName === s.ClientName || (x.ContactPerson && x.ContactPerson === s.ClientName) || x.ClientName.indexOf(s.ClientName) !== -1 || s.ClientName.indexOf(x.ClientName) !== -1)));
-              return c ? c.ClientName : (s.ClientName || '-');
-            })()) + '</strong></td>' +
-              '<td>' + escapeHtml(s.ProductName) + '</td>' +
-              '<td class="text-right text-green col-remain-qty" style="font-weight:700; color:#10B981 !important;"><strong class="text-green" style="color:#10B981 !important;">' + fmtNum(s.RemainQty) + '</strong> ' + escapeHtml(s.Unit) + '</td>' +
-              '<td class="text-right">' + fmtNum(s.RemainWeight, 2) + '</td>' +
-              '<td>' + escapeHtml(s.ReceiveDate) + '</td>' +
-              '<td><strong>' + escapeHtml(computedNextBill) + '</strong></td>' +
-              '<td class="text-center"><span class="status-badge ' + (due ? 'status-DueSoon' : 'status-Approved') + '">' + (due ? '⚠️ ใกล้ครบรอบบิล' : 'ปกติ (Active)') + '</span></td>' +
-              '<td class="text-center">' +
-                '<button class="btn btn-orange btn-sm" onclick="handleRenewBilling(\'' + escapeHtml(s.StockID) + '\', \'' + escapeHtml(s.LotNo) + '\')">' +
-                  '<i class="fa-solid fa-rotate"></i> วางบิล/ต่อรอบบิล' +
-                '</button>' +
-              '</td>' +
-            '</tr>';
-          }).join('');
+
+      const clientGroups = Object.values(clientMap).sort((a, b) => a.clientName.localeCompare(b.clientName, 'th'));
+      STATE.billingClientGroups = clientGroups;
+
+      if (clientGroups.length === 0) {
+        billBody.innerHTML = '<tr><td colspan="6" class="empty-state">ไม่มีรายการสินค้าที่ต้องวางบิลในรอบนี้</td></tr>';
+      } else {
+        billBody.innerHTML = clientGroups.map((cg, idx) => {
+          // ดึงสถานะตามข้อกำหนดใหม่: วางบิลแล้ว (ฟ้า) / ค้างชำระ (แดง) / ชำระแล้ว (เขียว) / นำ ปกติ (Active) ออก
+          const billingInfo = getClientBillingStatus(cg.clientKey, cg);
+          const statusBadge = billingInfo.badge;
+
+          const unitKeys = Object.keys(cg.units);
+          const unitStr = unitKeys.length === 1 ? (' ' + unitKeys[0]) : ' หน่วย';
+
+          return '<tr>' +
+            '<td><strong>' + escapeHtml(cg.clientName) + '</strong>' +
+              (cg.clientCode ? ('<br><small style="color:var(--text-muted);">' + escapeHtml(cg.clientCode) + '</small>') : '') +
+            '</td>' +
+            '<td class="text-center"><span class="badge" style="background:#EEF2F6; color:#0A3D62; font-size:13px; font-weight:700; padding:4px 10px; border-radius:12px;">' + cg.lots.length + ' Lot</span></td>' +
+            '<td class="text-right text-green col-remain-qty" style="font-weight:700; color:#10B981 !important;">' + fmtNum(cg.totalRemainQty) + unitStr + '</td>' +
+            '<td class="text-right" style="font-weight:700;">' + fmtNum(cg.totalRemainWeight, 2) + '</td>' +
+            '<td class="text-center">' + statusBadge + '</td>' +
+            '<td class="text-center">' +
+              '<button class="btn btn-orange btn-sm" onclick="openClientBillingInvoiceModal(' + idx + ')">' +
+                '<i class="fa-solid fa-file-invoice-dollar"></i> วางบิล/ใบเสร็จ' +
+              '</button>' +
+            '</td>' +
+          '</tr>';
+        }).join('');
+      }
 
       const cliBody = document.getElementById('clientsTableBody');
       const sortedClients = (STATE.clients || []).slice().sort((a, b) => {
@@ -9921,113 +10505,700 @@
               '<td>' + escapeHtml(c.ContactPerson || '-') + '</td>' +
               '<td>' + escapeHtml(c.Phone || '-') + '</td>' +
               '<td>' + escapeHtml(c.Email || '-') + '</td>' +
-              '<td class="text-center"><span class="status-badge status-Approved">' + escapeHtml(c.Status || 'Active') + '</span></td>' +
+              '<td class="text-center"><span class="status-badge status-' + (c.Status || 'Active') + '">' + escapeHtml(c.Status || 'Active') + '</span></td>' +
               '<td class="text-center">' +
-                '<button class="btn btn-outline btn-sm" onclick=\'editClient(' + JSON.stringify(c).replace(/'/g, "&#39;") + ')\'><i class="fa-solid fa-pen"></i> แก้ไข</button>' +
+                '<button class="btn btn-outline btn-sm" onclick="openClientModal(\'' + escapeHtml(c.ClientID) + '\')"><i class="fa-solid fa-pen"></i></button>' +
               '</td>' +
             '</tr>'
           ).join('');
     }
 
-    function openClientModal() {
-      document.getElementById('formClient').reset();
-      document.getElementById('cliIdInput').value = '';
-      openModal('modalClient');
-    }
+    let CURRENT_BILLING_CLIENT = null;
 
-    function editClient(c) {
-      document.getElementById('cliIdInput').value = c.ClientID;
-      document.getElementById('cliCodeInput').value = c.ClientCode || '';
-      document.getElementById('cliNameInput').value = c.ClientName || '';
-      document.getElementById('cliContactInput').value = c.ContactPerson || '';
-      document.getElementById('cliPhoneInput').value = c.Phone || '';
-      document.getElementById('cliEmailInput').value = c.Email || '';
-      document.getElementById('cliTaxInput').value = c.TaxID || '';
-      document.getElementById('cliAddressInput').value = c.Address || '';
-      document.getElementById('cliNotesInput').value = c.Notes || '';
-      openModal('modalClient');
-    }
+    /**
+     * เปิด Modal จัดการใบวางบิลและใบเสร็จรับเงินแบบรวมทุกล็อตของลูกค้า (Multi-Lot Batch)
+     * สิทธิ์เฉพาะ User 1. Admin 2. Manager 3. Office
+     */
+    function openClientBillingInvoiceModal(target) {
+      // ตรวจสอบสิทธิ์การเข้าถึง: เฉพาะ User 1. Admin 2. Manager 3. Office
+      const u = STATE.user;
+      const role = String(u && (u.role || u.Role) || '').trim().toLowerCase();
+      if (u && ['admin', 'manager', 'office'].indexOf(role) === -1) {
+        Swal.fire({
+          title: 'สิทธิ์การเข้าถึงไม่เพียงพอ',
+          text: 'ระบบการออกใบวางบิลและใบเสร็จรับเงิน สงวนสิทธิ์เฉพาะผู้ดูแลระบบ (Admin), ผู้จัดการคลัง (Manager) และเจ้าหน้าที่สำนักงาน (Office) เท่านั้น',
+          icon: 'warning',
+          confirmButtonColor: '#0A3D62'
+        });
+        return;
+      }
 
-    async function submitClientForm(e) {
-      e.preventDefault();
-      if (STATE.isSubmitting) return;
-      STATE.isSubmitting = true;
-      showLoader('กำลังบันทึกข้อมูลลูกค้า...');
-      try {
-        const payload = {
-          clientId: document.getElementById('cliIdInput').value,
-          clientCode: document.getElementById('cliCodeInput').value.trim(),
-          clientName: document.getElementById('cliNameInput').value.trim(),
-          contactPerson: document.getElementById('cliContactInput').value.trim(),
-          phone: document.getElementById('cliPhoneInput').value.trim(),
-          email: document.getElementById('cliEmailInput').value.trim(),
-          taxId: document.getElementById('cliTaxInput').value.trim(),
-          address: document.getElementById('cliAddressInput').value.trim(),
-          notes: document.getElementById('cliNotesInput').value.trim()
-        };
-        const res = await callServer('saveClient', STATE.auth, payload);
-        if (res && res.success) {
-          if (res.clients) STATE.clients = res.clients;
-          if (res.stock) STATE.stock = res.stock;
-          if (res.products) STATE.products = res.products;
-          if (res.receivings) STATE.receivings = res.receivings;
-          if (res.requisitions) STATE.requisitions = res.requisitions;
-          if (res.movements) STATE.movements = res.movements;
-          if (res.users) STATE.users = res.users;
+      let cg = null;
+      if (typeof target === 'number' || (!isNaN(parseInt(target, 10)) && String(parseInt(target, 10)) === String(target).trim())) {
+        const idx = parseInt(target, 10);
+        if (STATE.billingClientGroups && STATE.billingClientGroups[idx]) {
+          cg = STATE.billingClientGroups[idx];
+        }
+      }
 
-          syncClientDataAcrossCollections(STATE.products, STATE.stock, STATE.receivings, STATE.requisitions, STATE.movements, STATE.clients, STATE.users);
+      if (!cg && STATE.billingClientGroups) {
+        cg = STATE.billingClientGroups.find(g =>
+          g.clientKey === target ||
+          g.clientName === target ||
+          g.clientId === target ||
+          (g.clientObj && g.clientObj.ClientName === target)
+        );
+      }
 
-          // ซิงค์การเปลี่ยนชื่อลูกค้าไปยัง Supabase ทันที
-          if (typeof SupabaseEngine !== 'undefined' && SupabaseEngine.isReady()) {
-            try {
-              await SupabaseEngine.pushAllToSupabase(LocalPreviewEngine.getDb());
-            } catch (errSync) {
-              console.warn('Supabase cascade sync warning:', errSync);
-            }
+      if (!cg) {
+        // Fallback: ดึงสต็อกที่ต้องคิดค่าฝาก
+        const billableStocks = (STATE.stock || []).filter(isStockBillable);
+        let matchedClient = (STATE.clients || []).find(c =>
+          (c.ClientID && (c.ClientID === target || c.ClientCode === target)) ||
+          (c.ClientName && (c.ClientName === target || target.indexOf(c.ClientName) !== -1 || c.ClientName.indexOf(target) !== -1))
+        );
+
+        const clientLots = billableStocks.filter(s => {
+          if (matchedClient) {
+            return (s.ClientID && (s.ClientID === matchedClient.ClientID || s.ClientID === matchedClient.ClientCode)) ||
+                   (s.ClientName && (s.ClientName === matchedClient.ClientName || matchedClient.ClientName.indexOf(s.ClientName) !== -1 || s.ClientName.indexOf(matchedClient.ClientName) !== -1));
+          }
+          return (s.ClientID === target || s.ClientName === target);
+        });
+
+        if (clientLots.length > 0) {
+          const clientName = matchedClient ? matchedClient.ClientName : (clientLots[0].ClientName || target);
+          cg = {
+            clientKey: target,
+            clientName: clientName,
+            clientObj: matchedClient || { ClientID: target, ClientName: clientName },
+            lots: clientLots
+          };
+        }
+      }
+
+      if (!cg || !cg.lots || cg.lots.length === 0) {
+        showToast('ไม่พบรายการสินค้าที่ต้องวางบิลของลูกค้ารายนี้', 'error');
+        return;
+      }
+
+      const clientLots = cg.lots.slice();
+      // เรียงลำดับ Lot No.
+      clientLots.sort((a, b) => {
+        const lotA = String(a.LotNo || '').trim();
+        const lotB = String(b.LotNo || '').trim();
+        if (!lotA || lotA === '-') return 1;
+        if (!lotB || lotB === '-') return -1;
+        return lotA.localeCompare(lotB, 'en', { numeric: true });
+      });
+
+      const clientName = cg.clientName;
+      const clientObj = cg.clientObj || { ClientID: cg.clientKey, ClientName: clientName };
+
+      CURRENT_BILLING_CLIENT = {
+        clientKey: cg.clientKey,
+        clientName: clientName,
+        clientObj: clientObj,
+        lots: clientLots
+      };
+
+      const billClientIdEl = document.getElementById('billClientId');
+      if (billClientIdEl) billClientIdEl.value = clientObj.ClientID || cg.clientKey;
+
+      const nameEl = document.getElementById('billClientNameText');
+      if (nameEl) nameEl.textContent = clientName + (clientObj.TaxID ? (' (Tax: ' + clientObj.TaxID + ')') : '');
+
+      const lotCountEl = document.getElementById('billClientLotCountText');
+      if (lotCountEl) lotCountEl.textContent = clientLots.length + ' Lot';
+
+      let totalW = 0;
+      clientLots.forEach(st => {
+        const remW = parseFloat(st.RemainWeight) || 0;
+        const initW = parseFloat(st.InitialWeight) || (parseFloat(st.WeightPerUnit) * (parseFloat(st.InitialQty) || 1)) || 0;
+        totalW += (remW > 0 ? remW : initW);
+      });
+      const weightEl = document.getElementById('billClientTotalWeightText');
+      if (weightEl) weightEl.textContent = fmtNum(totalW, 2) + ' กก.';
+
+      // สถานะบิลลิ่งปัจจุบัน (วางบิลแล้ว / ค้างชำระ / ชำระแล้ว / -)
+      const bInfo = getClientBillingStatus(cg.clientKey, cg);
+      const statusBadgeEl = document.getElementById('billClientStatusBadge');
+      if (statusBadgeEl) statusBadgeEl.innerHTML = bInfo.badge;
+
+      const manualSel = document.getElementById('billManualStatusSelect');
+      if (manualSel) manualSel.value = '';
+
+      // สร้างเลขที่เอกสารอัตโนมัติ
+      const ymdStr = formatYMDCompact();
+      const randomSuffix = String(Math.floor(Math.random() * 900) + 100);
+      const invDocEl = document.getElementById('billInvoiceDocNo');
+      if (invDocEl) invDocEl.value = 'BT ' + ymdStr.slice(2, 6) + randomSuffix;
+      const recDocEl = document.getElementById('billReceiptDocNo');
+      if (recDocEl) recDocEl.value = 'RC ' + ymdStr.slice(2, 6) + randomSuffix;
+      const docDateEl = document.getElementById('billDocDate');
+      if (docDateEl) docDateEl.value = formatTodayThai();
+
+      const firstLot = clientLots[0];
+      const firstDue = firstLot.NextBillingDate || calculateNextBillingMonthThai(firstLot.ReceiveDate || formatTodayThai());
+      const dueDateEl = document.getElementById('billDueDate');
+      if (dueDateEl) dueDateEl.value = firstDue;
+
+      // สร้างรายการแถวสินค้าทุกล็อต (Multi-Lot Table)
+      const tbody = document.getElementById('billMultiLotsTableBody');
+      if (tbody) {
+        tbody.innerHTML = clientLots.map((st, idx) => {
+          const remQty = parseFloat(st.RemainQty) || 0;
+          const remW = parseFloat(st.RemainWeight) || 0;
+          const initW = parseFloat(st.InitialWeight) || (parseFloat(st.WeightPerUnit) * (parseFloat(st.InitialQty) || 1)) || 0;
+          const isRenewed = (st.BillingStatus === 'Billed & Renewed');
+
+          let calcWeight = 0;
+          let weightNote = '';
+          let displayDueDate = '';
+
+          if (remQty <= 0) {
+            // กรณีเบิกหมดแล้ว แต่หมดหลังวันครบรอบบิล -> คิดน้ำหนักเต็มจำนวนตามรอบใหม่
+            calcWeight = initW > 0 ? initW : 265.7;
+            weightNote = '<div style="font-size:10px; color:#DC2626; text-align:right;">เบิกหมดหลังครบรอบบิล</div>';
+            displayDueDate = '<span style="color:#DC2626; font-weight:700;">หมด Lot</span>';
+          } else if (isRenewed) {
+            calcWeight = remW;
+            weightNote = '<div style="font-size:10px; color:var(--text-muted); text-align:right;">ยอดคงเหลือจริง</div>';
+            const nextDue = st.NextBillingDate || calculateNextBillingMonthThai(st.ReceiveDate || formatTodayThai());
+            displayDueDate = escapeHtml(nextDue);
+          } else {
+            calcWeight = initW > 0 ? initW : remW;
+            weightNote = '<div style="font-size:10px; color:var(--text-muted); text-align:right;">เข้าเต็มเดือน</div>';
+            const nextDue = st.NextBillingDate || calculateNextBillingMonthThai(st.ReceiveDate || formatTodayThai());
+            displayDueDate = escapeHtml(nextDue);
           }
 
-          closeModal('modalClient');
-          renderAllViews();
-          showToast(res.message, 'success');
-        }
-      } catch (err) {
-        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
-      } finally {
-        STATE.isSubmitting = false;
-        hideLoader();
+          const rateVal = parseFloat(st.StorageRatePerKgDay || clientObj.StorageRatePerKgDay) || 1.2;
+
+          return '<tr data-lot-index="' + idx + '">' +
+            '<td class="text-center" style="font-weight:600;">' + (idx + 1) + '</td>' +
+            '<td>' +
+              '<input type="text" class="form-control form-control-sm lot-rcv-no" value="' + escapeHtml(st.ReceivingNo || ('IN-' + (st.LotNo || ''))) + '" style="font-size:12px; padding:3px 6px;">' +
+            '</td>' +
+            '<td><strong style="color:#0A3D62;">' + escapeHtml(st.LotNo || '-') + '</strong></td>' +
+            '<td>' +
+              '<div>' + escapeHtml(st.ProductName || '-') + '</div>' +
+              (st.Description ? ('<small style="color:var(--text-muted);">' + escapeHtml(st.Description) + '</small>') : '') +
+            '</td>' +
+            '<td class="text-center" style="font-size:12px;">' + escapeHtml(st.ReceiveDate || '-') + '</td>' +
+            '<td class="text-center" style="font-size:12px; font-weight:600; color:#0284C7;">' + displayDueDate + '</td>' +
+            '<td>' +
+              '<input type="number" step="0.01" min="0" class="form-control form-control-sm text-right lot-calc-weight" value="' + calcWeight.toFixed(2) + '" oninput="recalcMultiLotBilling()" style="font-size:12px; padding:3px 6px; font-weight:700; color:#0F9D58;">' +
+              weightNote +
+            '</td>' +
+            '<td>' +
+              '<input type="number" step="0.01" min="0" class="form-control form-control-sm text-right lot-storage-rate" value="' + rateVal.toFixed(2) + '" oninput="recalcMultiLotBilling()" style="font-size:12px; padding:3px 6px; font-weight:600;">' +
+            '</td>' +
+            '<td class="text-right" style="font-weight:700; color:#0A3D62;" id="lotRowAmount_' + idx + '">' +
+              fmtNum(calcWeight * rateVal, 2) +
+            '</td>' +
+          '</tr>';
+        }).join('');
       }
+
+      recalcMultiLotBilling();
+      openModal('modalBillingInvoice');
     }
 
-    function handleRenewBilling(stockId, lotNo) {
+    /**
+     * คำนวณสรุปยอดบิลลิ่งทุกล็อตของลูกค้า
+     */
+    function recalcMultiLotBilling() {
+      if (!CURRENT_BILLING_CLIENT || !CURRENT_BILLING_CLIENT.lots) return;
+      const lots = CURRENT_BILLING_CLIENT.lots;
+      const weightInputs = document.querySelectorAll('.lot-calc-weight');
+      const rateInputs = document.querySelectorAll('.lot-storage-rate');
+      const rcvNoInputs = document.querySelectorAll('.lot-rcv-no');
+
+      let subtotal = 0;
+      const lotDetails = [];
+
+      lots.forEach((st, idx) => {
+        const w = parseFloat(weightInputs[idx] ? weightInputs[idx].value : 0) || 0;
+        const r = parseFloat(rateInputs[idx] ? rateInputs[idx].value : 0) || 0;
+        const rcvNo = rcvNoInputs[idx] ? rcvNoInputs[idx].value.trim() : (st.ReceivingNo || '');
+        const amount = Math.round(w * r * 100) / 100;
+        subtotal += amount;
+
+        const el = document.getElementById('lotRowAmount_' + idx);
+        if (el) el.textContent = fmtNum(amount, 2);
+
+        const remQty = parseFloat(st.RemainQty) || 0;
+        const dueDateText = (remQty <= 0) ? 'หมด Lot' : (st.NextBillingDate || calculateNextBillingMonthThai(st.ReceiveDate || formatTodayThai()));
+
+        lotDetails.push({
+          index: idx + 1,
+          stock: st,
+          receivingNo: rcvNo,
+          lotNo: st.LotNo || '-',
+          productName: st.ProductName || '-',
+          description: st.Description || '',
+          receiveDate: st.ReceiveDate || '-',
+          dueDate: dueDateText,
+          weight: w,
+          rate: r,
+          amount: amount
+        });
+      });
+
+      const vatSelect = document.getElementById('billVatSelect');
+      const vatRate = vatSelect ? (parseFloat(vatSelect.value) || 0) : 0.07;
+      const whtSelect = document.getElementById('billWhtRateSelect');
+      const whtRate = whtSelect ? (parseFloat(whtSelect.value) || 0) : 0.03;
+
+      subtotal = Math.round(subtotal * 100) / 100;
+      const vat = Math.round(subtotal * vatRate * 100) / 100;
+      const total = Math.round((subtotal + vat) * 100) / 100;
+      const wht = Math.round(subtotal * whtRate * 100) / 100;
+      const netPay = Math.round((total - wht) * 100) / 100;
+
+      const subtotalEl = document.getElementById('billSubtotalDisp');
+      if (subtotalEl) subtotalEl.textContent = fmtNum(subtotal, 2) + ' บาท';
+      const vatEl = document.getElementById('billVatDisp');
+      if (vatEl) vatEl.textContent = fmtNum(vat, 2) + ' บาท';
+      const totalEl = document.getElementById('billTotalDisp');
+      if (totalEl) totalEl.textContent = fmtNum(total, 2) + ' บาท';
+      const whtEl = document.getElementById('billWhtDisp');
+      if (whtEl) whtEl.textContent = fmtNum(wht, 2) + ' บาท';
+      const netPayEl = document.getElementById('billNetPayDisp');
+      if (netPayEl) netPayEl.textContent = fmtNum(netPay, 2) + ' บาท';
+      const bahtTextEl = document.getElementById('billBahtTextDisp');
+      if (bahtTextEl) bahtTextEl.textContent = thaiBahtText(netPay);
+
+      return {
+        subtotal: subtotal,
+        vat: vat,
+        total: total,
+        wht: wht,
+        netPay: netPay,
+        bahtText: thaiBahtText(netPay),
+        lotDetails: lotDetails
+      };
+    }
+
+    /**
+     * ออกเอกสารและพิมพ์เอกสารบิลลิ่งทุกล็อต (Multi-Lot Batch)
+     */
+    function generateAndPrintMultiLotBillingDoc(docType) {
+      if (!CURRENT_BILLING_CLIENT) return;
+      const cClient = CURRENT_BILLING_CLIENT;
+      const client = cClient.clientObj || {};
+      const summary = recalcMultiLotBilling();
+
+      const invoiceDocNo = (document.getElementById('billInvoiceDocNo') ? document.getElementById('billInvoiceDocNo').value.trim() : '') || ('BT-' + formatYMDCompact());
+      const receiptDocNo = (document.getElementById('billReceiptDocNo') ? document.getElementById('billReceiptDocNo').value.trim() : '') || ('RC-' + formatYMDCompact());
+      const docDate = (document.getElementById('billDocDate') ? document.getElementById('billDocDate').value.trim() : '') || formatTodayThai();
+      const dueDate = (document.getElementById('billDueDate') ? document.getElementById('billDueDate').value.trim() : '') || formatTodayThai();
+      const notes = document.getElementById('billNotesInput') ? document.getElementById('billNotesInput').value.trim() : '';
+
+      const isInvoice = (docType === 'INVOICE');
+      const docTitle = isInvoice ? 'ใบวางบิล / ใบแจ้งหนี้' : 'ใบเสร็จรับเงิน / ใบกำกับภาษี';
+      const docNo = isInvoice ? invoiceDocNo : receiptDocNo;
+
+      let htmlContent = '';
+      if (isInvoice) {
+        htmlContent = buildMultiLotBillingInvoiceHtml({
+          docNo: invoiceDocNo,
+          docDate: docDate,
+          dueDate: dueDate,
+          client: client,
+          clientName: cClient.clientName,
+          summary: summary,
+          notes: notes
+        });
+
+        // 1. เปลี่ยนสถานะเป็น "วางบิลแล้ว" (สีฟ้า) พร้อมบันทึกวันที่วางบิล
+        setClientBillingStatus(cClient.clientKey, 'วางบิลแล้ว', {
+          invoicedDate: docDate,
+          invoicedTimestamp: Date.now(),
+          dueDate: dueDate
+        });
+        renderClientsAndBillingView();
+        const badgeEl = document.getElementById('billClientStatusBadge');
+        if (badgeEl) {
+          badgeEl.innerHTML = getClientBillingStatusBadge('วางบิลแล้ว');
+        }
+      } else {
+        htmlContent = buildMultiLotBillingReceiptHtml({
+          docNo: receiptDocNo,
+          docDate: docDate,
+          client: client,
+          clientName: cClient.clientName,
+          summary: summary,
+          notes: notes
+        });
+      }
+
+      STATE.currentPrintDoc = {
+        fileName: (isInvoice ? 'INVOICE_' : 'TAX_RECEIPT_') + docNo,
+        refNo: docNo,
+        clientName: cClient.clientName,
+        htmlContent: htmlContent
+      };
+
+      document.getElementById('modalDocPrintTitle').innerHTML = '<i class="fa-solid fa-file-invoice-dollar"></i> ' + docTitle + ' — ' + escapeHtml(docNo);
+      document.getElementById('printPreviewArea').innerHTML = htmlContent;
+      // ปิดหน้าต่างจัดการใบวางบิลและใบเสร็จรับเงินทันที ไม่ให้ค้างอยู่บนหน้าจอ
+      closeModal('modalBillingInvoice');
+      openModal('modalDocPrint');
+    }
+
+    /**
+     * สร้าง HTML ใบวางบิล / ใบแจ้งหนี้ แบบทุกล็อตต่อกันจนครบ (ตามแบบฟอร์มบริษัท ธนทิพย์ฟู้ดส์ จำกัด)
+     */
+    function buildMultiLotBillingInvoiceHtml(data) {
+      const c = data.client || {};
+      const s = data.summary || {};
+      const lots = s.lotDetails || [];
+
+      // รายละเอียด "ในตารางคอลัมน์ รายการฝากสินค้า" ให้อยู่บรรทัดเดียวสะอาดตา
+      const rowsHtml = lots.map(lot => {
+        let prodText = (lot.productName || '').trim();
+        if (lot.description && lot.description.trim()) {
+          const desc = lot.description.trim();
+          if (prodText.indexOf(desc) === -1) {
+            prodText += ' ' + desc;
+          }
+        }
+        prodText = prodText.replace(/\s+/g, ' ');
+
+        return '<tr style="height:26px;">' +
+          '<td style="border-left:1px solid #000; border-right:1px solid #000; padding:4px 4px; text-align:center; white-space:nowrap;">' + lot.index + '</td>' +
+          '<td style="border-right:1px solid #000; padding:4px 6px; text-align:center; white-space:nowrap;">' + escapeHtml(lot.receivingNo) + '</td>' +
+          '<td style="border-right:1px solid #000; padding:4px 6px; text-align:center; font-weight:700; white-space:nowrap;">' + escapeHtml(lot.lotNo) + '</td>' +
+          '<td style="border-right:1px solid #000; padding:4px 8px; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + escapeHtml(prodText) + '</td>' +
+          '<td style="border-right:1px solid #000; padding:4px 6px; text-align:center; white-space:nowrap;">' + escapeHtml(lot.receiveDate) + '</td>' +
+          '<td style="border-right:1px solid #000; padding:4px 6px; text-align:center; white-space:nowrap;">' + escapeHtml(lot.dueDate) + '</td>' +
+          '<td style="border-right:1px solid #000; padding:4px 8px; text-align:right; white-space:nowrap;">' + fmtNum(lot.weight, 2) + '</td>' +
+          '<td style="border-right:1px solid #000; padding:4px 6px; text-align:right; white-space:nowrap;">' + fmtNum(lot.rate, 2) + '</td>' +
+          '<td style="border-right:1px solid #000; padding:4px 8px; text-align:right; font-weight:700; white-space:nowrap;">' + fmtNum(lot.amount, 2) + '</td>' +
+        '</tr>';
+      }).join('');
+
+      // แถวว่างยืดระยะตารางลงมาด้านล่าง
+      let emptyRowCount = Math.max(2, 11 - lots.length);
+      let emptyRowsHtml = '';
+      for (let i = 0; i < emptyRowCount; i++) {
+        emptyRowsHtml += '<tr style="height:26px;">' +
+          '<td style="border-left:1px solid #000; border-right:1px solid #000; padding:2px 4px;">&nbsp;</td>' +
+          '<td style="border-right:1px solid #000; padding:2px 4px;">&nbsp;</td>' +
+          '<td style="border-right:1px solid #000; padding:2px 4px;">&nbsp;</td>' +
+          '<td style="border-right:1px solid #000; padding:2px 4px;">&nbsp;</td>' +
+          '<td style="border-right:1px solid #000; padding:2px 4px;">&nbsp;</td>' +
+          '<td style="border-right:1px solid #000; padding:2px 4px;">&nbsp;</td>' +
+          '<td style="border-right:1px solid #000; padding:2px 4px;">&nbsp;</td>' +
+          '<td style="border-right:1px solid #000; padding:2px 4px;">&nbsp;</td>' +
+          '<td style="border-right:1px solid #000; padding:2px 4px;">&nbsp;</td>' +
+        '</tr>';
+      }
+
+      return '<div class="print-doc-container" style="font-family:Sarabun,sans-serif; color:#000; padding:24px 30px; background:#fff; line-height:1.45; font-size:12px; max-width:820px; margin:0 auto;">' +
+        '<!-- Header -->' +
+        '<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">' +
+          '<div style="flex:1; padding-right:16px;">' +
+            '<h2 style="margin:0 0 4px 0; color:#000; font-size:18px; font-weight:700;">บริษัท พรมารีน จำกัด</h2>' +
+            '<div style="font-size:12px; color:#000; line-height:1.5;">' +
+              '44/37 หมู่ 3 ซ.สาครธานี ถ.สหกรณ์ ต.บางหญ้าแพรก อ.เมือง จ.สมุทรสาคร 74000<br>' +
+              'โทร : 034-871-111 &nbsp; แฟ็กซ์ : 034-871-234' +
+            '</div>' +
+          '</div>' +
+          '<div style="width:260px; text-align:right;">' +
+            '<div style="border:1.5px solid #000; padding:6px 10px; font-size:16px; font-weight:700; color:#000; text-align:center; margin-bottom:6px; white-space:nowrap;">' +
+              'ใบวางบิล / ใบแจ้งหนี้' +
+            '</div>' +
+            '<table style="width:100%; border-collapse:collapse; font-size:12px; border:1px solid #000;">' +
+              '<tr>' +
+                '<td style="border:1px solid #000; padding:3px 8px; width:65px; text-align:center; font-weight:600; white-space:nowrap;">เลขที่</td>' +
+                '<td style="border:1px solid #000; padding:3px 8px; text-align:center; font-weight:700; white-space:nowrap;">' + escapeHtml(data.docNo) + '</td>' +
+              '</tr>' +
+              '<tr>' +
+                '<td style="border:1px solid #000; padding:3px 8px; text-align:center; font-weight:600; white-space:nowrap;">วันที่</td>' +
+                '<td style="border:1px solid #000; padding:3px 8px; text-align:center; white-space:nowrap;">' + escapeHtml(data.docDate) + '</td>' +
+              '</tr>' +
+            '</table>' +
+          '</div>' +
+        '</div>' +
+
+        '<!-- Customer Info: ชื่อลูกค้า ให้อยู่บรรทัดเดียวสะอาดตา -->' +
+        '<div style="border:1px solid #000; margin-bottom:12px; font-size:12px;">' +
+          '<table style="width:100%; border-collapse:collapse;">' +
+            '<tr>' +
+              '<td style="width:65px; padding:5px 8px; vertical-align:middle; font-weight:600; border-right:1px solid #000; border-bottom:1px solid #000; white-space:nowrap;">ชื่อลูกค้า</td>' +
+              '<td style="padding:5px 10px; vertical-align:middle; font-weight:700; border-bottom:1px solid #000; white-space:nowrap;">' + escapeHtml(data.clientName || c.ClientName || '-') + '</td>' +
+            '</tr>' +
+            '<tr>' +
+              '<td style="padding:5px 8px; vertical-align:middle; font-weight:600; border-right:1px solid #000; white-space:nowrap;">ที่อยู่</td>' +
+              '<td style="padding:5px 10px; vertical-align:middle; white-space:nowrap;">' + escapeHtml(c.Address || '44/37 ม.3 ต.บางหญ้าแพรก อ.เมือง จ.สมุทรสาคร') + '</td>' +
+            '</tr>' +
+          '</table>' +
+        '</div>' +
+
+        '<!-- Table: เลขที่ใบฝาก และ รายการฝากสินค้า ให้อยู่บรรทัดเดียวสะอาดตา -->' +
+        '<table style="width:100%; border-collapse:collapse; margin-bottom:16px; font-size:12px;">' +
+          '<thead>' +
+            '<tr style="text-align:center; font-weight:700;">' +
+              '<th style="border:1px solid #000; padding:6px 4px; width:40px; white-space:nowrap;">ลำดับ</th>' +
+              '<th style="border:1px solid #000; padding:6px 6px; width:85px; white-space:nowrap;">เลขที่ใบฝาก</th>' +
+              '<th style="border:1px solid #000; padding:6px 6px; width:65px; white-space:nowrap;">Lot No.</th>' +
+              '<th style="border:1px solid #000; padding:6px 8px; text-align:center; white-space:nowrap;">รายการฝากสินค้า</th>' +
+              '<th style="border:1px solid #000; padding:6px 6px; width:80px; white-space:nowrap;">วันที่เริ่มฝาก</th>' +
+              '<th style="border:1px solid #000; padding:6px 6px; width:80px; white-space:nowrap;">ครบกำหนด</th>' +
+              '<th style="border:1px solid #000; padding:6px 8px; width:80px; text-align:center; white-space:nowrap;">น้ำหนัก</th>' +
+              '<th style="border:1px solid #000; padding:6px 6px; width:55px; text-align:center; white-space:nowrap;">อัตรา</th>' +
+              '<th style="border:1px solid #000; padding:6px 8px; width:100px; text-align:center; white-space:nowrap;">จำนวนเงิน</th>' +
+            '</tr>' +
+          '</thead>' +
+          '<tbody>' +
+            rowsHtml +
+            emptyRowsHtml +
+            '<!-- หมายเหตุ และ ยอดสรุปเงิน: จำนวนเงินก่อนVAT, ภาษีหัก ณ ที่จ่าย 3% ให้อยู่บรรทัดเดียวสะอาดตา -->' +
+            '<tr>' +
+              '<td colspan="6" rowspan="4" style="border-top:1px solid #000; border-left:1px solid #000; border-right:1px solid #000; border-bottom:1px solid #000; padding:6px 10px; vertical-align:top; font-size:11.5px; line-height:1.55; background:#fff;">' +
+                '<div style="display:flex;">' +
+                  '<div style="font-weight:700; width:65px; flex-shrink:0;">หมายเหตุ</div>' +
+                  '<div>กรุณาชำระค่าฝากสินค้าหลังจากวางบิล ไม่เกิน 7 วัน</div>' +
+                '</div>' +
+                '<div style="margin-top:2px;">1.กรณีชำระค่าฝากสินค้าด้วยเช็ค สั่งจ่าย บริษัท พรมารีน จำกัด (เก็บเช็คหลังจากวางบิล 3 วัน)</div>' +
+                '<div style="margin-top:2px;">2.กรณีโอนเงิน โอนบัญชี&nbsp; บริษัท พรมารีน จำกัด</div>' +
+                '<div style="padding-left:12px;">ธนาคารกสิกรไทย ตลาดสมุทรสาคร เลขที่ 398-2-03868-6</div>' +
+              '</td>' +
+              '<td colspan="2" style="border-top:1px solid #000; border-right:1px solid #000; border-bottom:1px solid #000; padding:4px 6px; text-align:center; white-space:nowrap;">จำนวนเงินก่อน VAT</td>' +
+              '<td style="border-top:1px solid #000; border-right:1px solid #000; border-bottom:1px solid #000; padding:4px 8px; text-align:right; font-weight:700; white-space:nowrap;">' + fmtNum(s.subtotal, 2) + '</td>' +
+            '</tr>' +
+            '<tr>' +
+              '<td colspan="2" style="border-right:1px solid #000; border-bottom:1px solid #000; padding:4px 6px; text-align:center; white-space:nowrap;">ภาษีมูลค่าเพิ่ม 7%</td>' +
+              '<td style="border-right:1px solid #000; border-bottom:1px solid #000; padding:4px 8px; text-align:right; font-weight:700; white-space:nowrap;">' + fmtNum(s.vat, 2) + '</td>' +
+            '</tr>' +
+            '<tr>' +
+              '<td colspan="2" style="border-right:1px solid #000; border-bottom:1px solid #000; padding:4px 6px; text-align:center; font-weight:700; white-space:nowrap;">จำนวนเงินสุทธิ</td>' +
+              '<td style="border-right:1px solid #000; border-bottom:1px solid #000; padding:4px 8px; text-align:right; font-weight:700; white-space:nowrap;">' + fmtNum(s.total, 2) + '</td>' +
+            '</tr>' +
+            '<tr>' +
+              '<td colspan="2" style="border-right:1px solid #000; border-bottom:1px solid #000; padding:4px 6px; text-align:center; white-space:nowrap;">ภาษีหัก ณ ที่จ่าย 3%</td>' +
+              '<td style="border-right:1px solid #000; border-bottom:1px solid #000; padding:4px 8px; text-align:right; font-weight:700; white-space:nowrap;">' + fmtNum(s.wht, 2) + '</td>' +
+            '</tr>' +
+            '<tr>' +
+              '<td colspan="6" style="border-left:1px solid #000; border-right:1px solid #000; border-bottom:1px solid #000; padding:6px 12px; text-align:center; font-weight:700; background:#fff; font-size:12px; white-space:nowrap;">' +
+                escapeHtml(s.bahtText || '') +
+              '</td>' +
+              '<td colspan="2" style="border-right:1px solid #000; border-bottom:1px solid #000; padding:6px 6px; text-align:center; font-weight:700; white-space:nowrap;">จำนวนเงินที่ชำระ</td>' +
+              '<td style="border-right:1px solid #000; border-bottom:1px solid #000; padding:6px 8px; text-align:right; font-weight:800; font-size:13px; white-space:nowrap;">' +
+                fmtNum(s.netPay, 2) +
+              '</td>' +
+            '</tr>' +
+          '</tbody>' +
+        '</table>' +
+
+        '<!-- Signatures -->' +
+        '<div style="display:flex; justify-content:space-between; margin-top:16px; font-size:12px; padding:0 20px; line-height:1.8;">' +
+          '<div>' +
+            'ผู้รับวางบิล .....................................................<br>' +
+            'วันที่ .....................................................' +
+          '</div>' +
+          '<div style="text-align:right;">' +
+            'ผู้วางบิล .....................................................<br>' +
+            'วันที่ &nbsp;&nbsp;' + escapeHtml(data.docDate) +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }
+
+    /**
+     * สร้าง HTML ใบเสร็จรับเงิน / ใบกำกับภาษี แบบรวมทุกล็อต (ตรงตามแบบฟอร์มทางการ)
+     */
+    function buildMultiLotBillingReceiptHtml(data) {
+      const c = data.client || {};
+      const s = data.summary || {};
+
+      // แถวว่างในตารางเพื่อให้ตารางยืดลงมาสวยงามและดันส่วนสรุปยอดเงินลงมาอยู่ด้านล่างสุดตามแบบฟอร์มทางการ
+      let emptyRowsHtml = '';
+      for (let i = 0; i < 11; i++) {
+        emptyRowsHtml += '<tr style="height:26px;">' +
+          '<td style="border-left:1px solid #000; border-right:1px solid #000; padding:2px 6px;">&nbsp;</td>' +
+          '<td style="border-right:1px solid #000; padding:2px 10px;">&nbsp;</td>' +
+          '<td colspan="2" style="border-right:1px solid #000; padding:2px 10px;">&nbsp;</td>' +
+        '</tr>';
+      }
+
+      return '<div class="print-doc-container" style="font-family:Sarabun,sans-serif; color:#000; padding:24px 30px; background:#fff; line-height:1.45; font-size:12.5px; max-width:820px; margin:0 auto;">' +
+        '<!-- Header -->' +
+        '<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">' +
+          '<div style="flex:1; padding-right:16px;">' +
+            '<h2 style="margin:0 0 4px 0; color:#000; font-size:18px; font-weight:700;">บริษัท พรมารีน จำกัด (สำนักงานใหญ่)</h2>' +
+            '<div style="font-size:12px; color:#000; line-height:1.5;">' +
+              '44/37 หมู่ 3 ซ.สาครธานี ถ.สหกรณ์ ต.บางหญ้าแพรก อ.เมือง จ.สมุทรสาคร 74000<br>' +
+              'โทร : 034-871-111 &nbsp; แฟ็กซ์ : 034-871-234<br>' +
+              'เลขประจำตัวผู้เสียภาษีอากร 0745555005494' +
+            '</div>' +
+          '</div>' +
+          '<div style="width:260px; text-align:right;">' +
+            '<div style="border:1.5px solid #000; padding:6px 10px; font-size:16px; font-weight:700; color:#000; text-align:center; margin-bottom:6px; white-space:nowrap;">' +
+              'ใบเสร็จรับเงิน / ใบกำกับภาษี' +
+            '</div>' +
+            '<table style="width:100%; border-collapse:collapse; font-size:12px; border:1px solid #000;">' +
+              '<tr>' +
+                '<td style="border:1px solid #000; padding:3px 8px; width:65px; text-align:center; font-weight:600; white-space:nowrap;">เลขที่</td>' +
+                '<td style="border:1px solid #000; padding:3px 8px; text-align:center; font-weight:700; white-space:nowrap;">' + escapeHtml(data.docNo) + '</td>' +
+              '</tr>' +
+              '<tr>' +
+                '<td style="border:1px solid #000; padding:3px 8px; text-align:center; font-weight:600; white-space:nowrap;">วันที่</td>' +
+                '<td style="border:1px solid #000; padding:3px 8px; text-align:center; white-space:nowrap;">' + escapeHtml(data.docDate) + '</td>' +
+              '</tr>' +
+            '</table>' +
+          '</div>' +
+        '</div>' +
+
+        '<!-- Customer Info: ชื่อลูกค้า ให้อยู่บรรทัดเดียวสะอาดตา -->' +
+        '<div style="border:1px solid #000; margin-bottom:12px; font-size:12.5px;">' +
+          '<table style="width:100%; border-collapse:collapse;">' +
+            '<tr>' +
+              '<td style="width:65px; padding:5px 8px; vertical-align:middle; font-weight:600; border-right:1px solid #000; border-bottom:1px solid #000; white-space:nowrap;">ชื่อลูกค้า</td>' +
+              '<td style="padding:5px 10px; vertical-align:middle; font-weight:700; border-right:1px solid #000; border-bottom:1px solid #000; white-space:nowrap;">' + escapeHtml(data.clientName || c.ClientName || '-') + '</td>' +
+              '<td style="width:190px; padding:5px 8px; vertical-align:middle; text-align:center; font-weight:600; border-bottom:1px solid #000; white-space:nowrap;">เลขประจำตัวผู้เสียภาษีอากร</td>' +
+            '</tr>' +
+            '<tr>' +
+              '<td style="padding:5px 8px; vertical-align:middle; font-weight:600; border-right:1px solid #000; white-space:nowrap;">ที่อยู่</td>' +
+              '<td style="padding:5px 10px; vertical-align:middle; border-right:1px solid #000; white-space:nowrap;">' + escapeHtml(c.Address || '44/37 ม.3 ต.บางหญ้าแพรก อ.เมือง จ.สมุทรสาคร') + '</td>' +
+              '<td style="padding:5px 8px; vertical-align:middle; text-align:center; font-weight:700; white-space:nowrap;">' + escapeHtml(c.TaxID || '-') + '</td>' +
+            '</tr>' +
+          '</table>' +
+        '</div>' +
+
+        '<!-- Table -->' +
+        '<table style="width:100%; border-collapse:collapse; margin-bottom:16px; font-size:12.5px;">' +
+          '<thead>' +
+            '<tr style="text-align:center; font-weight:700;">' +
+              '<th style="border:1px solid #000; padding:6px 6px; width:55px; white-space:nowrap;">ลำดับ</th>' +
+              '<th style="border:1px solid #000; padding:6px 12px; text-align:center; white-space:nowrap;">รายการ</th>' +
+              '<th colspan="2" style="border:1px solid #000; padding:6px 12px; width:250px; text-align:center; white-space:nowrap;">จำนวนเงิน</th>' +
+            '</tr>' +
+          '</thead>' +
+          '<tbody>' +
+            '<!-- แถวรายการที่ 1 (ไม่มีข้อความ รวมสินค้า ... Lot) -->' +
+            '<tr style="height:32px;">' +
+              '<td style="border-left:1px solid #000; border-right:1px solid #000; padding:6px; text-align:center; vertical-align:top; white-space:nowrap;">1</td>' +
+              '<td style="border-right:1px solid #000; padding:6px 12px; vertical-align:top; white-space:nowrap;">' +
+                'ค่าบริการฝากแช่ - อาหารแช่แข็ง' +
+              '</td>' +
+              '<td colspan="2" style="border-right:1px solid #000; padding:6px 12px; text-align:right; font-weight:700; vertical-align:top; white-space:nowrap;">' + fmtNum(s.subtotal, 2) + '</td>' +
+            '</tr>' +
+            emptyRowsHtml +
+            '<!-- สรุปยอดเงิน: จำนวนเงินก่อนVAT, ภาษีหัก ณ ที่จ่าย 3% ให้อยู่บรรทัดเดียวสะอาดตา -->' +
+            '<tr>' +
+              '<td colspan="2" rowspan="4" style="border-top:1px solid #000; border-left:1px solid #000; border-right:1px solid #000; border-bottom:1px solid #000; background:#fff;">&nbsp;</td>' +
+              '<td style="border-top:1px solid #000; border-right:1px solid #000; border-bottom:1px solid #000; padding:4px 8px; width:145px; text-align:center; white-space:nowrap;">จำนวนเงินก่อน VAT</td>' +
+              '<td style="border-top:1px solid #000; border-right:1px solid #000; border-bottom:1px solid #000; padding:4px 12px; width:105px; text-align:right; font-weight:700; white-space:nowrap;">' + fmtNum(s.subtotal, 2) + '</td>' +
+            '</tr>' +
+            '<tr>' +
+              '<td style="border-right:1px solid #000; border-bottom:1px solid #000; padding:4px 8px; text-align:center; white-space:nowrap;">ภาษีมูลค่าเพิ่ม 7%</td>' +
+              '<td style="border-right:1px solid #000; border-bottom:1px solid #000; padding:4px 12px; text-align:right; font-weight:700; white-space:nowrap;">' + fmtNum(s.vat, 2) + '</td>' +
+            '</tr>' +
+            '<tr>' +
+              '<td style="border-right:1px solid #000; border-bottom:1px solid #000; padding:4px 8px; text-align:center; font-weight:700; white-space:nowrap;">จำนวนเงินสุทธิ</td>' +
+              '<td style="border-right:1px solid #000; border-bottom:1px solid #000; padding:4px 12px; text-align:right; font-weight:700; white-space:nowrap;">' + fmtNum(s.total, 2) + '</td>' +
+            '</tr>' +
+            '<tr>' +
+              '<td style="border-right:1px solid #000; border-bottom:1px solid #000; padding:4px 8px; text-align:center; white-space:nowrap;">ภาษีหัก ณ ที่จ่าย 3%</td>' +
+              '<td style="border-right:1px solid #000; border-bottom:1px solid #000; padding:4px 12px; text-align:right; font-weight:700; white-space:nowrap;">' + fmtNum(s.wht, 2) + '</td>' +
+            '</tr>' +
+            '<tr>' +
+              '<td colspan="2" style="border-left:1px solid #000; border-right:1px solid #000; border-bottom:1px solid #000; padding:6px 12px; text-align:center; font-weight:700; background:#fff; white-space:nowrap;">' +
+                escapeHtml(s.bahtText || '') +
+              '</td>' +
+              '<td style="border-right:1px solid #000; border-bottom:1px solid #000; padding:6px 8px; text-align:center; font-weight:700; white-space:nowrap;">จำนวนเงินรับชำระ</td>' +
+              '<td style="border-right:1px solid #000; border-bottom:1px solid #000; padding:6px 12px; text-align:right; font-weight:800; font-size:13.5px; white-space:nowrap;">' +
+                fmtNum(s.netPay, 2) +
+              '</td>' +
+            '</tr>' +
+          '</tbody>' +
+        '</table>' +
+
+        '<!-- Signature Block ด้านล่างซ้ายตามรูปภาพ -->' +
+        '<div style="font-size:12.5px; margin-top:20px; line-height:1.9;">' +
+          '<div>ผู้รับเงิน .....................................................</div>' +
+          '<div style="margin-top:2px;">วันที่ &nbsp;&nbsp;' + escapeHtml(data.docDate) + '</div>' +
+        '</div>' +
+      '</div>';
+    }
+
+    /**
+     * function confirmMarkPaidAndRenewBilling() {
+      if (!CURRENT_BILLING_CLIENT) return;
+      const cClient = CURRENT_BILLING_CLIENT;
+      const clientName = cClient.clientName;
+      const lots = cClient.lots || [];
+
+      // ปิดหน้าต่างจัดการใบวางบิลและใบเสร็จรับเงินทันทีหลังกดปุ่ม "ชำระแล้ว" เพื่อไม่ให้ค้างอยู่บนหน้าจอ
+      closeModal('modalBillingInvoice');
+
       Swal.fire({
-        title: 'ยืนยันการวางบิลและต่อรอบบิล?',
-        text: 'ต้องการบันทึกวางบิลและขยายวันครบรอบบิลถัดไปของ Lot: ' + lotNo + ' ใช่หรือไม่',
+        title: 'ยืนยันการชำระเงินและต่ออายุรอบบิล?',
+        html: 'ต้องการบันทึกสถานะ <strong>"ชำระแล้ว"</strong> สำหรับลูกค้า <strong>' + escapeHtml(clientName) + '</strong><br>' +
+              'และต่ออายุรอบบิลสินค้าคงเหลือทั้งหมดจำนวน <strong>' + lots.length + ' Lot</strong> ไปอีก 1 เดือน ใช่หรือไม่?',
         icon: 'question',
         showCancelButton: true,
-        confirmButtonColor: '#F39C12',
-        confirmButtonText: 'ยืนยันต่อรอบบิล',
+        confirmButtonColor: '#10B981',
+        cancelButtonColor: '#64748B',
+        confirmButtonText: '<i class="fa-solid fa-check"></i> ยืนยันชำระแล้วและต่อรอบบิล',
         cancelButtonText: 'ยกเลิก'
-      }).then(async (r) => {
-        if (!r.isConfirmed) return;
-        showLoader('กำลังอัปเดตวันครบรอบบิลถัดไป...');
+      }).then(async (result) => {
+        if (!result.isConfirmed) return;
+
+        showLoader('กำลังบันทึกสถานะชำระแล้วและต่ออายุรอบบิล...');
         try {
-          const res = await callServer('renewBillingCycle', STATE.auth, stockId);
-          if (res && res.success) {
-            if (res.stock) STATE.stock = res.stock;
-            renderAllViews();
-            showToast(res.message, 'success');
+          const nowThai = formatTodayThai();
+          let nextCycleDate = '';
+
+          // 1. ต่ออายุรอบบิลเฉพาะล็อตที่ยังมีสินค้าคงเหลือ
+          lots.forEach(st => {
+            if ((parseFloat(st.RemainQty) || 0) > 0) {
+              const currD = st.NextBillingDate || st.ReceiveDate || nowThai;
+              const nextD = calculateNextBillingMonthThai(currD);
+              st.NextBillingDate = nextD;
+              st.BillingStatus = 'Billed & Renewed';
+              if (!nextCycleDate) nextCycleDate = nextD;
+            }
+          });
+
+          if (!nextCycleDate && lots.length > 0) {
+            nextCycleDate = calculateNextBillingMonthThai(lots[0].NextBillingDate || lots[0].ReceiveDate || nowThai);
           }
+
+          // 2. อัปเดตสถานะบิลลิ่งเป็น "ชำระแล้ว" (สีเขียว) และให้แสดงไปตลอดจนถึงรอบบิลใหม่ (nextCycleDate)
+          setClientBillingStatus(cClient.clientKey, 'ชำระแล้ว', {
+            paidDate: nowThai,
+            paidTimestamp: Date.now(),
+            nextCycleDate: nextCycleDate
+          });
+
+          // 3. เรียกเซิร์ฟเวอร์ต่อรอบบิลทุกล็อตของลูกค้า
+          let serverSuccess = false;
+          try {
+            const res = await callServer('renewClientBillingCycle', STATE.auth, cClient.clientObj.ClientID || cClient.clientKey);
+            if (res && res.success) {
+              serverSuccess = true;
+              if (res.stock) STATE.stock = res.stock;
+            }
+          } catch (srvErr) {
+            console.warn('CallServer renewClientBillingCycle fallback to local:', srvErr);
+          }
+
+          closeModal('modalBillingInvoice');
+          renderAllViews();
+          showToast('บันทึกสถานะชำระแล้วและต่ออายุรอบบิลลูกค้า ' + clientName + ' สำเร็จแล้ว', 'success');
         } catch (err) {
-          Swal.fire('ผิดพลาด', err.message, 'error');
+          Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
         } finally {
           hideLoader();
         }
       });
     }
 
-    /**
-     * ยกเลิกแจ้งฝากสินค้า
-     */
     function handleCancelReceiving(rcvNo) {
       if (!rcvNo) return;
       const rcv = STATE.receivings.find(x => x.ReceivingNo === rcvNo);
