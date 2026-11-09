@@ -10650,6 +10650,111 @@ function getClientBillingStatusBadge(status) {
           ).join('');
     }
 
+    
+    /**
+     * =========================================================================
+     * จัดการข้อมูลลูกค้าผู้ฝากสินค้า (Client Management Modal)
+     * =========================================================================
+     */
+    function openClientModal(clientId) {
+      const form = document.getElementById('formClient');
+      if (form) form.reset();
+
+      if (clientId) {
+        const c = (STATE.clients || []).find(x => x.ClientID === clientId || x.ClientCode === clientId || x.ClientName === clientId);
+        if (c) {
+          document.getElementById('cliIdInput').value = c.ClientID || '';
+          document.getElementById('cliCodeInput').value = c.ClientCode || '';
+          document.getElementById('cliNameInput').value = c.ClientName || '';
+          document.getElementById('cliContactInput').value = c.ContactPerson || '';
+          document.getElementById('cliPhoneInput').value = c.Phone || '';
+          document.getElementById('cliEmailInput').value = c.Email || '';
+          document.getElementById('cliTaxInput').value = c.TaxID || '';
+          document.getElementById('cliAddressInput').value = c.Address || '';
+          document.getElementById('cliNotesInput').value = c.Notes || '';
+          openModal('modalClient');
+          return;
+        }
+      }
+
+      // กรณีเพิ่มลูกค้าใหม่
+      document.getElementById('cliIdInput').value = '';
+      const existing = STATE.clients || [];
+      const nextNum = existing.length + 1;
+      const suggestedCode = 'PR' + ('000' + nextNum).slice(-3);
+      document.getElementById('cliCodeInput').value = suggestedCode;
+      document.getElementById('cliNameInput').value = '';
+      document.getElementById('cliContactInput').value = '';
+      document.getElementById('cliPhoneInput').value = '';
+      document.getElementById('cliEmailInput').value = '';
+      document.getElementById('cliTaxInput').value = '';
+      document.getElementById('cliAddressInput').value = '';
+      document.getElementById('cliNotesInput').value = '';
+      openModal('modalClient');
+    }
+
+    function editClient(c) {
+      if (typeof c === 'string') {
+        openClientModal(c);
+        return;
+      }
+      if (c && typeof c === 'object') {
+        const form = document.getElementById('formClient');
+        if (form) form.reset();
+        document.getElementById('cliIdInput').value = c.ClientID || '';
+        document.getElementById('cliCodeInput').value = c.ClientCode || '';
+        document.getElementById('cliNameInput').value = c.ClientName || '';
+        document.getElementById('cliContactInput').value = c.ContactPerson || '';
+        document.getElementById('cliPhoneInput').value = c.Phone || '';
+        document.getElementById('cliEmailInput').value = c.Email || '';
+        document.getElementById('cliTaxInput').value = c.TaxID || '';
+        document.getElementById('cliAddressInput').value = c.Address || '';
+        document.getElementById('cliNotesInput').value = c.Notes || '';
+        openModal('modalClient');
+      }
+    }
+
+    async function submitClientForm(e) {
+      e.preventDefault();
+      if (STATE.isSubmitting) return;
+      STATE.isSubmitting = true;
+      showLoader('กำลังบันทึกข้อมูลลูกค้า...');
+      try {
+        const payload = {
+          clientId: document.getElementById('cliIdInput').value,
+          clientCode: document.getElementById('cliCodeInput').value.trim(),
+          clientName: document.getElementById('cliNameInput').value.trim(),
+          contactPerson: document.getElementById('cliContactInput').value.trim(),
+          phone: document.getElementById('cliPhoneInput').value.trim(),
+          email: document.getElementById('cliEmailInput').value.trim(),
+          taxId: document.getElementById('cliTaxInput').value.trim(),
+          address: document.getElementById('cliAddressInput').value.trim(),
+          notes: document.getElementById('cliNotesInput').value.trim()
+        };
+
+        if (!payload.clientName) {
+          throw new Error('กรุณาระบุชื่อบริษัทลูกค้าผู้ฝากสินค้า');
+        }
+
+        const res = await callServer('saveClient', STATE.auth, payload);
+        if (res && res.success) {
+          if (res.clients) {
+            STATE.clients = res.clients;
+          }
+          closeModal('modalClient');
+          renderAllViews();
+          showToast(res.message || 'บันทึกข้อมูลลูกค้าเรียบร้อยแล้ว', 'success');
+        } else {
+          showToast(res && res.message ? res.message : 'เกิดข้อผิดพลาดในการบันทึกข้อมูลลูกค้า', 'error');
+        }
+      } catch (err) {
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+      } finally {
+        STATE.isSubmitting = false;
+        hideLoader();
+      }
+    }
+
     let CURRENT_BILLING_CLIENT = null;
 
     /**
