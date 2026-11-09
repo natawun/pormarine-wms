@@ -2398,6 +2398,96 @@
         page-break-inside: avoid !important;
       }
     }
+  
+    
+  
+
+  
+    /* =====================================================================
+       Document Number Input Group (.input-group-docno) - High Contrast
+       Both Light & Dark Themes Support
+       ===================================================================== */
+    .input-group-docno {
+      display: flex;
+      align-items: stretch;
+      border-radius: 8px;
+      overflow: hidden;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .input-group-docno .docno-prefix-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 12px;
+      color: #ffffff !important;
+      font-weight: 800;
+      font-size: 13.5px;
+      letter-spacing: 1px;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    .input-group-docno input.form-control {
+      border: none !important;
+      border-radius: 0 !important;
+      font-weight: 700 !important;
+      height: 38px !important;
+      box-shadow: none !important;
+      padding: 8px 12px !important;
+      font-size: 14px !important;
+      width: 100% !important;
+    }
+
+    /* Light Theme */
+    [data-theme="light"] .input-group-docno,
+    .input-group-docno {
+      background: #FFFFFF;
+    }
+    [data-theme="light"] .input-group-docno input.form-control,
+    .input-group-docno input.form-control {
+      background: #FFFFFF !important;
+      color: #0A3D62 !important;
+    }
+    [data-theme="light"] .input-group-docno.is-valid input.form-control {
+      background: #F0FDF4 !important;
+      color: #065F46 !important;
+    }
+    [data-theme="light"] .input-group-docno.is-invalid input.form-control {
+      background: #FEF2F2 !important;
+      color: #DC2626 !important;
+    }
+
+    /* Dark Theme: Deep frosted dark background with bright crisp neon text */
+    [data-theme="dark"] .input-group-docno,
+    :root:not([data-theme="light"]) .input-group-docno {
+      background: rgba(15, 23, 42, 0.85) !important;
+      border-color: rgba(56, 189, 248, 0.40) !important;
+    }
+    [data-theme="dark"] .input-group-docno input.form-control,
+    :root:not([data-theme="light"]) .input-group-docno input.form-control {
+      background: rgba(15, 23, 42, 0.85) !important;
+      color: #FFFFFF !important;
+    }
+    [data-theme="dark"] .input-group-docno.is-valid,
+    :root:not([data-theme="light"]) .input-group-docno.is-valid {
+      border-color: #10B981 !important;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.35) !important;
+    }
+    [data-theme="dark"] .input-group-docno.is-valid input.form-control,
+    :root:not([data-theme="light"]) .input-group-docno.is-valid input.form-control {
+      background: rgba(16, 185, 129, 0.18) !important;
+      color: #34D399 !important; /* Bright Emerald Green text */
+    }
+    [data-theme="dark"] .input-group-docno.is-invalid,
+    :root:not([data-theme="light"]) .input-group-docno.is-invalid {
+      border-color: #EF4444 !important;
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.35) !important;
+    }
+    [data-theme="dark"] .input-group-docno.is-invalid input.form-control,
+    :root:not([data-theme="light"]) .input-group-docno.is-invalid input.form-control {
+      background: rgba(239, 68, 68, 0.18) !important;
+      color: #F87171 !important; /* Bright Red text */
+    }
+
   </style>
 </head>
 <body>
@@ -3560,9 +3650,9 @@
           <div style="display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:12px; margin-bottom:12px;">
             <div>
               <label style="font-weight:600; font-size:13px; color:var(--primary-navy); margin-bottom:5px; display:block;"><i class="fa-solid fa-barcode"></i> เลขที่ใบฝากสินค้า (IN) *</label>
-              <div class="input-group-docno" id="editRcvDocNoGroup" style="display:flex; align-items:stretch; border:1.5px solid #0284C7; border-radius:8px; overflow:hidden; background:#fff; transition:border-color 0.2s, box-shadow 0.2s;">
+              <div class="input-group-docno" id="editRcvDocNoGroup" style="display:flex; align-items:stretch; border:1.5px solid #0284C7; border-radius:8px; overflow:hidden; transition:border-color 0.2s, box-shadow 0.2s;">
                 <span class="docno-prefix-badge" style="display:inline-flex; align-items:center; justify-content:center; padding:0 12px; background:linear-gradient(135deg, #0A3D62 0%, #0284C7 100%); color:#ffffff; font-weight:800; font-size:13.5px; letter-spacing:1px; user-select:none; border-right:1px solid #BAE6FD;">IN-</span>
-                <input type="text" id="editRcvDocNoInput" class="form-control" placeholder="ตัวเลข 6 หลัก เช่น 691022" maxlength="6" inputmode="numeric" required style="border:none; border-radius:0; font-weight:700; color:#0A3D62; background:#fff; height:38px; box-shadow:none; padding:8px 12px; font-size:14px; width:100%;" oninput="this.value=this.value.replace(/\D/g,'').slice(0,6); validateEditRcvDocNo(this)" onblur="validateEditRcvDocNo(this)">
+                <input type="text" id="editRcvDocNoInput" class="form-control" placeholder="ตัวเลข 6 หลัก เช่น 691022" maxlength="6" inputmode="numeric" required style="border:none; border-radius:0; font-weight:700; height:38px; box-shadow:none; padding:8px 12px; font-size:14px; width:100%;" oninput="this.value=this.value.replace(/\D/g,'').slice(0,6); validateEditRcvDocNo(this)" onblur="validateEditRcvDocNo(this)">
               </div>
               <div id="editRcvDocNoFeedback" style="min-height:18px; margin-top:4px;"></div>
             </div>
@@ -8017,6 +8107,11 @@
         Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
       } finally {
         STATE.isSubmitting = false;
+        const btnSubmitRcvEl = document.querySelector('#formReceiving button[type="submit"]');
+        if (btnSubmitRcvEl) {
+          btnSubmitRcvEl.disabled = false;
+          btnSubmitRcvEl.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> บันทึกแจ้งฝากสินค้า';
+        }
         hideLoader();
       }
     }
@@ -8149,6 +8244,113 @@
 
         const lotInMap = {};
         const lotOutMap = {};
+
+        // 0.0 กรองแถวแจ้งฝาก/แจ้งเบิกเดิมที่ค้างซ้ำซ้อน (Ghost Duplicate Documents)
+        // เมื่อมีใบรับฝาก/ใบเบิกที่ออกเลขที่ทางการ (IN-xxxxxx / OUT-xxxxxx) หรือได้รับการอนุมัติสำเร็จแล้ว
+        // ให้ตัดรายการแจ้งฝาก/แจ้งเบิกเดิมที่เป็นฉบับร่างหรือรอออกเลขที่ของการทำรายการเดียวกันออกทันที
+        if (Array.isArray(rawRcvs) && rawRcvs.length > 1) {
+          const officialRcvs = rawRcvs.filter(r => {
+            if (!r) return false;
+            const rNo = String(r.ReceivingNo || '').trim();
+            const st = String(r.Status || '').trim();
+            const isOfficial = /^IN[-_ ]?\d{6}$/i.test(rNo);
+            const isAppr = (st === 'Approved' || st === 'รับเข้าสต็อกสำเร็จ' || st === 'อนุมัติรับฝาก' || st === 'ปรับปรุงรายการ' || st.indexOf('ปรับปรุงรายการ') !== -1);
+            return isOfficial || isAppr;
+          });
+
+          if (officialRcvs.length > 0) {
+            const cleanRcvs = rawRcvs.filter(r => {
+              if (!r) return false;
+              const rNo = String(r.ReceivingNo || '').trim();
+              const st = String(r.Status || '').trim();
+              const isDep = rNo.indexOf('DEP-') === 0 || rNo.indexOf('RCV-') === 0 || !rNo || rNo === '-' || rNo.indexOf('รอออกเลขที่') !== -1;
+              const isPending = (st === 'รอรับแจ้งฝาก' || st === 'รับคำสั่งแล้ว' || st === 'Pending' || st === 'Receive Orders' || st === 'ร่าง (บันทึกไม่สำเร็จ)' || st.indexOf('ร่าง') !== -1);
+              if (!isDep && !isPending) return true;
+
+              const rClient = String(r.ClientName || r.ClientID || '').trim().toLowerCase();
+              const rVehicle = String(r.VehicleInfo || '').trim().toLowerCase();
+              const rDtIn = String(r.DateTimeIn || '').trim();
+              const rDateOnly = rDtIn.split(' ')[0];
+              const rQty = parseFloat(r.TotalQty) || 0;
+              const rWeight = parseFloat(String(r.TotalWeight || '0').replace(/,/g, '')) || 0;
+
+              const hasMatch = officialRcvs.some(off => {
+                if (off === r || off.ReceivingNo === r.ReceivingNo) return false;
+                const offClient = String(off.ClientName || off.ClientID || '').trim().toLowerCase();
+                if (rClient && offClient && rClient !== offClient && rClient.indexOf(offClient) === -1 && offClient.indexOf(rClient) === -1) return false;
+                const offDtIn = String(off.DateTimeIn || '').trim();
+                const offDateOnly = offDtIn.split(' ')[0];
+                const sameExactTime = (rDtIn && offDtIn && rDtIn === offDtIn);
+                const sameDate = (rDateOnly && offDateOnly && rDateOnly === offDateOnly);
+                if (!sameDate) return false;
+                const offVehicle = String(off.VehicleInfo || '').trim().toLowerCase();
+                const sameVehicle = (!rVehicle && !offVehicle) || (rVehicle && offVehicle && (rVehicle === offVehicle || rVehicle.indexOf(offVehicle) !== -1 || offVehicle.indexOf(rVehicle) !== -1));
+                const offQty = parseFloat(off.TotalQty) || 0;
+                const offWeight = parseFloat(String(off.TotalWeight || '0').replace(/,/g, '')) || 0;
+                const sameQty = Math.abs(rQty - offQty) < 0.001;
+                const sameWeight = Math.abs(rWeight - offWeight) < 0.01;
+                return sameExactTime || (sameVehicle && (sameQty || sameWeight));
+              });
+
+              return !hasMatch;
+            });
+
+            rawRcvs.length = 0;
+            cleanRcvs.forEach(r => rawRcvs.push(r));
+          }
+        }
+
+        if (Array.isArray(rawReqs) && rawReqs.length > 1) {
+          const officialReqs = rawReqs.filter(r => {
+            if (!r) return false;
+            const rNo = String(r.RequisitionNo || '').trim();
+            const st = String(r.Status || '').trim();
+            const isOfficial = /^OUT[-_ ]?\d{6}$/i.test(rNo);
+            const isAppr = (st === 'Approved' || st === 'เบิกสินค้าสำเร็จ' || st === 'จ่ายสินค้าเสร็จสมบูรณ์' || st === 'อนุมัติเบิกสินค้า' || st === 'ปรับปรุงรายการ' || st.indexOf('ปรับปรุงรายการ') !== -1);
+            return isOfficial || isAppr;
+          });
+
+          if (officialReqs.length > 0) {
+            const cleanReqs = rawReqs.filter(r => {
+              if (!r) return false;
+              const rNo = String(r.RequisitionNo || '').trim();
+              const st = String(r.Status || '').trim();
+              const isReq = rNo.indexOf('REQ-') === 0 || !rNo || rNo === '-' || rNo.indexOf('รอออกเลขที่') !== -1;
+              const isPending = (st === 'รอรับแจ้งเบิก' || st === 'รับคำสั่งแล้ว' || st === 'Pending' || st === 'รอจัดเตรียมสินค้า' || st === 'ร่าง (บันทึกไม่สำเร็จ)' || st.indexOf('ร่าง') !== -1);
+              if (!isReq && !isPending) return true;
+
+              const rClient = String(r.ClientName || r.ClientID || '').trim().toLowerCase();
+              const rVehicle = String(r.VehicleInfo || '').trim().toLowerCase();
+              const rDtIn = String(r.DateTimeIn || r.DateTimeOut || '').trim();
+              const rDateOnly = rDtIn.split(' ')[0];
+              const rQty = parseFloat(r.TotalQty) || 0;
+              const rWeight = parseFloat(String(r.TotalWeight || '0').replace(/,/g, '')) || 0;
+
+              const hasMatch = officialReqs.some(off => {
+                if (off === r || off.RequisitionNo === r.RequisitionNo) return false;
+                const offClient = String(off.ClientName || off.ClientID || '').trim().toLowerCase();
+                if (rClient && offClient && rClient !== offClient && rClient.indexOf(offClient) === -1 && offClient.indexOf(rClient) === -1) return false;
+                const offDtIn = String(off.DateTimeIn || off.DateTimeOut || '').trim();
+                const offDateOnly = offDtIn.split(' ')[0];
+                const sameExactTime = (rDtIn && offDtIn && rDtIn === offDtIn);
+                const sameDate = (rDateOnly && offDateOnly && rDateOnly === offDateOnly);
+                if (!sameDate) return false;
+                const offVehicle = String(off.VehicleInfo || '').trim().toLowerCase();
+                const sameVehicle = (!rVehicle && !offVehicle) || (rVehicle && offVehicle && (rVehicle === offVehicle || rVehicle.indexOf(offVehicle) !== -1 || offVehicle.indexOf(rVehicle) !== -1));
+                const offQty = parseFloat(off.TotalQty) || 0;
+                const offWeight = parseFloat(String(off.TotalWeight || '0').replace(/,/g, '')) || 0;
+                const sameQty = Math.abs(rQty - offQty) < 0.001;
+                const sameWeight = Math.abs(rWeight - offWeight) < 0.01;
+                return sameExactTime || (sameVehicle && (sameQty || sameWeight));
+              });
+
+              return !hasMatch;
+            });
+
+            rawReqs.length = 0;
+            cleanReqs.forEach(r => rawReqs.push(r));
+          }
+        }
 
         // 0. กรองรายการซ้ำซ้อนภายในใบรับฝาก (rcv.items) และใบเบิก (req.items) ที่มี LotNo เดียวกัน
         (rawRcvs || []).forEach(rcv => {
@@ -13147,6 +13349,8 @@ function editProduct(p) {
       const groupEl = document.getElementById('editRcvDocNoGroup') || inputEl.parentNode;
       let rawVal = (inputEl.value || '').trim();
 
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark' || (!document.documentElement.getAttribute('data-theme') && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
       // ตัดคำว่า IN ออกอัตโนมัติหากผู้ใช้พิมพ์หรือวางเข้ามา เพื่อให้เหลือตัวเลข 6 หลัก
       if (rawVal.toUpperCase().startsWith('IN')) {
         rawVal = rawVal.replace(/^IN[-_ ]?/i, '');
@@ -13156,18 +13360,25 @@ function editProduct(p) {
       const currentRcvNo = (document.getElementById('editRcvDocNo') ? document.getElementById('editRcvDocNo').value : '').trim();
 
       if (!val) {
-        if (groupEl) groupEl.style.borderColor = '#0284C7';
-        inputEl.style.backgroundColor = '#FFFFFF';
-        inputEl.style.color = '#0A3D62';
+        if (groupEl) {
+          groupEl.classList.remove('is-valid', 'is-invalid');
+          groupEl.style.borderColor = '#0284C7';
+        }
+        inputEl.style.backgroundColor = isDark ? 'rgba(15, 23, 42, 0.85)' : '#FFFFFF';
+        inputEl.style.color = isDark ? '#FFFFFF' : '#0A3D62';
         if (feedbackEl) feedbackEl.innerHTML = '<span style="color:#64748B; font-size:11px;">* กรุณากรอกเลขที่ใบฝากสินค้า IN (บังคับตัวเลข 6 หลัก เช่น 691022)</span>';
         return false;
       }
 
       // บังคับตัวเลขเท่านั้น
       if (/\D/.test(val)) {
-        if (groupEl) groupEl.style.borderColor = '#EF4444';
-        inputEl.style.backgroundColor = '#FEF2F2';
-        inputEl.style.color = '#DC2626';
+        if (groupEl) {
+          groupEl.classList.remove('is-valid');
+          groupEl.classList.add('is-invalid');
+          groupEl.style.borderColor = '#EF4444';
+        }
+        inputEl.style.backgroundColor = isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2';
+        inputEl.style.color = isDark ? '#F87171' : '#DC2626';
         if (feedbackEl) {
           feedbackEl.innerHTML = '<span style="color:#DC2626; font-size:11.5px; font-weight:700;"><i class="fa-solid fa-circle-xmark"></i> เลขที่ใบฝากสินค้าต้องเป็นตัวเลขเท่านั้น (ห้ามมีตัวอักษรอื่น)</span>';
         }
@@ -13176,9 +13387,13 @@ function editProduct(p) {
 
       // บังคับตัวเลข 6 หลัก
       if (!/^\d{6}$/.test(val)) {
-        if (groupEl) groupEl.style.borderColor = '#EF4444';
-        inputEl.style.backgroundColor = '#FEF2F2';
-        inputEl.style.color = '#DC2626';
+        if (groupEl) {
+          groupEl.classList.remove('is-valid');
+          groupEl.classList.add('is-invalid');
+          groupEl.style.borderColor = '#EF4444';
+        }
+        inputEl.style.backgroundColor = isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2';
+        inputEl.style.color = isDark ? '#F87171' : '#DC2626';
         if (feedbackEl) {
           feedbackEl.innerHTML = '<span style="color:#DC2626; font-size:11.5px; font-weight:700;"><i class="fa-solid fa-circle-xmark"></i> เลขที่ใบฝากสินค้า IN ต้องเป็นตัวเลข 6 หลัก (ปัจจุบัน ' + val.length + ' หลัก)</span>';
         }
@@ -13198,9 +13413,13 @@ function editProduct(p) {
       });
 
       if (dupRcv || dupStock) {
-        if (groupEl) groupEl.style.borderColor = '#EF4444';
-        inputEl.style.backgroundColor = '#FEF2F2';
-        inputEl.style.color = '#DC2626';
+        if (groupEl) {
+          groupEl.classList.remove('is-valid');
+          groupEl.classList.add('is-invalid');
+          groupEl.style.borderColor = '#EF4444';
+        }
+        inputEl.style.backgroundColor = isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2';
+        inputEl.style.color = isDark ? '#F87171' : '#DC2626';
         const ownerName = dupRcv ? dupRcv.ClientName : dupStock.ClientName;
         if (feedbackEl) {
           feedbackEl.innerHTML = '<span style="color:#DC2626; font-size:11.5px; font-weight:700;"><i class="fa-solid fa-circle-xmark"></i> เลขที่ใบฝากสินค้า IN-' + val + ' นี้มีในระบบแล้ว (' + escapeHtml(ownerName || '') + ') ไม่สามารถใช้ได้อีก</span>';
@@ -13208,9 +13427,13 @@ function editProduct(p) {
         return false;
       }
 
-      if (groupEl) groupEl.style.borderColor = '#10B981';
-      inputEl.style.backgroundColor = '#F0FDF4';
-      inputEl.style.color = '#065F46';
+      if (groupEl) {
+        groupEl.classList.remove('is-invalid');
+        groupEl.classList.add('is-valid');
+        groupEl.style.borderColor = '#10B981';
+      }
+      inputEl.style.backgroundColor = isDark ? 'rgba(16, 185, 129, 0.18)' : '#F0FDF4';
+      inputEl.style.color = isDark ? '#34D399' : '#065F46';
       if (feedbackEl) {
         feedbackEl.innerHTML = '<span style="color:#10B981; font-size:11.5px; font-weight:700;"><i class="fa-solid fa-circle-check"></i> เลขที่ใบฝากสินค้า IN-' + val + ' ใช้งานได้</span>';
       }
@@ -13223,6 +13446,8 @@ function editProduct(p) {
       const groupEl = document.getElementById('editReqDocNoGroup') || inputEl.parentNode;
       let rawVal = (inputEl.value || '').trim();
 
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark' || (!document.documentElement.getAttribute('data-theme') && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
       // ตัดคำว่า OUT ออกอัตโนมัติหากผู้ใช้พิมพ์หรือวางเข้ามา เพื่อให้เหลือตัวเลข 8 หลัก
       if (rawVal.toUpperCase().startsWith('OUT')) {
         rawVal = rawVal.replace(/^OUT[-_ ]?/i, '');
@@ -13232,18 +13457,25 @@ function editProduct(p) {
       const currentReqNo = (document.getElementById('editReqDocNo') ? document.getElementById('editReqDocNo').value : '').trim();
 
       if (!val) {
-        if (groupEl) groupEl.style.borderColor = '#EF4444';
-        inputEl.style.backgroundColor = '#FFFFFF';
-        inputEl.style.color = '#0A3D62';
+        if (groupEl) {
+          groupEl.classList.remove('is-valid', 'is-invalid');
+          groupEl.style.borderColor = '#EF4444';
+        }
+        inputEl.style.backgroundColor = isDark ? 'rgba(15, 23, 42, 0.85)' : '#FFFFFF';
+        inputEl.style.color = isDark ? '#FFFFFF' : '#0A3D62';
         if (feedbackEl) feedbackEl.innerHTML = '<span style="color:#64748B; font-size:11px;">* กรุณากรอกเลขที่ใบเบิกสินค้า OUT (บังคับตัวเลข 8 หลัก เช่น 69102201)</span>';
         return false;
       }
 
       // บังคับตัวเลขเท่านั้น
       if (/\D/.test(val)) {
-        if (groupEl) groupEl.style.borderColor = '#EF4444';
-        inputEl.style.backgroundColor = '#FEF2F2';
-        inputEl.style.color = '#DC2626';
+        if (groupEl) {
+          groupEl.classList.remove('is-valid');
+          groupEl.classList.add('is-invalid');
+          groupEl.style.borderColor = '#EF4444';
+        }
+        inputEl.style.backgroundColor = isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2';
+        inputEl.style.color = isDark ? '#F87171' : '#DC2626';
         if (feedbackEl) {
           feedbackEl.innerHTML = '<span style="color:#DC2626; font-size:11.5px; font-weight:700;"><i class="fa-solid fa-circle-xmark"></i> เลขที่ใบเบิกสินค้าต้องเป็นตัวเลขเท่านั้น (ห้ามมีตัวอักษรอื่น)</span>';
         }
@@ -13252,9 +13484,13 @@ function editProduct(p) {
 
       // บังคับตัวเลข 8 หลัก
       if (!/^\d{8}$/.test(val)) {
-        if (groupEl) groupEl.style.borderColor = '#EF4444';
-        inputEl.style.backgroundColor = '#FEF2F2';
-        inputEl.style.color = '#DC2626';
+        if (groupEl) {
+          groupEl.classList.remove('is-valid');
+          groupEl.classList.add('is-invalid');
+          groupEl.style.borderColor = '#EF4444';
+        }
+        inputEl.style.backgroundColor = isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2';
+        inputEl.style.color = isDark ? '#F87171' : '#DC2626';
         if (feedbackEl) {
           feedbackEl.innerHTML = '<span style="color:#DC2626; font-size:11.5px; font-weight:700;"><i class="fa-solid fa-circle-xmark"></i> เลขที่ใบเบิกสินค้า OUT ต้องเป็นตัวเลข 8 หลัก (ปัจจุบัน ' + val.length + ' หลัก)</span>';
         }
@@ -13270,18 +13506,26 @@ function editProduct(p) {
       });
 
       if (dupReq) {
-        if (groupEl) groupEl.style.borderColor = '#EF4444';
-        inputEl.style.backgroundColor = '#FEF2F2';
-        inputEl.style.color = '#DC2626';
+        if (groupEl) {
+          groupEl.classList.remove('is-valid');
+          groupEl.classList.add('is-invalid');
+          groupEl.style.borderColor = '#EF4444';
+        }
+        inputEl.style.backgroundColor = isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2';
+        inputEl.style.color = isDark ? '#F87171' : '#DC2626';
         if (feedbackEl) {
           feedbackEl.innerHTML = '<span style="color:#DC2626; font-size:11.5px; font-weight:700;"><i class="fa-solid fa-circle-xmark"></i> เลขที่ใบเบิกสินค้า OUT-' + val + ' นี้มีในระบบแล้ว (' + escapeHtml(dupReq.ClientName || '') + ') ไม่สามารถใช้ได้อีก</span>';
         }
         return false;
       }
 
-      if (groupEl) groupEl.style.borderColor = '#10B981';
-      inputEl.style.backgroundColor = '#F0FDF4';
-      inputEl.style.color = '#065F46';
+      if (groupEl) {
+        groupEl.classList.remove('is-invalid');
+        groupEl.classList.add('is-valid');
+        groupEl.style.borderColor = '#10B981';
+      }
+      inputEl.style.backgroundColor = isDark ? 'rgba(16, 185, 129, 0.18)' : '#F0FDF4';
+      inputEl.style.color = isDark ? '#34D399' : '#065F46';
       if (feedbackEl) {
         feedbackEl.innerHTML = '<span style="color:#10B981; font-size:11.5px; font-weight:700;"><i class="fa-solid fa-circle-check"></i> เลขที่ใบเบิกสินค้า OUT-' + val + ' ใช้งานได้</span>';
       }
@@ -13521,6 +13765,11 @@ function editProduct(p) {
       }
 
       STATE.isSubmitting = true;
+      const btnSubmitRcvEl = document.querySelector('#formReceiving button[type="submit"]');
+      if (btnSubmitRcvEl) {
+        btnSubmitRcvEl.disabled = true;
+        btnSubmitRcvEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
+      }
       showLoader('กำลังบันทึกรายการแจ้งฝากสินค้า...');
       try {
         const statusVal = document.getElementById('rcvStatusSelect') ? document.getElementById('rcvStatusSelect').value : 'รอรับแจ้งฝาก';
@@ -13709,7 +13958,49 @@ function editProduct(p) {
         return true;
       });
 
-      list.sort((a, b) => {
+      // กรองแถวแจ้งฝากเดิมที่ค้างซ้ำซ้อนกับใบรับฝากที่อนุมัติสำเร็จแล้ว (Ghost Duplicate Inbound Orders)
+      const approvedOfficialInList = list.filter(r => {
+        const rNo = String(r.ReceivingNo || '').trim();
+        const st = String(r.Status || '').trim();
+        return /^IN[-_ ]?\d{6}$/i.test(rNo) || st === 'Approved' || st === 'รับเข้าสต็อกสำเร็จ' || st === 'อนุมัติรับฝาก' || st === 'ปรับปรุงรายการ' || st.indexOf('ปรับปรุงรายการ') !== -1;
+      });
+
+      const cleanList = list.filter(r => {
+        const rNo = String(r.ReceivingNo || '').trim();
+        const st = String(r.Status || '').trim();
+        const isDep = rNo.indexOf('DEP-') === 0 || rNo.indexOf('RCV-') === 0 || !rNo || rNo === '-' || rNo.indexOf('รอออกเลขที่') !== -1;
+        const isPending = (st === 'รอรับแจ้งฝาก' || st === 'รับคำสั่งแล้ว' || st === 'Pending' || st === 'Receive Orders' || st === 'ร่าง (บันทึกไม่สำเร็จ)' || st.indexOf('ร่าง') !== -1);
+        if (!isDep && !isPending) return true;
+
+        const rClient = String(r.ClientName || r.ClientID || '').trim().toLowerCase();
+        const rVehicle = String(r.VehicleInfo || '').trim().toLowerCase();
+        const rDtIn = String(r.DateTimeIn || '').trim();
+        const rDateOnly = rDtIn.split(' ')[0];
+        const rQty = parseFloat(r.TotalQty) || 0;
+        const rWeight = parseFloat(String(r.TotalWeight || '0').replace(/,/g, '')) || 0;
+
+        const hasMatch = approvedOfficialInList.some(off => {
+          if (off === r || off.ReceivingNo === r.ReceivingNo) return false;
+          const offClient = String(off.ClientName || off.ClientID || '').trim().toLowerCase();
+          if (rClient && offClient && rClient !== offClient && rClient.indexOf(offClient) === -1 && offClient.indexOf(rClient) === -1) return false;
+          const offDtIn = String(off.DateTimeIn || '').trim();
+          const offDateOnly = offDtIn.split(' ')[0];
+          const sameExactTime = (rDtIn && offDtIn && rDtIn === offDtIn);
+          const sameDate = (rDateOnly && offDateOnly && rDateOnly === offDateOnly);
+          if (!sameDate) return false;
+          const offVehicle = String(off.VehicleInfo || '').trim().toLowerCase();
+          const sameVehicle = (!rVehicle && !offVehicle) || (rVehicle && offVehicle && (rVehicle === offVehicle || rVehicle.indexOf(offVehicle) !== -1 || offVehicle.indexOf(rVehicle) !== -1));
+          const offQty = parseFloat(off.TotalQty) || 0;
+          const offWeight = parseFloat(String(off.TotalWeight || '0').replace(/,/g, '')) || 0;
+          const sameQty = Math.abs(rQty - offQty) < 0.001;
+          const sameWeight = Math.abs(rWeight - offWeight) < 0.01;
+          return sameExactTime || (sameVehicle && (sameQty || sameWeight));
+        });
+
+        return !hasMatch;
+      });
+
+      cleanList.sort((a, b) => {
         const tA = (parseThaiDateTimeToObj(a.DateTimeIn) || parseThaiDateTimeToObj(a.DateTimeOut))?.getTime() || 0;
         const tB = (parseThaiDateTimeToObj(b.DateTimeIn) || parseThaiDateTimeToObj(b.DateTimeOut))?.getTime() || 0;
         if (tB !== tA) return tB - tA;
@@ -13717,12 +14008,12 @@ function editProduct(p) {
       });
 
       const tbody = document.getElementById('receivingTableBody');
-      if (list.length === 0) {
+      if (cleanList.length === 0) {
         tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><i class="fa-solid fa-truck-ramp-box"></i>ไม่พบรายการรับสินค้าเข้าตามเงื่อนไขที่ค้นหา</td></tr>';
         return;
       }
 
-      tbody.innerHTML = list.map(r => {
+      tbody.innerHTML = cleanList.map(r => {
         const stObj = getReceivingStatusDisplay(r.Status, isClient);
         const isDraft = (stObj.step === -1 || r.isDraft);
         const isOfficialRcv = (stObj.step >= 3 && r.ReceivingNo && r.ReceivingNo.indexOf('DEP-') !== 0);
@@ -14179,9 +14470,13 @@ function editProduct(p) {
         if (savedInDigits) {
           validateEditRcvDocNo(docInput);
         } else {
-          docInput.style.backgroundColor = '#FFFFFF';
-          docInput.style.color = '#0A3D62';
-          if (rcvGroupEl) rcvGroupEl.style.borderColor = '#0284C7';
+          const isDark = document.documentElement.getAttribute('data-theme') === 'dark' || (!document.documentElement.getAttribute('data-theme') && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          docInput.style.backgroundColor = isDark ? 'rgba(15, 23, 42, 0.85)' : '#FFFFFF';
+          docInput.style.color = isDark ? '#FFFFFF' : '#0A3D62';
+          if (rcvGroupEl) {
+            rcvGroupEl.classList.remove('is-valid', 'is-invalid');
+            rcvGroupEl.style.borderColor = '#0284C7';
+          }
           if (rcvFeedbackEl) rcvFeedbackEl.innerHTML = '';
         }
       }
@@ -14907,6 +15202,20 @@ function editProduct(p) {
             existingRcvObj.DepositorName = payload.depositorName;
             existingRcvObj.Notes = payload.notes;
           }
+          // กำจัดแถวแจ้งฝากเดิมที่ค้างซ้ำซ้อนทันที
+          STATE.receivings = (STATE.receivings || []).filter(r => {
+            if (r.ReceivingNo === finalRcvFormatted) return true;
+            if (r.ReceivingNo === rcvNo) return false;
+            const rClient = String(r.ClientName || r.ClientID || '').trim().toLowerCase();
+            const rVehicle = String(r.VehicleInfo || '').trim().toLowerCase();
+            const rDtIn = String(r.DateTimeIn || '').trim();
+            const sameClient = (rClient === String(payload.clientName || '').trim().toLowerCase());
+            const sameVehicle = (rVehicle === String(payload.vehicleInfo || '').trim().toLowerCase());
+            const sameDt = (rDtIn === String(payload.dateTimeIn || '').trim());
+            const isPending = (r.Status === 'รอรับแจ้งฝาก' || r.Status === 'รับคำสั่งแล้ว' || r.Status === 'ร่าง (บันทึกไม่สำเร็จ)' || String(r.ReceivingNo).indexOf('DEP-') === 0);
+            if (sameClient && (sameDt || sameVehicle) && isPending) return false;
+            return true;
+          });
           closeModal('modalEditReceiving');
           await triggerFullRefresh();
           Swal.fire({
@@ -15196,6 +15505,19 @@ function editProduct(p) {
           const res = await callServer('updateReceivingStatus', STATE.auth, rcvNo, 'รับเข้าสต็อกสำเร็จ', 'อนุมัติรับฝากเข้าสต็อกเสร็จสมบูรณ์');
           if (res && res.success) {
             if (rcv) rcv.Status = 'รับเข้าสต็อกสำเร็จ';
+            // กำจัดแถวแจ้งฝากเดิมที่ค้างซ้ำซ้อนทันที
+            STATE.receivings = (STATE.receivings || []).filter(r => {
+              if (r.ReceivingNo === rcvNo) return true;
+              const rClient = String(r.ClientName || r.ClientID || '').trim().toLowerCase();
+              const rVehicle = String(r.VehicleInfo || '').trim().toLowerCase();
+              const rDtIn = String(r.DateTimeIn || '').trim();
+              const sameClient = rcv ? (rClient === String(rcv.ClientName || '').trim().toLowerCase()) : false;
+              const sameVehicle = rcv ? (rVehicle === String(rcv.VehicleInfo || '').trim().toLowerCase()) : false;
+              const sameDt = rcv ? (rDtIn === String(rcv.DateTimeIn || '').trim()) : false;
+              const isPending = (r.Status === 'รอรับแจ้งฝาก' || r.Status === 'รับคำสั่งแล้ว' || String(r.ReceivingNo).indexOf('DEP-') === 0);
+              if (sameClient && (sameDt || sameVehicle) && isPending) return false;
+              return true;
+            });
             await triggerFullRefresh();
             Swal.fire({
               title: 'อนุมัติรับเข้าสต็อกสำเร็จ!',
@@ -15923,7 +16245,49 @@ function editProduct(p) {
         return true;
       });
 
-      list.sort((a, b) => {
+      // กรองแถวแจ้งเบิกเดิมที่ค้างซ้ำซ้อนกับใบเบิกที่อนุมัติสำเร็จแล้ว (Ghost Duplicate Outbound Orders)
+      const approvedOfficialOutList = list.filter(r => {
+        const rNo = String(r.RequisitionNo || '').trim();
+        const st = String(r.Status || '').trim();
+        return /^OUT[-_ ]?\d{6}$/i.test(rNo) || st === 'Approved' || st === 'เบิกสินค้าสำเร็จ' || st === 'จ่ายสินค้าเสร็จสมบูรณ์' || st === 'อนุมัติเบิกสินค้า' || st === 'ปรับปรุงรายการ' || st.indexOf('ปรับปรุงรายการ') !== -1;
+      });
+
+      const cleanReqList = list.filter(r => {
+        const rNo = String(r.RequisitionNo || '').trim();
+        const st = String(r.Status || '').trim();
+        const isReq = rNo.indexOf('REQ-') === 0 || !rNo || rNo === '-' || rNo.indexOf('รอออกเลขที่') !== -1;
+        const isPending = (st === 'รอรับแจ้งเบิก' || st === 'รับคำสั่งแล้ว' || st === 'Pending' || st === 'รอจัดเตรียมสินค้า' || st === 'ร่าง (บันทึกไม่สำเร็จ)' || st.indexOf('ร่าง') !== -1);
+        if (!isReq && !isPending) return true;
+
+        const rClient = String(r.ClientName || r.ClientID || '').trim().toLowerCase();
+        const rVehicle = String(r.VehicleInfo || '').trim().toLowerCase();
+        const rDtIn = String(r.DateTimeIn || r.DateTimeOut || '').trim();
+        const rDateOnly = rDtIn.split(' ')[0];
+        const rQty = parseFloat(r.TotalQty) || 0;
+        const rWeight = parseFloat(String(r.TotalWeight || '0').replace(/,/g, '')) || 0;
+
+        const hasMatch = approvedOfficialOutList.some(off => {
+          if (off === r || off.RequisitionNo === r.RequisitionNo) return false;
+          const offClient = String(off.ClientName || off.ClientID || '').trim().toLowerCase();
+          if (rClient && offClient && rClient !== offClient && rClient.indexOf(offClient) === -1 && offClient.indexOf(rClient) === -1) return false;
+          const offDtIn = String(off.DateTimeIn || off.DateTimeOut || '').trim();
+          const offDateOnly = offDtIn.split(' ')[0];
+          const sameExactTime = (rDtIn && offDtIn && rDtIn === offDtIn);
+          const sameDate = (rDateOnly && offDateOnly && rDateOnly === offDateOnly);
+          if (!sameDate) return false;
+          const offVehicle = String(off.VehicleInfo || '').trim().toLowerCase();
+          const sameVehicle = (!rVehicle && !offVehicle) || (rVehicle && offVehicle && (rVehicle === offVehicle || rVehicle.indexOf(offVehicle) !== -1 || offVehicle.indexOf(rVehicle) !== -1));
+          const offQty = parseFloat(off.TotalQty) || 0;
+          const offWeight = parseFloat(String(off.TotalWeight || '0').replace(/,/g, '')) || 0;
+          const sameQty = Math.abs(rQty - offQty) < 0.001;
+          const sameWeight = Math.abs(rWeight - offWeight) < 0.01;
+          return sameExactTime || (sameVehicle && (sameQty || sameWeight));
+        });
+
+        return !hasMatch;
+      });
+
+      cleanReqList.sort((a, b) => {
         const tA = (parseThaiDateTimeToObj(a.DateTimeIn) || parseThaiDateTimeToObj(a.DateTimeOut))?.getTime() || 0;
         const tB = (parseThaiDateTimeToObj(b.DateTimeIn) || parseThaiDateTimeToObj(b.DateTimeOut))?.getTime() || 0;
         if (tB !== tA) return tB - tA;
@@ -15931,12 +16295,12 @@ function editProduct(p) {
       });
 
       const tbody = document.getElementById('requisitionTableBody');
-      if (list.length === 0) {
+      if (cleanReqList.length === 0) {
         tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><i class="fa-solid fa-dolly"></i>ไม่พบรายการใบเบิกสินค้าตามเงื่อนไขที่ค้นหา</td></tr>';
         return;
       }
 
-      tbody.innerHTML = list.map(r => {
+      tbody.innerHTML = cleanReqList.map(r => {
         const stObj = getRequisitionStatusDisplay(r.Status, isClient);
         const isDraft = (stObj.step === -1 || r.isDraft);
         const isOfficialReq = (stObj.step >= 3 && r.RequisitionNo && r.RequisitionNo.indexOf('REQ-') !== 0);
@@ -16397,9 +16761,13 @@ function editProduct(p) {
         if (savedOutDigits) {
           validateEditReqDocNo(reqDocInput);
         } else {
-          reqDocInput.style.backgroundColor = '#FFFFFF';
-          reqDocInput.style.color = '#0A3D62';
-          if (reqGroupEl) reqGroupEl.style.borderColor = '#EF4444';
+          const isDark = document.documentElement.getAttribute('data-theme') === 'dark' || (!document.documentElement.getAttribute('data-theme') && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          reqDocInput.style.backgroundColor = isDark ? 'rgba(15, 23, 42, 0.85)' : '#FFFFFF';
+          reqDocInput.style.color = isDark ? '#FFFFFF' : '#0A3D62';
+          if (reqGroupEl) {
+            reqGroupEl.classList.remove('is-valid', 'is-invalid');
+            reqGroupEl.style.borderColor = '#EF4444';
+          }
           if (reqFeedbackEl) reqFeedbackEl.innerHTML = '';
         }
       }
