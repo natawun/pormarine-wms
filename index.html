@@ -2488,6 +2488,202 @@
       color: #F87171 !important; /* Bright Red text */
     }
 
+  
+    /* =========================================================================
+       Billing Summary Card & Calc Box Styles (Light & Dark Mode Compatibility)
+       ========================================================================= */
+    .billing-summary-card {
+      background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%);
+      border: 1.5px solid #BAE6FD;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      color: #0A3D62;
+    }
+    .billing-summary-card .billing-label {
+      color: #0A3D62;
+      font-weight: 700;
+    }
+    .billing-summary-card .billing-info-text {
+      color: #0369A1;
+    }
+    .billing-summary-card #billClientNameText {
+      color: #0A3D62;
+    }
+    .billing-summary-card #billClientLotCountText {
+      color: #0284C7;
+    }
+    .billing-summary-card #billClientTotalWeightText {
+      color: #059669;
+    }
+    .billing-summary-card #billManualStatusSelect {
+      background: #FFFFFF;
+      color: #0F172A;
+      border: 1px solid #CBD5E1;
+      border-radius: 6px;
+    }
+
+    .billing-calc-summary {
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 18px;
+    }
+    .billing-calc-netpay-box {
+      background: #ECFDF5;
+      border: 1.5px solid #10B981;
+    }
+    .billing-netpay-label {
+      color: #065F46;
+    }
+
+    /* Dark Mode Glassmorphism Theme Overrides */
+    [data-theme="dark"] .billing-summary-card,
+    :root:not([data-theme="light"]) .billing-summary-card {
+      background: rgba(15, 23, 42, 0.85) !important;
+      background-image: none !important;
+      backdrop-filter: blur(25px) !important;
+      -webkit-backdrop-filter: blur(25px) !important;
+      border: 1.5px solid rgba(56, 189, 248, 0.45) !important;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.60), inset 0 1px 1px rgba(255, 255, 255, 0.20) !important;
+      color: #F8FAFC !important;
+    }
+    [data-theme="dark"] .billing-summary-card strong,
+    [data-theme="dark"] .billing-summary-card .billing-label,
+    :root:not([data-theme="light"]) .billing-summary-card strong,
+    :root:not([data-theme="light"]) .billing-summary-card .billing-label {
+      color: #E2E8F0 !important;
+      font-weight: 700 !important;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+    [data-theme="dark"] .billing-summary-card .billing-info-text,
+    :root:not([data-theme="light"]) .billing-summary-card .billing-info-text {
+      color: #38BDF8 !important;
+      font-weight: 600 !important;
+      text-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+    }
+    [data-theme="dark"] .billing-summary-card #billClientNameText,
+    [data-theme="dark"] .billing-summary-card .billing-val-name,
+    :root:not([data-theme="light"]) .billing-summary-card #billClientNameText,
+    :root:not([data-theme="light"]) .billing-summary-card .billing-val-name {
+      color: #38BDF8 !important;
+      font-weight: 800 !important;
+      text-shadow: 0 0 10px rgba(56, 189, 248, 0.40);
+    }
+    [data-theme="dark"] .billing-summary-card #billClientLotCountText,
+    [data-theme="dark"] .billing-summary-card .billing-val-lot,
+    :root:not([data-theme="light"]) .billing-summary-card #billClientLotCountText,
+    :root:not([data-theme="light"]) .billing-summary-card .billing-val-lot {
+      color: #60A5FA !important;
+      font-weight: 800 !important;
+    }
+    [data-theme="dark"] .billing-summary-card #billClientTotalWeightText,
+    [data-theme="dark"] .billing-summary-card .billing-val-weight,
+    :root:not([data-theme="light"]) .billing-summary-card #billClientTotalWeightText,
+    :root:not([data-theme="light"]) .billing-summary-card .billing-val-weight {
+      color: #34D399 !important;
+      font-weight: 800 !important;
+      text-shadow: 0 0 10px rgba(52, 211, 153, 0.35);
+    }
+    [data-theme="dark"] .billing-summary-card .anniversary-cycle-badge,
+    :root:not([data-theme="light"]) .billing-summary-card .anniversary-cycle-badge {
+      background: rgba(16, 185, 129, 0.25) !important;
+      color: #34D399 !important;
+      border: 1px solid rgba(16, 185, 129, 0.50) !important;
+    }
+    [data-theme="dark"] .billing-summary-card select#billManualStatusSelect,
+    :root:not([data-theme="light"]) .billing-summary-card select#billManualStatusSelect {
+      background: rgba(15, 23, 42, 0.95) !important;
+      border: 1.5px solid rgba(56, 189, 248, 0.55) !important;
+      color: #34D399 !important;
+      font-weight: 700 !important;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.5) !important;
+    }
+    [data-theme="dark"] .billing-summary-card select#billManualStatusSelect option,
+    :root:not([data-theme="light"]) .billing-summary-card select#billManualStatusSelect option {
+      background: #0F172A !important;
+      color: #F8FAFC !important;
+    }
+
+    [data-theme="dark"] .billing-calc-summary,
+    :root:not([data-theme="light"]) .billing-calc-summary {
+      background: rgba(15, 23, 42, 0.85) !important;
+      background-image: none !important;
+      backdrop-filter: blur(25px) !important;
+      -webkit-backdrop-filter: blur(25px) !important;
+      border: 1px solid rgba(255, 255, 255, 0.20) !important;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.50) !important;
+      color: #F8FAFC !important;
+    }
+    [data-theme="dark"] .billing-calc-summary .billing-sub-label,
+    :root:not([data-theme="light"]) .billing-calc-summary .billing-sub-label {
+      color: #94A3B8 !important;
+    }
+    [data-theme="dark"] .billing-calc-summary .billing-calc-val,
+    [data-theme="dark"] .billing-calc-summary #billSubtotalDisp,
+    [data-theme="dark"] .billing-calc-summary #billTotalDisp,
+    :root:not([data-theme="light"]) .billing-calc-summary .billing-calc-val,
+    :root:not([data-theme="light"]) .billing-calc-summary #billSubtotalDisp,
+    :root:not([data-theme="light"]) .billing-calc-summary #billTotalDisp {
+      color: #38BDF8 !important;
+    }
+    [data-theme="dark"] .billing-calc-summary .billing-calc-val-vat,
+    [data-theme="dark"] .billing-calc-summary #billVatDisp,
+    :root:not([data-theme="light"]) .billing-calc-summary .billing-calc-val-vat,
+    :root:not([data-theme="light"]) .billing-calc-summary #billVatDisp {
+      color: #60A5FA !important;
+    }
+    [data-theme="dark"] .billing-calc-summary .billing-baht-text,
+    [data-theme="dark"] .billing-calc-summary #billBahtTextDisp,
+    :root:not([data-theme="light"]) .billing-calc-summary .billing-baht-text,
+    :root:not([data-theme="light"]) .billing-calc-summary #billBahtTextDisp {
+      color: #CBD5E1 !important;
+    }
+    [data-theme="dark"] .billing-calc-netpay-box,
+    :root:not([data-theme="light"]) .billing-calc-netpay-box {
+      background: rgba(16, 185, 129, 0.18) !important;
+      border: 1.5px solid rgba(16, 185, 129, 0.55) !important;
+    }
+    [data-theme="dark"] .billing-netpay-label,
+    :root:not([data-theme="light"]) .billing-netpay-label {
+      color: #6EE7B7 !important;
+    }
+    [data-theme="dark"] .billing-calc-netpay-box .billing-calc-val-net,
+    [data-theme="dark"] .billing-calc-netpay-box #billNetPayDisp,
+    :root:not([data-theme="light"]) .billing-calc-netpay-box .billing-calc-val-net,
+    :root:not([data-theme="light"]) .billing-calc-netpay-box #billNetPayDisp {
+      color: #34D399 !important;
+      text-shadow: 0 0 10px rgba(52, 211, 153, 0.40);
+    }
+
+    /* Global Dark Mode Safeguard for any element with inline light backgrounds */
+    [data-theme="dark"] [style*="background: linear-gradient(135deg, #F0F9FF"],
+    [data-theme="dark"] [style*="background:linear-gradient(135deg,#F0F9FF"],
+    [data-theme="dark"] [style*="background:#F0F9FF"],
+    [data-theme="dark"] [style*="background: #F0F9FF"],
+    [data-theme="dark"] [style*="background:#E0F2FE"],
+    [data-theme="dark"] [style*="background: #E0F2FE"],
+    :root:not([data-theme="light"]) [style*="background: linear-gradient(135deg, #F0F9FF"],
+    :root:not([data-theme="light"]) [style*="background:linear-gradient(135deg,#F0F9FF"],
+    :root:not([data-theme="light"]) [style*="background:#F0F9FF"],
+    :root:not([data-theme="light"]) [style*="background: #F0F9FF"],
+    :root:not([data-theme="light"]) [style*="background:#E0F2FE"],
+    :root:not([data-theme="light"]) [style*="background: #E0F2FE"] {
+      background: rgba(15, 23, 42, 0.85) !important;
+      background-image: none !important;
+      backdrop-filter: blur(25px) !important;
+      -webkit-backdrop-filter: blur(25px) !important;
+      border-color: rgba(56, 189, 248, 0.40) !important;
+      color: #F8FAFC !important;
+    }
+    [data-theme="dark"] [style*="background: linear-gradient(135deg, #F0F9FF"] strong,
+    [data-theme="dark"] [style*="background: linear-gradient(135deg, #F0F9FF"] label,
+    :root:not([data-theme="light"]) [style*="background: linear-gradient(135deg, #F0F9FF"] strong,
+    :root:not([data-theme="light"]) [style*="background: linear-gradient(135deg, #F0F9FF"] label {
+      color: #E2E8F0 !important;
+    }
+
   </style>
 </head>
 <body>
@@ -4367,32 +4563,32 @@
       </div>
       <div class="modal-body" style="padding: 20px 24px;">
         <!-- Card ข้อมูลสรุปและรอบบิล Anniversary Billing -->
-        <div style="background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%); border: 1.5px solid #BAE6FD; border-radius: 12px; padding: 16px 20px; margin-bottom: 20px;">
+        <div class="billing-summary-card">
           <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
             <div>
               <span class="status-badge" style="background:#0284C7; color:#fff; font-size:12px; font-weight:700;">
                 <i class="fa-solid fa-calculator"></i> ระบบคิดค่าฝากแบบครบรอบบิลสินค้า (Anniversary Billing)
               </span>
-              <span id="billAnniversaryCycleBadge" class="status-badge" style="background:#DCFCE7; color:#166534; font-size:12px; font-weight:700; margin-left:8px;">
+              <span id="billAnniversaryCycleBadge" class="status-badge anniversary-cycle-badge" style="background:#DCFCE7; color:#166534; font-size:12px; font-weight:700; margin-left:8px;">
                 รวมทุกล็อตของลูกค้า (Multi-Lot Batch)
               </span>
             </div>
-            <div style="font-size: 13px; color: #0369A1; font-weight: 600;">
+            <div class="billing-info-text" style="font-size: 13px; font-weight: 600;">
               <i class="fa-solid fa-circle-info"></i> คิดจากน้ำหนัก ณ วันเข้าเต็มเดือน และรอบถัดไปคิดตามยอดคงเหลือจริง
             </div>
           </div>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; font-size: 13px;">
-            <div><strong>ลูกค้า:</strong> <span id="billClientNameText" style="font-weight:700; color:#0A3D62;">-</span></div>
-            <div><strong>จำนวน Lot ทั้งหมด:</strong> <span id="billClientLotCountText" style="font-weight:700; color:#0284C7;">-</span></div>
-            <div><strong>น้ำหนักรวมสินค้า:</strong> <span id="billClientTotalWeightText" style="font-weight:700; color:#059669;">-</span></div>
+            <div><strong class="billing-label">ลูกค้า:</strong> <span id="billClientNameText" class="billing-val-name" style="font-weight:700; color:#0A3D62;">-</span></div>
+            <div><strong class="billing-label">จำนวน Lot ทั้งหมด:</strong> <span id="billClientLotCountText" class="billing-val-lot" style="font-weight:700; color:#0284C7;">-</span></div>
+            <div><strong class="billing-label">น้ำหนักรวมสินค้า:</strong> <span id="billClientTotalWeightText" class="billing-val-weight" style="font-weight:700; color:#059669;">-</span></div>
             <div>
-              <strong>สถานะบิลลิ่ง:</strong> <span id="billClientStatusBadge">-</span>
-              <select id="billManualStatusSelect" class="form-select form-select-sm" style="display:inline-block; width:auto; margin-left:8px; height:28px; padding:2px 8px; font-size:12px;" onchange="handleManualBillingStatusChange(this.value)">
+              <strong class="billing-label">สถานะบิลลิ่ง:</strong> <span id="billClientStatusBadge">-</span>
+              <select id="billManualStatusSelect" class="form-select form-select-sm billing-status-select" style="display:inline-block; width:auto; margin-left:8px; height:28px; padding:2px 8px; font-size:12px;" onchange="handleManualBillingStatusChange(this.value)">
                 <option value="">-- ปรับเปลี่ยนสถานะ --</option>
                 <option value="วางบิลแล้ว">วางบิลแล้ว (สีฟ้า)</option>
                 <option value="ค้างชำระ">ค้างชำระ (สีแดง)</option>
                 <option value="ชำระแล้ว">ชำระแล้ว (สีเขียว)</option>
-                              </select>
+              </select>
             </div>
           </div>
         </div>
@@ -4464,30 +4660,30 @@
           </div>
 
           <!-- ตารางสรุปยอดเงินคำนวณ -->
-          <div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:14px 18px; margin-bottom:18px;">
+          <div class="billing-calc-summary">
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap:12px; text-align:center;">
               <div>
-                <div style="font-size:12px; color:var(--text-muted);">จำนวนเงินก่อน VAT</div>
-                <div id="billSubtotalDisp" style="font-size:18px; font-weight:700; color:#0A3D62;">0.00 บาท</div>
+                <div class="billing-sub-label" style="font-size:12px; color:var(--text-muted);">จำนวนเงินก่อน VAT</div>
+                <div id="billSubtotalDisp" class="billing-calc-val" style="font-size:18px; font-weight:700; color:#0A3D62;">0.00 บาท</div>
               </div>
               <div>
-                <div style="font-size:12px; color:var(--text-muted);">ภาษีมูลค่าเพิ่ม 7%</div>
-                <div id="billVatDisp" style="font-size:18px; font-weight:700; color:#0284C7;">0.00 บาท</div>
+                <div class="billing-sub-label" style="font-size:12px; color:var(--text-muted);">ภาษีมูลค่าเพิ่ม 7%</div>
+                <div id="billVatDisp" class="billing-calc-val-vat" style="font-size:18px; font-weight:700; color:#0284C7;">0.00 บาท</div>
               </div>
               <div>
-                <div style="font-size:12px; color:var(--text-muted);">จำนวนเงินสุทธิ</div>
-                <div id="billTotalDisp" style="font-size:18px; font-weight:700; color:#0A3D62;">0.00 บาท</div>
+                <div class="billing-sub-label" style="font-size:12px; color:var(--text-muted);">จำนวนเงินสุทธิ</div>
+                <div id="billTotalDisp" class="billing-calc-val" style="font-size:18px; font-weight:700; color:#0A3D62;">0.00 บาท</div>
               </div>
               <div>
-                <div style="font-size:12px; color:var(--text-muted);">หัก ณ ที่จ่าย 3%</div>
+                <div class="billing-sub-label" style="font-size:12px; color:var(--text-muted);">หัก ณ ที่จ่าย 3%</div>
                 <div id="billWhtDisp" style="font-size:18px; font-weight:700; color:#DC2626;">0.00 บาท</div>
               </div>
-              <div style="background:#ECFDF5; border:1.5px solid #10B981; border-radius:8px; padding:6px 10px;">
-                <div style="font-size:12px; color:#065F46; font-weight:600;">ยอดเงินที่ต้องชำระจริง</div>
-                <div id="billNetPayDisp" style="font-size:20px; font-weight:800; color:#059669;">0.00 บาท</div>
+              <div class="billing-calc-netpay-box" style="border-radius:8px; padding:6px 10px;">
+                <div class="billing-netpay-label" style="font-size:12px; font-weight:600;">ยอดเงินที่ต้องชำระจริง</div>
+                <div id="billNetPayDisp" class="billing-calc-val-net" style="font-size:20px; font-weight:800; color:#059669;">0.00 บาท</div>
               </div>
             </div>
-            <div id="billBahtTextDisp" style="text-align:center; font-size:12.5px; font-weight:600; color:#475569; margin-top:10px;">
+            <div id="billBahtTextDisp" class="billing-baht-text" style="text-align:center; font-size:12.5px; font-weight:600; color:#475569; margin-top:10px;">
               (ศูนย์บาทถ้วน)
             </div>
           </div>
