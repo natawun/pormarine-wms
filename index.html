@@ -16,6 +16,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <!-- Chart.js CDN (รองรับตามข้อกำหนด 3.2 แต่หน้า Dashboard ปิดการใช้กราฟทุกชนิดตามข้อกำหนด 3.1/3.2/17) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <!-- Instant Theme Mode Initializer (Flicker-free Light Crystal Default) -->
   <script>
     (function() {
@@ -4301,8 +4302,7 @@
                 <option value="วางบิลแล้ว">วางบิลแล้ว (สีฟ้า)</option>
                 <option value="ค้างชำระ">ค้างชำระ (สีแดง)</option>
                 <option value="ชำระแล้ว">ชำระแล้ว (สีเขียว)</option>
-                <option value="RESET">ล้างสถานะ (-)</option>
-              </select>
+                              </select>
             </div>
           </div>
         </div>
@@ -9412,19 +9412,63 @@
       }
     }
 
+        /**
+     * ตรวจสอบว่ารายการแจ้งเตือน หรือเวลาที่เปิดดู ข้ามวันแล้วหรือไม่ (Past Day check)
+     * หากเป็นรายการที่สำเร็จแล้ว หรือ รายการปรับปรุง เมื่อเปิดดูแล้ว พอข้ามวันจะถูกนำออกจากศูนย์แจ้งเตือน
+     */
+    function isItemPastDay(dateInput, readTimestamp) {
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+      // 1. ตรวจสอบจากเวลาที่กดเปิดดู (ถ้าเปิดดูในวันก่อนหน้า คือข้ามวันแล้ว)
+      if (readTimestamp) {
+        const readDate = new Date(readTimestamp);
+        const readDayStart = new Date(readDate.getFullYear(), readDate.getMonth(), readDate.getDate()).getTime();
+        if (readDayStart < todayStart) {
+          return true;
+        }
+      }
+
+      // 2. ตรวจสอบจากวันที่ของรายการ (ถ้าวันที่ในเอกสาร/ทรานแซกชันเป็นวันก่อนหน้า คือข้ามวันแล้ว)
+      if (dateInput) {
+        const dt = (dateInput instanceof Date) ? dateInput : (typeof parseThaiDateToObj === 'function' ? parseThaiDateToObj(dateInput) : null);
+        if (dt && !isNaN(dt.getTime())) {
+          const itemDayStart = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
+          if (itemDayStart < todayStart) {
+            return true;
+          }
+        }
+      }
+
+      return false;
+    }
+
     function buildNotificationCenterItems() {
       const items = [];
 
-      STATE.requisitions.filter(r => r.Status === 'Pending' || r.Status === 'Receive Orders' || r.Status === 'รอรับแจ้งเบิก' || r.Status === 'รับคำสั่งแล้ว' || r.Status === 'อนุมัติเบิกสินค้า' || r.Status === 'ปรับปรุงรายการ').forEach(r => {
+      // 1. คำสั่งแจ้งเบิก (Requisitions)
+      (STATE.requisitions || []).filter(r => r.Status === 'Pending' || r.Status === 'Receive Orders' || r.Status === 'รอรับแจ้งเบิก' || r.Status === 'รับคำสั่งแล้ว' || r.Status === 'อนุมัติเบิกสินค้า' || r.Status === 'ปรับปรุงรายการ').forEach(r => {
         const stObj = getRequisitionStatusDisplay(r.Status, false);
         const isApprovedReq = (r.Status === 'เบิกสินค้าสำเร็จ' || r.Status === 'Approved' || r.Status === 'จ่ายสินค้าเสร็จสมบูรณ์' || r.Status === 'ปรับปรุงรายการ');
         const docType = isApprovedReq ? 'REQUISITION_PRINT' : 'REQUISITION_DETAIL';
         const weightText = (typeof r.TotalWeight === 'string' && r.TotalWeight.indexOf('ชั่ง') !== -1)
           ? 'น้ำหนักชั่ง'
           : (fmtNum(r.TotalWeight, 2) + ' กก.');
+        const sig = 'REQ|' + r.RequisitionNo + '|' + r.Status + '|' + (r.TotalQty || 0) + '|' + (r.TotalWeight || 0);
+
+        const isAmended = (r.Status === 'ปรับปรุงรายการ' || String(stObj.displayText).indexOf('ปรับปรุง') !== -1);
+        const isCompleted = (r.Status === 'เบิกสินค้าสำเร็จ' || r.Status === 'Approved' || r.Status === 'จ่ายสินค้าเสร็จสมบูรณ์');
+        const itemDate = r.RequisitionDate || r.UpdatedAt || r.CreatedAt || r.DateTimeOut || r.DateTimeIn || '';
+
+        // เงื่อนไข: รายการที่สำเร็จแล้ว, รายการปรับปรุง เมื่อเปิดดูแล้ว พอข้ามวันให้ลบออก
+        if ((isAmended || isCompleted) && isNotificationRead(sig) && isItemPastDay(itemDate, getNotificationReadTimestamp(sig))) {
+          return; // ข้าม ไม่แสดงในศูนย์แจ้งเตือน
+        }
+
         items.push({
-          sig: 'REQ|' + r.RequisitionNo + '|' + r.Status + '|' + (r.TotalQty || 0) + '|' + (r.TotalWeight || 0),
+          sig: sig,
           category: 'REQ',
+          date: itemDate,
           badge: 'คำสั่งแจ้งเบิก (' + stObj.displayText + ')',
           color: '#FEE2E2',
           text: '#991B1B',
@@ -9436,16 +9480,29 @@
         });
       });
 
-      STATE.receivings.filter(r => r.Status === 'Pending' || r.Status === 'Receive Orders' || r.Status === 'รอรับแจ้งฝาก' || r.Status === 'รับคำสั่งแล้ว' || r.Status === 'อนุมัติรับฝาก' || r.Status === 'ปรับปรุงรายการ').forEach(r => {
+      // 2. คำสั่งแจ้งฝาก (Receivings)
+      (STATE.receivings || []).filter(r => r.Status === 'Pending' || r.Status === 'Receive Orders' || r.Status === 'รอรับแจ้งฝาก' || r.Status === 'รับคำสั่งแล้ว' || r.Status === 'อนุมัติรับฝาก' || r.Status === 'ปรับปรุงรายการ').forEach(r => {
         const stObj = getReceivingStatusDisplay(r.Status, false);
         const isApprovedRcv = (r.Status === 'รับเข้าสต็อกสำเร็จ' || r.Status === 'Approved' || r.Status === 'เพิ่มสต็อกเสร็จสมบูรณ์' || r.Status === 'ปรับปรุงรายการ');
         const docType = isApprovedRcv ? 'RECEIVING_PRINT' : 'RECEIVING_DETAIL';
         const weightText = (typeof r.TotalWeight === 'string' && r.TotalWeight.indexOf('ชั่ง') !== -1)
           ? 'น้ำหนักชั่ง'
           : (fmtNum(r.TotalWeight, 2) + ' กก.');
+        const sig = 'RCV|' + r.ReceivingNo + '|' + r.Status + '|' + (r.TotalQty || 0) + '|' + (r.TotalWeight || 0);
+
+        const isAmended = (r.Status === 'ปรับปรุงรายการ' || String(stObj.displayText).indexOf('ปรับปรุง') !== -1);
+        const isCompleted = (r.Status === 'รับเข้าสต็อกสำเร็จ' || r.Status === 'Approved' || r.Status === 'เพิ่มสต็อกเสร็จสมบูรณ์');
+        const itemDate = r.ReceiveDate || r.UpdatedAt || r.CreatedAt || r.DateTimeIn || '';
+
+        // เงื่อนไข: รายการที่สำเร็จแล้ว, รายการปรับปรุง เมื่อเปิดดูแล้ว พอข้ามวันให้ลบออก
+        if ((isAmended || isCompleted) && isNotificationRead(sig) && isItemPastDay(itemDate, getNotificationReadTimestamp(sig))) {
+          return; // ข้าม ไม่แสดงในศูนย์แจ้งเตือน
+        }
+
         items.push({
-          sig: 'RCV|' + r.ReceivingNo + '|' + r.Status + '|' + (r.TotalQty || 0) + '|' + (r.TotalWeight || 0),
+          sig: sig,
           category: 'RCV',
+          date: itemDate,
           badge: 'คำสั่งแจ้งฝาก (' + stObj.displayText + ')',
           color: '#DBEAFE',
           text: '#1E40AF',
@@ -9457,22 +9514,10 @@
         });
       });
 
-      STATE.stock.filter(s => (parseFloat(s.RemainQty) || 0) > 0 && (s.BillingStatus === 'Due Soon' || isDateDueSoon(s.NextBillingDate, 5))).forEach(s => {
-        items.push({
-          sig: 'BILL|' + s.LotNo + '|' + s.NextBillingDate,
-          category: 'BILL',
-          badge: 'แจ้งเตือนครบรอบบิล',
-          color: '#FEE2E2',
-          text: '#991B1B',
-          title: 'Lot: ' + s.LotNo + ' (' + s.ProductName + ')',
-          sub: 'ลูกค้า: ' + s.ClientName + ' | วันครบรอบบิล: ' + s.NextBillingDate + ' | คงเหลือ ' + fmtNum(s.RemainQty) + ' ' + s.Unit,
-          target: 'secClients',
-          docType: 'CLIENT_STOCK',
-          refNo: s.LotNo
-        });
-      });
+      // 3. แจ้งเตือนครบรอบบิล: ไม่ต้องแจ้งเตือนในศูนย์รวมการแจ้งเตือนทั้งหมด ตามข้อกำหนด
 
-      STATE.movements.slice(0, 8).forEach(m => {
+      // 4. รายการรับเข้า-เบิกออกสำเร็จ (Movements)
+      (STATE.movements || []).slice(0, 15).forEach(m => {
         const mTypeStr = String(m.MovementType || '');
         const isIN = mTypeStr.indexOf('IN') !== -1;
         const isAmended = mTypeStr.indexOf('ปรับปรุงรายการ') !== -1;
@@ -9481,9 +9526,18 @@
         if (isAmended) {
           badgeText = isIN ? 'รับเข้า (ปรับปรุงรายการ)' : 'เบิกออก (ปรับปรุงรายการ)';
         }
+        const sig = 'MOV|' + (m.MovementID || '') + '|' + m.RefDocNo + '|' + (m.LotNo || '') + '|' + mTypeStr + '|' + m.QtyChange + '|' + m.WeightChange + '|' + (m.Timestamp || '');
+        const itemDate = m.Timestamp || m.MovementDate || m.Date || '';
+
+        // เงื่อนไข: รายการที่สำเร็จแล้ว, รายการปรับปรุง เมื่อเปิดดูแล้ว พอข้ามวันให้ลบออก
+        if (isNotificationRead(sig) && isItemPastDay(itemDate, getNotificationReadTimestamp(sig))) {
+          return; // ข้าม ไม่แสดงในศูนย์แจ้งเตือน
+        }
+
         items.push({
-          sig: 'MOV|' + (m.MovementID || '') + '|' + m.RefDocNo + '|' + (m.LotNo || '') + '|' + mTypeStr + '|' + m.QtyChange + '|' + m.WeightChange + '|' + (m.Timestamp || ''),
+          sig: sig,
           category: 'MOV',
+          date: itemDate,
           badge: badgeText,
           color: isAmended ? '#FEF3C7' : '#D1FAE5',
           text: isAmended ? '#92400E' : '#065F46',
@@ -9499,8 +9553,7 @@
     }
 
     /**
-     * ตรวจสอบว่ามีรายการแจ้งเตือนที่ยังไม่ได้เปิดดูใน "ศูนย์รวมการแจ้งเตือนทั้งหมด (Real-time Alerts)" หรือไม่
-     * หากพบรายการแจ้งเตือนใหม่ที่ยังไม่อ่าน (ทั้งตอนเข้าสู่ระบบและแบบ Real-time) จะเล่นเสียงเตือนเฉพาะศูนย์แจ้งเตือนทันที
+     * ตรวจสอบว่ามีรายการแจ้งเตือนที่ยังไม่ได้เปิดดูในศูนย์รวมการแจ้งเตือนทั้งหมดหรือไม่
      */
     function checkAndTriggerNotificationCenterSound() {
       if (!STATE.user) return;
@@ -10132,7 +10185,29 @@
      * - "ชำระแล้ว" สีเขียว
      * - "ปกติ (Active)" เอาออกไม่ต้องมี (แสดงเป็น -)
      */
-    function getClientBillingStatusBadge(status) {
+        /**
+     * คำนวณวันครบรอบบิลถัดไปให้เป็นวันในอนาคต (strictly > today) เสมอ
+     * ป้องกันปัญหารอบบิลเก่าในอดีตทำให้ระบบเข้าใจผิดว่าถึงรอบบิลใหม่แล้ว
+     */
+    function advanceBillingDateToFuture(dateStr, baseDateObj) {
+      const base = baseDateObj || new Date();
+      const baseDay = new Date(base.getFullYear(), base.getMonth(), base.getDate()).getTime();
+      let dStr = dateStr || formatTodayThai();
+      let dObj = parseThaiDateToObj(dStr);
+      if (!dObj || isNaN(dObj.getTime())) {
+        dStr = formatTodayThai();
+        dObj = parseThaiDateToObj(dStr);
+      }
+      let count = 0;
+      while (dObj && dObj.getTime() <= baseDay && count < 24) {
+        dStr = calculateNextBillingMonthThai(dStr);
+        dObj = parseThaiDateToObj(dStr) || new Date(baseDay + 30 * 86400000);
+        count++;
+      }
+      return dStr;
+    }
+
+function getClientBillingStatusBadge(status) {
       const s = String(status || '').trim();
       if (s === 'วางบิลแล้ว' || s === 'INVOICED') {
         return '<span class="status-badge" style="background:#E0F2FE; color:#0284C7; border:1px solid #BAE6FD; font-weight:700;"><i class="fa-solid fa-file-invoice"></i> วางบิลแล้ว</span>';
@@ -10140,7 +10215,7 @@
       if (s === 'ค้างชำระ' || s === 'OVERDUE') {
         return '<span class="status-badge" style="background:#FEE2E2; color:#DC2626; border:1px solid #FECACA; font-weight:700;"><i class="fa-solid fa-circle-exclamation"></i> ค้างชำระ</span>';
       }
-      if (s === 'ชำระแล้ว' || s === 'PAID' || s === 'รับชำระแล้ว') {
+      if (s === 'รับชำระ' || s === 'ชำระแล้ว' || s === 'PAID' || s === 'รับชำระแล้ว' || s === 'Billed & Renewed') {
         return '<span class="status-badge" style="background:#DCFCE7; color:#15803D; border:1px solid #BBF7D0; font-weight:700;"><i class="fa-solid fa-circle-check"></i> ชำระแล้ว</span>';
       }
       // สถานะ "ปกติ (Active)" เอาออกไม่ต้องมี
@@ -10166,39 +10241,81 @@
       STATE.clientBillingStatus = STATE.clientBillingStatus || {};
       let info = STATE.clientBillingData[clientKey];
 
+      // ค้นหา fallback ตาม ClientName หรือ ClientID หรือ ClientCode
+      if (!info && clientGroup) {
+        info = STATE.clientBillingData[clientGroup.clientName] ||
+               STATE.clientBillingData[clientGroup.clientId] ||
+               STATE.clientBillingData[clientGroup.clientCode];
+
+        // ค้นหาแบบค้นหาชื่อย่อยเผื่อกรณีชื่อมีช่องว่างหรือคำนำหน้า
+        if (!info && STATE.clientBillingData) {
+          const allKeys = Object.keys(STATE.clientBillingData);
+          for (let i = 0; i < allKeys.length; i++) {
+            const k = allKeys[i];
+            if (clientGroup.clientName && (k.indexOf(clientGroup.clientName) !== -1 || clientGroup.clientName.indexOf(k) !== -1)) {
+              info = STATE.clientBillingData[k];
+              break;
+            }
+            if (clientGroup.clientId && k === clientGroup.clientId) {
+              info = STATE.clientBillingData[k];
+              break;
+            }
+          }
+        }
+      }
+
       // เชื่อมโยงข้อมูลจาก clientBillingStatus เดิมหากมี
       if (!info && STATE.clientBillingStatus[clientKey]) {
         const leg = STATE.clientBillingStatus[clientKey];
         info = {
-          status: (leg === 'รับชำระแล้ว' ? 'ชำระแล้ว' : leg),
+          status: (leg === 'รับชำระแล้ว' || leg === 'ชำระแล้ว' || leg === 'รับชำระ' || leg === 'Billed & Renewed' ? 'ชำระแล้ว' : leg),
           invoicedDate: null,
           paidDate: null
         };
         STATE.clientBillingData[clientKey] = info;
       }
 
+      // หากยังไม่มีข้อมูลใน localStorage แต่ล็อตของลูกค้านี้ทุกล็อตมีสถานะ Billed & Renewed (ชำระแล้วบนระบบหลัก)
+      if ((!info || !info.status) && clientGroup && clientGroup.lots && clientGroup.lots.length > 0) {
+        const allRenewed = clientGroup.lots.every(s => s.BillingStatus === 'Billed & Renewed');
+        if (allRenewed) {
+          info = {
+            status: 'ชำระแล้ว',
+            paidDate: formatTodayThai(),
+            paidTimestamp: Date.now()
+          };
+          STATE.clientBillingData[clientKey] = info;
+        }
+      }
+
       if (!info || !info.status) {
         return { status: '', badge: getClientBillingStatusBadge('') };
       }
 
-      // 1. ตรวจสอบสถานะ "ชำระแล้ว": ให้แสดงไปตลอดจนถึงรอบบิลใหม่
-      if (info.status === 'ชำระแล้ว' || info.status === 'PAID' || info.status === 'รับชำระแล้ว') {
+      // 1. ตรวจสอบสถานะ "ชำระแล้ว" / "รับชำระ": ให้แสดงไปตลอดจนถึงรอบบิลใหม่
+      if (info.status === 'รับชำระ' || info.status === 'ชำระแล้ว' || info.status === 'PAID' || info.status === 'รับชำระแล้ว' || info.status === 'Billed & Renewed') {
         let reachedNewCycle = false;
-        const targetCycleDate = info.nextCycleDate || (clientGroup && clientGroup.lots && clientGroup.lots[0] ? (clientGroup.lots[0].NextBillingDate || calculateNextBillingMonthThai(clientGroup.lots[0].ReceiveDate || formatTodayThai())) : '');
-        if (targetCycleDate) {
-          const cycleObj = parseThaiDateToObj(targetCycleDate);
-          if (cycleObj) {
-            const now = new Date();
-            const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-            const cycleDay = new Date(cycleObj.getFullYear(), cycleObj.getMonth(), cycleObj.getDate()).getTime();
-            if (nowDay >= cycleDay) {
-              reachedNewCycle = true;
+
+        // หากเพิ่งบันทึกชำระเงิน (เช่น ภายใน 25 วัน หรือมี paidDate ตรงกับวันนี้) ให้แสดง "ชำระแล้ว" ตลอด ไม่รีเซ็ตเด็ดขาด
+        const paidTs = info.paidTimestamp || (info.paidDate ? (parseThaiDateToObj(info.paidDate) ? parseThaiDateToObj(info.paidDate).getTime() : 0) : 0);
+        const isRecentlyPaid = paidTs && (Date.now() - paidTs < 1000 * 60 * 60 * 24 * 25);
+
+        if (!isRecentlyPaid) {
+          const targetCycleDate = info.nextCycleDate;
+          if (targetCycleDate) {
+            const cycleObj = parseThaiDateToObj(targetCycleDate);
+            if (cycleObj) {
+              const now = new Date();
+              const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+              const cycleDay = new Date(cycleObj.getFullYear(), cycleObj.getMonth(), cycleObj.getDate()).getTime();
+              if (nowDay >= cycleDay) {
+                reachedNewCycle = true;
+              }
             }
           }
         }
 
         if (reachedNewCycle) {
-          // ถึงรอบบิลใหม่แล้ว: รีเซ็ตสถานะชำระแล้วของรอบเดิม เพื่อเริ่มรอบบิลใหม่ (ไม่แสดงปกติ Active)
           info.status = '';
           saveClientBillingData();
           return { status: '', badge: getClientBillingStatusBadge('') };
@@ -10225,8 +10342,6 @@
         }
 
         if (isOverdue) {
-          info.status = 'ค้างชำระ';
-          saveClientBillingData();
           return { status: 'ค้างชำระ', badge: getClientBillingStatusBadge('ค้างชำระ') };
         }
 
@@ -10241,9 +10356,6 @@
       return { status: '', badge: getClientBillingStatusBadge('') };
     }
 
-    /**
-     * บันทึกสถานะบิลลิ่งของลูกค้าลง Local Memory และ LocalStorage
-     */
     function setClientBillingStatus(clientKey, newStatus, extraData) {
       if (!clientKey) return;
       STATE.clientBillingData = STATE.clientBillingData || {};
@@ -10253,6 +10365,26 @@
       const updated = Object.assign({}, existing, extraData || {}, { status: newStatus });
       STATE.clientBillingData[clientKey] = updated;
       STATE.clientBillingStatus[clientKey] = newStatus;
+
+      // บันทึกคีย์คู่ขนานเพื่อความแม่นยำสูง
+      if (CURRENT_BILLING_CLIENT) {
+        if (CURRENT_BILLING_CLIENT.clientName && CURRENT_BILLING_CLIENT.clientName !== clientKey) {
+          STATE.clientBillingData[CURRENT_BILLING_CLIENT.clientName] = updated;
+          STATE.clientBillingStatus[CURRENT_BILLING_CLIENT.clientName] = newStatus;
+        }
+        if (CURRENT_BILLING_CLIENT.clientObj) {
+          const cId = CURRENT_BILLING_CLIENT.clientObj.ClientID;
+          if (cId && cId !== clientKey) {
+            STATE.clientBillingData[cId] = updated;
+            STATE.clientBillingStatus[cId] = newStatus;
+          }
+          const cCode = CURRENT_BILLING_CLIENT.clientObj.ClientCode;
+          if (cCode && cCode !== clientKey) {
+            STATE.clientBillingData[cCode] = updated;
+            STATE.clientBillingStatus[cCode] = newStatus;
+          }
+        }
+      }
 
       saveClientBillingData();
     }
@@ -10275,57 +10407,62 @@
       const cKey = CURRENT_BILLING_CLIENT.clientKey;
       const nowThai = formatTodayThai();
 
-      if (!val || val === 'RESET') {
-        setClientBillingStatus(cKey, '', {});
+      if (!val) {
+        return;
       } else if (val === 'วางบิลแล้ว') {
-        const docDate = (document.getElementById('billDocDate') ? document.getElementById('billDocDate').value.trim() : '') || nowThai;
-        setClientBillingStatus(cKey, 'วางบิลแล้ว', {
+        const docDate = (document.getElementById('billDocDateInput') && document.getElementById('billDocDateInput').value) || nowThai;
+        const dataObj = {
           invoicedDate: docDate,
           invoicedTimestamp: Date.now()
-        });
+        };
+        setClientBillingStatus(cKey, 'วางบิลแล้ว', dataObj);
+        if (CURRENT_BILLING_CLIENT.clientName) setClientBillingStatus(CURRENT_BILLING_CLIENT.clientName, 'วางบิลแล้ว', dataObj);
+        if (CURRENT_BILLING_CLIENT.clientObj) {
+          if (CURRENT_BILLING_CLIENT.clientObj.ClientID) setClientBillingStatus(CURRENT_BILLING_CLIENT.clientObj.ClientID, 'วางบิลแล้ว', dataObj);
+          if (CURRENT_BILLING_CLIENT.clientObj.ClientCode) setClientBillingStatus(CURRENT_BILLING_CLIENT.clientObj.ClientCode, 'วางบิลแล้ว', dataObj);
+        }
       } else if (val === 'ค้างชำระ') {
-        setClientBillingStatus(cKey, 'ค้างชำระ', {
-          overdueDate: nowThai
-        });
+        setClientBillingStatus(cKey, 'ค้างชำระ', {});
+        if (CURRENT_BILLING_CLIENT.clientName) setClientBillingStatus(CURRENT_BILLING_CLIENT.clientName, 'ค้างชำระ', {});
+        if (CURRENT_BILLING_CLIENT.clientObj) {
+          if (CURRENT_BILLING_CLIENT.clientObj.ClientID) setClientBillingStatus(CURRENT_BILLING_CLIENT.clientObj.ClientID, 'ค้างชำระ', {});
+          if (CURRENT_BILLING_CLIENT.clientObj.ClientCode) setClientBillingStatus(CURRENT_BILLING_CLIENT.clientObj.ClientCode, 'ค้างชำระ', {});
+        }
       } else if (val === 'ชำระแล้ว') {
         let nextCycleDate = '';
-        const lots = CURRENT_BILLING_CLIENT.lots || [];
-        lots.forEach(st => {
-          if ((parseFloat(st.RemainQty) || 0) > 0) {
-            const currD = st.NextBillingDate || st.ReceiveDate || nowThai;
-            const nextD = calculateNextBillingMonthThai(currD);
-            if (!nextCycleDate) nextCycleDate = nextD;
-          }
-        });
-        if (!nextCycleDate && lots.length > 0) {
-          nextCycleDate = calculateNextBillingMonthThai(lots[0].NextBillingDate || lots[0].ReceiveDate || nowThai);
+        if (CURRENT_BILLING_CLIENT && CURRENT_BILLING_CLIENT.lots && CURRENT_BILLING_CLIENT.lots[0]) {
+          const l0 = CURRENT_BILLING_CLIENT.lots[0];
+          nextCycleDate = advanceBillingDateToFuture(l0.NextBillingDate || l0.ReceiveDate || nowThai);
+        } else {
+          nextCycleDate = calculateNextBillingMonthThai(nowThai);
         }
-        setClientBillingStatus(cKey, 'ชำระแล้ว', {
+        const payData = {
           paidDate: nowThai,
           paidTimestamp: Date.now(),
           nextCycleDate: nextCycleDate
-        });
+        };
+        setClientBillingStatus(cKey, 'ชำระแล้ว', payData);
+        if (CURRENT_BILLING_CLIENT.clientName) setClientBillingStatus(CURRENT_BILLING_CLIENT.clientName, 'ชำระแล้ว', payData);
+        if (CURRENT_BILLING_CLIENT.clientObj) {
+          if (CURRENT_BILLING_CLIENT.clientObj.ClientID) setClientBillingStatus(CURRENT_BILLING_CLIENT.clientObj.ClientID, 'ชำระแล้ว', payData);
+          if (CURRENT_BILLING_CLIENT.clientObj.ClientCode) setClientBillingStatus(CURRENT_BILLING_CLIENT.clientObj.ClientCode, 'ชำระแล้ว', payData);
+        }
       }
 
       const bInfo = getClientBillingStatus(cKey, CURRENT_BILLING_CLIENT);
       const statusBadgeEl = document.getElementById('billClientStatusBadge');
-      if (statusBadgeEl) statusBadgeEl.innerHTML = bInfo.badge;
+      if (statusBadgeEl) {
+        statusBadgeEl.innerHTML = bInfo.badge;
+      }
 
       const sel = document.getElementById('billManualStatusSelect');
       if (sel) sel.value = '';
 
       closeModal('modalBillingInvoice');
       renderClientsAndBillingView();
-      showToast('ปรับสถานะบิลลิ่งเป็น "' + (val === 'RESET' ? 'ไม่มีสถานะ (-)' : val) + '" เรียบร้อยแล้ว', 'info');
+      showToast('ปรับสถานะบิลลิ่งเป็น "' + val + '" เรียบร้อยแล้ว', 'info');
     }
 
-    /**
-     * ตรวจสอบว่าสินค้า Lot นี้ต้องนำมาคำนวณบิลลิ่ง/คิดค่าฝากหรือไม่
-     * เงื่อนไขสำคัญ:
-     * 1. สินค้าที่ยังมีสต็อกคงเหลือ (RemainQty > 0)
-     * 2. สินค้าที่เบิกหมดแล้ว (RemainQty <= 0) แต่หมด "หลัง" วันครบรอบบิล (เท่ากับว่าต้องอยู่ในรอบบิลใหม่ด้วย)
-     * 3. สินค้าที่รับเข้าและเบิกหมดในรอบนี้ (รอบแรกคิดเต็มเดือน)
-     */
     function isStockBillable(s) {
       if (!s) return false;
       const remQty = parseFloat(s.RemainQty) || 0;
@@ -11127,7 +11264,9 @@
     }
 
     /**
-     * function confirmMarkPaidAndRenewBilling() {
+     * ยืนยันเปลี่ยนสถานะเป็น "รับชำระ" และต่ออายุรอบบิลสินค้าคงเหลือทั้งหมดของลูกค้ารายนี้
+     */
+    function confirmMarkPaidAndRenewBilling() {
       if (!CURRENT_BILLING_CLIENT) return;
       const cClient = CURRENT_BILLING_CLIENT;
       const clientName = cClient.clientName;
@@ -11154,11 +11293,11 @@
           const nowThai = formatTodayThai();
           let nextCycleDate = '';
 
-          // 1. ต่ออายุรอบบิลเฉพาะล็อตที่ยังมีสินค้าคงเหลือ
+          // 1. ต่ออายุรอบบิลเฉพาะล็อตที่ยังมีสินค้าคงเหลือ โดยปรับให้เป็นวันในอนาคตเสมอ
           lots.forEach(st => {
             if ((parseFloat(st.RemainQty) || 0) > 0) {
               const currD = st.NextBillingDate || st.ReceiveDate || nowThai;
-              const nextD = calculateNextBillingMonthThai(currD);
+              const nextD = advanceBillingDateToFuture(currD);
               st.NextBillingDate = nextD;
               st.BillingStatus = 'Billed & Renewed';
               if (!nextCycleDate) nextCycleDate = nextD;
@@ -11166,15 +11305,24 @@
           });
 
           if (!nextCycleDate && lots.length > 0) {
-            nextCycleDate = calculateNextBillingMonthThai(lots[0].NextBillingDate || lots[0].ReceiveDate || nowThai);
+            nextCycleDate = advanceBillingDateToFuture(lots[0].NextBillingDate || lots[0].ReceiveDate || nowThai);
+          }
+          if (!nextCycleDate) {
+            nextCycleDate = calculateNextBillingMonthThai(nowThai);
           }
 
-          // 2. อัปเดตสถานะบิลลิ่งเป็น "ชำระแล้ว" (สีเขียว) และให้แสดงไปตลอดจนถึงรอบบิลใหม่ (nextCycleDate)
-          setClientBillingStatus(cClient.clientKey, 'ชำระแล้ว', {
+          // 2. อัปเดตสถานะบิลลิ่งเป็น "ชำระแล้ว" (สีเขียว)
+          const payData = {
             paidDate: nowThai,
             paidTimestamp: Date.now(),
             nextCycleDate: nextCycleDate
-          });
+          };
+          setClientBillingStatus(cClient.clientKey, 'ชำระแล้ว', payData);
+          if (cClient.clientName) setClientBillingStatus(cClient.clientName, 'ชำระแล้ว', payData);
+          if (cClient.clientObj) {
+            if (cClient.clientObj.ClientID) setClientBillingStatus(cClient.clientObj.ClientID, 'ชำระแล้ว', payData);
+            if (cClient.clientObj.ClientCode) setClientBillingStatus(cClient.clientObj.ClientCode, 'ชำระแล้ว', payData);
+          }
 
           // 3. เรียกเซิร์ฟเวอร์ต่อรอบบิลทุกล็อตของลูกค้า
           let serverSuccess = false;
@@ -12799,17 +12947,38 @@ function editProduct(p) {
         localStorage.removeItem('POR_READ_NOTIFS');
         localStorage.removeItem('POR_READ_NOTIFS_V2');
         const raw = localStorage.getItem(getNotifStorageKey());
-        const arr = raw ? JSON.parse(raw) : [];
-        STATE.readNotificationIds = new Set(Array.isArray(arr) ? arr : []);
+        const parsed = raw ? JSON.parse(raw) : null;
+        if (Array.isArray(parsed)) {
+          STATE.readNotificationIds = new Set(parsed);
+          STATE.readNotificationMeta = {};
+        } else if (parsed && typeof parsed === 'object') {
+          if (Array.isArray(parsed.ids)) {
+            STATE.readNotificationIds = new Set(parsed.ids);
+          } else if (parsed.ids && typeof parsed.ids === 'object') {
+            STATE.readNotificationIds = new Set(Object.keys(parsed.ids));
+          } else {
+            STATE.readNotificationIds = new Set();
+          }
+          STATE.readNotificationMeta = parsed.meta || {};
+        } else {
+          STATE.readNotificationIds = new Set();
+          STATE.readNotificationMeta = {};
+        }
       } catch (e) {
         STATE.readNotificationIds = new Set();
+        STATE.readNotificationMeta = {};
       }
     }
 
     function saveUserReadNotifications() {
       try {
         if (!STATE.readNotificationIds) STATE.readNotificationIds = new Set();
-        localStorage.setItem(getNotifStorageKey(), JSON.stringify(Array.from(STATE.readNotificationIds)));
+        if (!STATE.readNotificationMeta) STATE.readNotificationMeta = {};
+        const dataToSave = {
+          ids: Array.from(STATE.readNotificationIds),
+          meta: STATE.readNotificationMeta
+        };
+        localStorage.setItem(getNotifStorageKey(), JSON.stringify(dataToSave));
       } catch (e) {}
     }
 
@@ -12818,18 +12987,38 @@ function editProduct(p) {
       return STATE.readNotificationIds.has(String(sig));
     }
 
+    function getNotificationReadTimestamp(sig) {
+      if (!sig || !STATE.readNotificationMeta) return null;
+      return STATE.readNotificationMeta[String(sig)] || null;
+    }
+
     function markNotificationAsRead(sig) {
       if (!STATE.readNotificationIds) STATE.readNotificationIds = new Set();
-      if (sig) STATE.readNotificationIds.add(String(sig));
+      if (!STATE.readNotificationMeta) STATE.readNotificationMeta = {};
+      if (sig) {
+        const s = String(sig);
+        STATE.readNotificationIds.add(s);
+        if (!STATE.readNotificationMeta[s]) {
+          STATE.readNotificationMeta[s] = Date.now();
+        }
+      }
       saveUserReadNotifications();
       renderGlobalNotifications();
     }
 
     function markAllNotificationsAsRead() {
       if (!STATE.readNotificationIds) STATE.readNotificationIds = new Set();
+      if (!STATE.readNotificationMeta) STATE.readNotificationMeta = {};
+      const now = Date.now();
       const items = buildNotificationCenterItems();
       items.forEach(it => {
-        if (it.sig) STATE.readNotificationIds.add(String(it.sig));
+        if (it.sig) {
+          const s = String(it.sig);
+          STATE.readNotificationIds.add(s);
+          if (!STATE.readNotificationMeta[s]) {
+            STATE.readNotificationMeta[s] = now;
+          }
+        }
       });
       saveUserReadNotifications();
       renderGlobalNotifications();
@@ -12839,6 +13028,7 @@ function editProduct(p) {
 
     function resetAllNotificationsToUnread() {
       STATE.readNotificationIds = new Set();
+      STATE.readNotificationMeta = {};
       STATE.knownNotifSignatures = new Set();
       saveUserReadNotifications();
       renderGlobalNotifications();
@@ -18217,7 +18407,14 @@ function editProduct(p) {
       } catch (e) {}
     }
 
-    function downloadTableFile(fileBaseName, headers, rows, format, options = {}) {
+        /**
+     * =========================================================================
+     * Native Microsoft Excel Worksheet (.xlsx) OpenXML Export Engine
+     * รองรับการส่งออกไฟล์ .xlsx แบบ OpenXML แท้ 100% (ไม่ใช้ .xls แบบ HTML เก่า)
+     * มีทั้ง SheetJS Engine และ Pure JavaScript OpenXML Fallback (ไม่ต้องพึ่งเน็ต)
+     * =========================================================================
+     */
+function downloadTableFile(fileBaseName, headers, rows, format, options = {}) {
       const titles = getExcelHeaderTitles(options && options.selectedClient);
       if (options && options.titleLine1) titles.line1 = options.titleLine1;
       if (options && options.titleLine2) titles.line2 = options.titleLine2;
