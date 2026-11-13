@@ -8303,11 +8303,6 @@
         Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
       } finally {
         STATE.isSubmitting = false;
-        const btnSubmitRcvEl = document.querySelector('#formReceiving button[type="submit"]');
-        if (btnSubmitRcvEl) {
-          btnSubmitRcvEl.disabled = false;
-          btnSubmitRcvEl.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> บันทึกแจ้งฝากสินค้า';
-        }
         hideLoader();
       }
     }
@@ -8442,8 +8437,17 @@
         const lotOutMap = {};
 
         // 0.0 กรองแถวแจ้งฝาก/แจ้งเบิกเดิมที่ค้างซ้ำซ้อน (Ghost Duplicate Documents)
-        // เมื่อมีใบรับฝาก/ใบเบิกที่ออกเลขที่ทางการ (IN-xxxxxx / OUT-xxxxxx) หรือได้รับการอนุมัติสำเร็จแล้ว
-        // ให้ตัดรายการแจ้งฝาก/แจ้งเบิกเดิมที่เป็นฉบับร่างหรือรอออกเลขที่ของการทำรายการเดียวกันออกทันที
+        // ตัดเฉพาะกรณีที่เป็นการแจ้งฝาก/แจ้งเบิกเดียวกันจริงๆ (วัน-เวลาเข้าตรงกันทุกวินาที หรือรายการสินค้า/Lot ตรงกันพร้อมวัน-เวลาเดียวกัน)
+        // เพื่อไม่ให้กระทบใบแจ้งฝากใหม่ของลูกค้ารายเดียวกันในวันเดียวกัน
+        const getDocItemSignature = (doc) => {
+          if (!doc || !Array.isArray(doc.items) || doc.items.length === 0) return '';
+          return doc.items.map(it => {
+            const pName = String(it.ProductName || it.productName || '').trim().toLowerCase();
+            const q = parseFloat(it.Qty !== undefined ? it.Qty : it.qty) || 0;
+            return pName + ':' + q;
+          }).filter(Boolean).sort().join('|');
+        };
+
         if (Array.isArray(rawRcvs) && rawRcvs.length > 1) {
           const officialRcvs = rawRcvs.filter(r => {
             if (!r) return false;
@@ -8464,28 +8468,19 @@
               if (!isDep && !isPending) return true;
 
               const rClient = String(r.ClientName || r.ClientID || '').trim().toLowerCase();
-              const rVehicle = String(r.VehicleInfo || '').trim().toLowerCase();
               const rDtIn = String(r.DateTimeIn || '').trim();
-              const rDateOnly = rDtIn.split(' ')[0];
-              const rQty = parseFloat(r.TotalQty) || 0;
-              const rWeight = parseFloat(String(r.TotalWeight || '0').replace(/,/g, '')) || 0;
+              const rSig = getDocItemSignature(r);
 
               const hasMatch = officialRcvs.some(off => {
                 if (off === r || off.ReceivingNo === r.ReceivingNo) return false;
                 const offClient = String(off.ClientName || off.ClientID || '').trim().toLowerCase();
                 if (rClient && offClient && rClient !== offClient && rClient.indexOf(offClient) === -1 && offClient.indexOf(rClient) === -1) return false;
                 const offDtIn = String(off.DateTimeIn || '').trim();
-                const offDateOnly = offDtIn.split(' ')[0];
                 const sameExactTime = (rDtIn && offDtIn && rDtIn === offDtIn);
-                const sameDate = (rDateOnly && offDateOnly && rDateOnly === offDateOnly);
-                if (!sameDate) return false;
-                const offVehicle = String(off.VehicleInfo || '').trim().toLowerCase();
-                const sameVehicle = (!rVehicle && !offVehicle) || (rVehicle && offVehicle && (rVehicle === offVehicle || rVehicle.indexOf(offVehicle) !== -1 || offVehicle.indexOf(rVehicle) !== -1));
-                const offQty = parseFloat(off.TotalQty) || 0;
-                const offWeight = parseFloat(String(off.TotalWeight || '0').replace(/,/g, '')) || 0;
-                const sameQty = Math.abs(rQty - offQty) < 0.001;
-                const sameWeight = Math.abs(rWeight - offWeight) < 0.01;
-                return sameExactTime || (sameVehicle && (sameQty || sameWeight));
+                if (!sameExactTime) return false;
+                const offSig = getDocItemSignature(off);
+                if (rSig && offSig && rSig !== offSig) return false;
+                return true;
               });
 
               return !hasMatch;
@@ -8501,7 +8496,7 @@
             if (!r) return false;
             const rNo = String(r.RequisitionNo || '').trim();
             const st = String(r.Status || '').trim();
-            const isOfficial = /^OUT[-_ ]?\d{6}$/i.test(rNo);
+            const isOfficial = /^OUT[-_ ]?\d{6,8}$/i.test(rNo);
             const isAppr = (st === 'Approved' || st === 'เบิกสินค้าสำเร็จ' || st === 'จ่ายสินค้าเสร็จสมบูรณ์' || st === 'อนุมัติเบิกสินค้า' || st === 'ปรับปรุงรายการ' || st.indexOf('ปรับปรุงรายการ') !== -1);
             return isOfficial || isAppr;
           });
@@ -8516,28 +8511,19 @@
               if (!isReq && !isPending) return true;
 
               const rClient = String(r.ClientName || r.ClientID || '').trim().toLowerCase();
-              const rVehicle = String(r.VehicleInfo || '').trim().toLowerCase();
               const rDtIn = String(r.DateTimeIn || r.DateTimeOut || '').trim();
-              const rDateOnly = rDtIn.split(' ')[0];
-              const rQty = parseFloat(r.TotalQty) || 0;
-              const rWeight = parseFloat(String(r.TotalWeight || '0').replace(/,/g, '')) || 0;
+              const rSig = getDocItemSignature(r);
 
               const hasMatch = officialReqs.some(off => {
                 if (off === r || off.RequisitionNo === r.RequisitionNo) return false;
                 const offClient = String(off.ClientName || off.ClientID || '').trim().toLowerCase();
                 if (rClient && offClient && rClient !== offClient && rClient.indexOf(offClient) === -1 && offClient.indexOf(rClient) === -1) return false;
                 const offDtIn = String(off.DateTimeIn || off.DateTimeOut || '').trim();
-                const offDateOnly = offDtIn.split(' ')[0];
                 const sameExactTime = (rDtIn && offDtIn && rDtIn === offDtIn);
-                const sameDate = (rDateOnly && offDateOnly && rDateOnly === offDateOnly);
-                if (!sameDate) return false;
-                const offVehicle = String(off.VehicleInfo || '').trim().toLowerCase();
-                const sameVehicle = (!rVehicle && !offVehicle) || (rVehicle && offVehicle && (rVehicle === offVehicle || rVehicle.indexOf(offVehicle) !== -1 || offVehicle.indexOf(rVehicle) !== -1));
-                const offQty = parseFloat(off.TotalQty) || 0;
-                const offWeight = parseFloat(String(off.TotalWeight || '0').replace(/,/g, '')) || 0;
-                const sameQty = Math.abs(rQty - offQty) < 0.001;
-                const sameWeight = Math.abs(rWeight - offWeight) < 0.01;
-                return sameExactTime || (sameVehicle && (sameQty || sameWeight));
+                if (!sameExactTime) return false;
+                const offSig = getDocItemSignature(off);
+                if (rSig && offSig && rSig !== offSig) return false;
+                return true;
               });
 
               return !hasMatch;
@@ -13294,6 +13280,7 @@ function editProduct(p) {
     }
 
     function resetReceivingModalToNew() {
+      resetReceivingSubmitButtonUI();
       clearReceivingDraftFromStorage();
       const notice = document.getElementById('rcvDraftNotice');
       if (notice) notice.style.display = 'none';
@@ -13317,6 +13304,7 @@ function editProduct(p) {
     }
 
     function openReceivingModal() {
+      resetReceivingSubmitButtonUI();
       const draft = getReceivingDraftFromStorage();
       if (draft && draft.items && draft.items.length > 0) {
         populateReceivingModalWithData(draft);
@@ -13370,6 +13358,7 @@ function editProduct(p) {
     }
 
     function resumeReceivingDraft(rcvNo) {
+      resetReceivingSubmitButtonUI();
       let draft = STATE.receivings.find(x => x.ReceivingNo === rcvNo);
       if (!draft) draft = getReceivingDraftFromStorage();
       if (draft) {
@@ -13923,6 +13912,15 @@ function editProduct(p) {
       }
     }
 
+    function resetReceivingSubmitButtonUI() {
+      STATE.isSubmitting = false;
+      const btnSubmitRcvEl = document.getElementById('btnSubmitReceiving') || document.querySelector('#formReceiving button[type="submit"]');
+      if (btnSubmitRcvEl) {
+        btnSubmitRcvEl.disabled = false;
+        btnSubmitRcvEl.innerHTML = '<i class="fa-solid fa-check-circle"></i> บันทึกแจ้งฝากสินค้า';
+      }
+    }
+
     async function submitReceivingForm(e) {
       e.preventDefault();
       if (STATE.isSubmitting) return;
@@ -14040,7 +14038,7 @@ function editProduct(p) {
           confirmButtonText: 'กลับไปแก้ไข / ตรวจสอบข้อมูล'
         });
       } finally {
-        STATE.isSubmitting = false;
+        resetReceivingSubmitButtonUI();
         hideLoader();
       }
     }
@@ -14154,7 +14152,11 @@ function editProduct(p) {
         return true;
       });
 
-      // กรองแถวแจ้งฝากเดิมที่ค้างซ้ำซ้อนกับใบรับฝากที่อนุมัติสำเร็จแล้ว (Ghost Duplicate Inbound Orders)
+      // กรองแถวแจ้งฝากเดิมที่ค้างซ้ำซ้อนกับใบรับฝากที่อนุมัติสำเร็จแล้ว (เฉพาะวัน-เวลาเข้าและรายการสินค้าเดียวกันเท่านั้น)
+      const getRcvSig = (doc) => {
+        if (!doc || !Array.isArray(doc.items) || doc.items.length === 0) return '';
+        return doc.items.map(it => String(it.ProductName || it.productName || '').trim().toLowerCase() + ':' + (parseFloat(it.Qty !== undefined ? it.Qty : it.qty) || 0)).filter(Boolean).sort().join('|');
+      };
       const approvedOfficialInList = list.filter(r => {
         const rNo = String(r.ReceivingNo || '').trim();
         const st = String(r.Status || '').trim();
@@ -14169,28 +14171,19 @@ function editProduct(p) {
         if (!isDep && !isPending) return true;
 
         const rClient = String(r.ClientName || r.ClientID || '').trim().toLowerCase();
-        const rVehicle = String(r.VehicleInfo || '').trim().toLowerCase();
         const rDtIn = String(r.DateTimeIn || '').trim();
-        const rDateOnly = rDtIn.split(' ')[0];
-        const rQty = parseFloat(r.TotalQty) || 0;
-        const rWeight = parseFloat(String(r.TotalWeight || '0').replace(/,/g, '')) || 0;
+        const rSig = getRcvSig(r);
 
         const hasMatch = approvedOfficialInList.some(off => {
           if (off === r || off.ReceivingNo === r.ReceivingNo) return false;
           const offClient = String(off.ClientName || off.ClientID || '').trim().toLowerCase();
           if (rClient && offClient && rClient !== offClient && rClient.indexOf(offClient) === -1 && offClient.indexOf(rClient) === -1) return false;
           const offDtIn = String(off.DateTimeIn || '').trim();
-          const offDateOnly = offDtIn.split(' ')[0];
           const sameExactTime = (rDtIn && offDtIn && rDtIn === offDtIn);
-          const sameDate = (rDateOnly && offDateOnly && rDateOnly === offDateOnly);
-          if (!sameDate) return false;
-          const offVehicle = String(off.VehicleInfo || '').trim().toLowerCase();
-          const sameVehicle = (!rVehicle && !offVehicle) || (rVehicle && offVehicle && (rVehicle === offVehicle || rVehicle.indexOf(offVehicle) !== -1 || offVehicle.indexOf(rVehicle) !== -1));
-          const offQty = parseFloat(off.TotalQty) || 0;
-          const offWeight = parseFloat(String(off.TotalWeight || '0').replace(/,/g, '')) || 0;
-          const sameQty = Math.abs(rQty - offQty) < 0.001;
-          const sameWeight = Math.abs(rWeight - offWeight) < 0.01;
-          return sameExactTime || (sameVehicle && (sameQty || sameWeight));
+          if (!sameExactTime) return false;
+          const offSig = getRcvSig(off);
+          if (rSig && offSig && rSig !== offSig) return false;
+          return true;
         });
 
         return !hasMatch;
@@ -15398,18 +15391,16 @@ function editProduct(p) {
             existingRcvObj.DepositorName = payload.depositorName;
             existingRcvObj.Notes = payload.notes;
           }
-          // กำจัดแถวแจ้งฝากเดิมที่ค้างซ้ำซ้อนทันที
+          // กำจัดเฉพาะแถวแจ้งฝากเดิมที่เป็นรายการเดียวกันจริงๆ (เลขที่เดิม rcvNo หรือวัน-เวลาเข้าตรงกันทุกวินาที)
           STATE.receivings = (STATE.receivings || []).filter(r => {
             if (r.ReceivingNo === finalRcvFormatted) return true;
             if (r.ReceivingNo === rcvNo) return false;
             const rClient = String(r.ClientName || r.ClientID || '').trim().toLowerCase();
-            const rVehicle = String(r.VehicleInfo || '').trim().toLowerCase();
             const rDtIn = String(r.DateTimeIn || '').trim();
             const sameClient = (rClient === String(payload.clientName || '').trim().toLowerCase());
-            const sameVehicle = (rVehicle === String(payload.vehicleInfo || '').trim().toLowerCase());
-            const sameDt = (rDtIn === String(payload.dateTimeIn || '').trim());
+            const sameExactDt = (rDtIn && payload.dateTimeIn && rDtIn === String(payload.dateTimeIn || '').trim());
             const isPending = (r.Status === 'รอรับแจ้งฝาก' || r.Status === 'รับคำสั่งแล้ว' || r.Status === 'ร่าง (บันทึกไม่สำเร็จ)' || String(r.ReceivingNo).indexOf('DEP-') === 0);
-            if (sameClient && (sameDt || sameVehicle) && isPending) return false;
+            if (sameClient && sameExactDt && isPending) return false;
             return true;
           });
           closeModal('modalEditReceiving');
@@ -15701,17 +15692,15 @@ function editProduct(p) {
           const res = await callServer('updateReceivingStatus', STATE.auth, rcvNo, 'รับเข้าสต็อกสำเร็จ', 'อนุมัติรับฝากเข้าสต็อกเสร็จสมบูรณ์');
           if (res && res.success) {
             if (rcv) rcv.Status = 'รับเข้าสต็อกสำเร็จ';
-            // กำจัดแถวแจ้งฝากเดิมที่ค้างซ้ำซ้อนทันที
+            // กำจัดเฉพาะแถวแจ้งฝากเดิมที่เป็นรายการเดียวกันจริงๆ (วัน-เวลาเข้าตรงกันทุกวินาที)
             STATE.receivings = (STATE.receivings || []).filter(r => {
               if (r.ReceivingNo === rcvNo) return true;
               const rClient = String(r.ClientName || r.ClientID || '').trim().toLowerCase();
-              const rVehicle = String(r.VehicleInfo || '').trim().toLowerCase();
               const rDtIn = String(r.DateTimeIn || '').trim();
               const sameClient = rcv ? (rClient === String(rcv.ClientName || '').trim().toLowerCase()) : false;
-              const sameVehicle = rcv ? (rVehicle === String(rcv.VehicleInfo || '').trim().toLowerCase()) : false;
-              const sameDt = rcv ? (rDtIn === String(rcv.DateTimeIn || '').trim()) : false;
+              const sameExactDt = (rcv && rDtIn && rcv.DateTimeIn) ? (rDtIn === String(rcv.DateTimeIn || '').trim()) : false;
               const isPending = (r.Status === 'รอรับแจ้งฝาก' || r.Status === 'รับคำสั่งแล้ว' || String(r.ReceivingNo).indexOf('DEP-') === 0);
-              if (sameClient && (sameDt || sameVehicle) && isPending) return false;
+              if (sameClient && sameExactDt && isPending) return false;
               return true;
             });
             await triggerFullRefresh();
@@ -16441,11 +16430,15 @@ function editProduct(p) {
         return true;
       });
 
-      // กรองแถวแจ้งเบิกเดิมที่ค้างซ้ำซ้อนกับใบเบิกที่อนุมัติสำเร็จแล้ว (Ghost Duplicate Outbound Orders)
+      // กรองแถวแจ้งเบิกเดิมที่ค้างซ้ำซ้อนกับใบเบิกที่อนุมัติสำเร็จแล้ว (เฉพาะวัน-เวลาเดียวกันและรายการเดียวกันเท่านั้น)
+      const getReqSig = (doc) => {
+        if (!doc || !Array.isArray(doc.items) || doc.items.length === 0) return '';
+        return doc.items.map(it => String(it.LotNo || it.lotNo || it.ProductName || it.productName || '').trim().toLowerCase() + ':' + (parseFloat(it.Qty !== undefined ? it.Qty : it.qty) || 0)).filter(Boolean).sort().join('|');
+      };
       const approvedOfficialOutList = list.filter(r => {
         const rNo = String(r.RequisitionNo || '').trim();
         const st = String(r.Status || '').trim();
-        return /^OUT[-_ ]?\d{6}$/i.test(rNo) || st === 'Approved' || st === 'เบิกสินค้าสำเร็จ' || st === 'จ่ายสินค้าเสร็จสมบูรณ์' || st === 'อนุมัติเบิกสินค้า' || st === 'ปรับปรุงรายการ' || st.indexOf('ปรับปรุงรายการ') !== -1;
+        return /^OUT[-_ ]?\d{6,8}$/i.test(rNo) || st === 'Approved' || st === 'เบิกสินค้าสำเร็จ' || st === 'จ่ายสินค้าเสร็จสมบูรณ์' || st === 'อนุมัติเบิกสินค้า' || st === 'ปรับปรุงรายการ' || st.indexOf('ปรับปรุงรายการ') !== -1;
       });
 
       const cleanReqList = list.filter(r => {
@@ -16456,28 +16449,19 @@ function editProduct(p) {
         if (!isReq && !isPending) return true;
 
         const rClient = String(r.ClientName || r.ClientID || '').trim().toLowerCase();
-        const rVehicle = String(r.VehicleInfo || '').trim().toLowerCase();
         const rDtIn = String(r.DateTimeIn || r.DateTimeOut || '').trim();
-        const rDateOnly = rDtIn.split(' ')[0];
-        const rQty = parseFloat(r.TotalQty) || 0;
-        const rWeight = parseFloat(String(r.TotalWeight || '0').replace(/,/g, '')) || 0;
+        const rSig = getReqSig(r);
 
         const hasMatch = approvedOfficialOutList.some(off => {
           if (off === r || off.RequisitionNo === r.RequisitionNo) return false;
           const offClient = String(off.ClientName || off.ClientID || '').trim().toLowerCase();
           if (rClient && offClient && rClient !== offClient && rClient.indexOf(offClient) === -1 && offClient.indexOf(rClient) === -1) return false;
           const offDtIn = String(off.DateTimeIn || off.DateTimeOut || '').trim();
-          const offDateOnly = offDtIn.split(' ')[0];
           const sameExactTime = (rDtIn && offDtIn && rDtIn === offDtIn);
-          const sameDate = (rDateOnly && offDateOnly && rDateOnly === offDateOnly);
-          if (!sameDate) return false;
-          const offVehicle = String(off.VehicleInfo || '').trim().toLowerCase();
-          const sameVehicle = (!rVehicle && !offVehicle) || (rVehicle && offVehicle && (rVehicle === offVehicle || rVehicle.indexOf(offVehicle) !== -1 || offVehicle.indexOf(rVehicle) !== -1));
-          const offQty = parseFloat(off.TotalQty) || 0;
-          const offWeight = parseFloat(String(off.TotalWeight || '0').replace(/,/g, '')) || 0;
-          const sameQty = Math.abs(rQty - offQty) < 0.001;
-          const sameWeight = Math.abs(rWeight - offWeight) < 0.01;
-          return sameExactTime || (sameVehicle && (sameQty || sameWeight));
+          if (!sameExactTime) return false;
+          const offSig = getReqSig(off);
+          if (rSig && offSig && rSig !== offSig) return false;
+          return true;
         });
 
         return !hasMatch;
